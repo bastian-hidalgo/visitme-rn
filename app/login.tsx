@@ -1,3 +1,6 @@
+import { Image } from 'expo-image';
+import * as Linking from 'expo-linking';
+import { Redirect } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -8,16 +11,13 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import * as Linking from 'expo-linking';
-import { Redirect } from 'expo-router';
-import { Image } from 'expo-image';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { useSupabaseAuth } from '@/providers/supabase-auth-provider';
-import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { supabase } from '@/lib/supabase';
+import { useSupabaseAuth } from '@/providers/supabase-auth-provider';
 
 export default function LoginScreen() {
   const { session, isLoading } = useSupabaseAuth();
@@ -108,13 +108,8 @@ export default function LoginScreen() {
       <View style={[styles.background, { backgroundColor: isDarkMode ? '#0f172a' : '#f6f4ff' }]}>
         <View pointerEvents="none" style={styles.decorations}>
           <Image
-            source={require('@/assets/images/partial-react-logo.png')}
+            source={require('@/assets/backgrounds/loading-illustration.webp')}
             style={[styles.decoration, styles.decorationTop]}
-            contentFit="contain"
-          />
-          <Image
-            source={require('@/assets/images/partial-react-logo.png')}
-            style={[styles.decoration, styles.decorationBottom]}
             contentFit="contain"
           />
         </View>
@@ -127,13 +122,10 @@ export default function LoginScreen() {
           >
             <View style={styles.branding}>
               <Image
-                source={require('@/assets/images/icon.png')}
+                source={require('@/assets/logo.png')}
                 style={styles.brandIcon}
                 contentFit="contain"
               />
-              <ThemedText type="subtitle" style={styles.brandTitle}>
-                Visitme
-              </ThemedText>
             </View>
 
             <View style={styles.header}>
@@ -312,7 +304,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   brandIcon: {
-    width: 56,
+    width: 200,
     height: 56,
     borderRadius: 16,
   },
