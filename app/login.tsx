@@ -109,8 +109,8 @@ export default function LoginScreen() {
         <View pointerEvents="none" style={styles.decorations}>
           <Image
             source={require('@/assets/backgrounds/loading-illustration.webp')}
-            style={[styles.decoration, styles.decorationTop]}
-            contentFit="contain"
+            style={styles.backgroundImage}
+            contentFit="cover"
           />
         </View>
 
@@ -260,20 +260,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     inset: 0,
   },
-  decoration: {
+  backgroundImage: {
     position: 'absolute',
-    opacity: 0.15,
-    width: 280,
-    height: 280,
-  },
-  decorationTop: {
-    top: -80,
-    right: -60,
-  },
-  decorationBottom: {
-    bottom: -60,
-    left: -80,
-    transform: [{ rotate: '180deg' }],
+    inset: 0,
+    opacity: 0.45,
   },
   contentWrapper: {
     flex: 1,
