@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { FontAwesome } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -110,15 +111,7 @@ export default function LoginScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         bounces={false}>
-        <View style={[styles.background, { backgroundColor: isDarkMode ? '#0f172a' : '#f6f4ff' }]}>
-          <View pointerEvents="none" style={styles.decorations}>
-            <Image
-              source={require('@/assets/backgrounds/loading-illustration.webp')}
-              style={styles.backgroundImage}
-              contentFit="cover"
-            />
-          </View>
-
+        <View style={[styles.background, { backgroundColor: isDarkMode ? '#0f172a' : '#f5f3ff' }]}>
           <View style={styles.contentWrapper}>
             <ThemedView
               lightColor="#ffffff"
@@ -147,7 +140,7 @@ export default function LoginScreen() {
               style={[
                 styles.googleButton,
                 {
-                  borderColor: isDarkMode ? '#1f2937' : '#E4E4F7',
+                  borderColor: isDarkMode ? '#1f2937' : '#E5E7EB',
                   backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
                 },
                 isBusy && styles.disabledButton,
@@ -159,13 +152,17 @@ export default function LoginScreen() {
                 <View style={styles.googleContent}>
                   <View
                     style={[
-                      styles.googleBadge,
+                      styles.googleIconWrapper,
                       {
-                        borderColor: isDarkMode ? '#334155' : '#E0E7FF',
                         backgroundColor: isDarkMode ? '#111827' : '#ffffff',
+                        borderColor: isDarkMode ? '#334155' : '#E5E7EB',
                       },
                     ]}>
-                    <ThemedText style={[styles.googleInitial, isDarkMode && styles.googleInitialDark]}>G</ThemedText>
+                    <FontAwesome
+                      name="google"
+                      size={18}
+                      color={isDarkMode ? '#E5E7EB' : '#11181C'}
+                    />
                   </View>
                   <ThemedText
                     type="defaultSemiBold"
@@ -175,18 +172,6 @@ export default function LoginScreen() {
                 </View>
               )}
             </Pressable>
-
-            <View style={styles.divider}>
-              <View
-                style={[styles.dividerLine, { backgroundColor: isDarkMode ? '#1f2937' : '#E4E4F7' }]}
-              />
-              <ThemedText style={[styles.dividerText, isDarkMode && styles.dividerTextDark]}>
-                o usa tu correo
-              </ThemedText>
-              <View
-                style={[styles.dividerLine, { backgroundColor: isDarkMode ? '#1f2937' : '#E4E4F7' }]}
-              />
-            </View>
 
             <View style={styles.formControl}>
               <ThemedText
@@ -241,6 +226,11 @@ export default function LoginScreen() {
             {errorMessage ? (
               <ThemedText style={[styles.feedbackText, styles.errorMessage]}>{errorMessage}</ThemedText>
             ) : null}
+
+            <ThemedText style={[styles.infoText, isDarkMode && styles.infoTextDark]}>
+              Este sistema es exclusivo para residentes autorizados. Si no tienes acceso,
+              contacta a tu administrador.
+            </ThemedText>
             </ThemedView>
           </View>
         </View>
@@ -260,38 +250,29 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    justifyContent: 'center',
+    paddingVertical: 48,
   },
   background: {
     flex: 1,
-    overflow: 'hidden',
-  },
-  decorations: {
-    position: 'absolute',
-    inset: 0,
-  },
-  backgroundImage: {
-    position: 'absolute',
-    inset: 0,
-    opacity: 0.45,
+    paddingHorizontal: 24,
   },
   contentWrapper: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 32,
-    justifyContent: 'center',
+    alignItems: 'center',
   },
   card: {
     borderRadius: 24,
-    padding: 24,
+    padding: 32,
     gap: 24,
     maxWidth: 420,
     width: '100%',
     alignSelf: 'center',
     shadowColor: '#1f2937',
-    shadowOpacity: 0.1,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 8,
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 6,
   },
   cardDark: {
     borderWidth: 1,
@@ -303,8 +284,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   brandIcon: {
-    width: 200,
-    height: 56,
+    width: 180,
+    height: 52,
     borderRadius: 16,
   },
   brandTitle: {
@@ -328,8 +309,8 @@ const styles = StyleSheet.create({
   googleButton: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E4E4F7',
     paddingVertical: 14,
+    paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -338,43 +319,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  googleBadge: {
+  googleIconWrapper: {
     width: 32,
     height: 32,
     borderRadius: 16,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
-  },
-  googleInitial: {
-    fontWeight: '600',
-  },
-  googleInitialDark: {
-    color: '#F8FAFC',
   },
   googleText: {
     color: '#11181C',
   },
   googleTextDark: {
     color: '#E5E7EB',
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  dividerLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth * 2,
-    borderRadius: 999,
-  },
-  dividerText: {
-    color: '#64748B',
-    fontSize: 14,
-  },
-  dividerTextDark: {
-    color: '#94A3B8',
   },
   formControl: {
     gap: 12,
@@ -409,5 +366,15 @@ const styles = StyleSheet.create({
   },
   errorMessage: {
     color: '#EF4444',
+  },
+  infoText: {
+    marginTop: 8,
+    fontSize: 12,
+    textAlign: 'center',
+    color: '#6B7280',
+    lineHeight: 18,
+  },
+  infoTextDark: {
+    color: '#9CA3AF',
   },
 });
