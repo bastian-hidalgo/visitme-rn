@@ -7,6 +7,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   TextInput,
   View,
@@ -103,23 +104,27 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.select({ ios: 'padding', android: undefined })}
+      behavior={Platform.select({ ios: 'padding', android: 'height' })}
       style={styles.flexOne}>
-      <View style={[styles.background, { backgroundColor: isDarkMode ? '#0f172a' : '#f6f4ff' }]}>
-        <View pointerEvents="none" style={styles.decorations}>
-          <Image
-            source={require('@/assets/backgrounds/loading-illustration.webp')}
-            style={styles.backgroundImage}
-            contentFit="cover"
-          />
-        </View>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        bounces={false}>
+        <View style={[styles.background, { backgroundColor: isDarkMode ? '#0f172a' : '#f6f4ff' }]}>
+          <View pointerEvents="none" style={styles.decorations}>
+            <Image
+              source={require('@/assets/backgrounds/loading-illustration.webp')}
+              style={styles.backgroundImage}
+              contentFit="cover"
+            />
+          </View>
 
-        <View style={styles.contentWrapper}>
-          <ThemedView
-            lightColor="#ffffff"
-            darkColor="#111827"
-            style={[styles.card, isDarkMode && styles.cardDark]}
-          >
+          <View style={styles.contentWrapper}>
+            <ThemedView
+              lightColor="#ffffff"
+              darkColor="#111827"
+              style={[styles.card, isDarkMode && styles.cardDark]}
+            >
             <View style={styles.branding}>
               <Image
                 source={require('@/assets/logo.png')}
@@ -228,7 +233,7 @@ export default function LoginScreen() {
             </Pressable>
 
             {statusMessage ? (
-              <ThemedText style={[styles.feedbackText, { color: '#6366F1' }]}>
+              <ThemedText style={[styles.feedbackText, { color: '#6366F1' }]}> 
                 {statusMessage}
               </ThemedText>
             ) : null}
@@ -236,9 +241,10 @@ export default function LoginScreen() {
             {errorMessage ? (
               <ThemedText style={[styles.feedbackText, styles.errorMessage]}>{errorMessage}</ThemedText>
             ) : null}
-          </ThemedView>
+            </ThemedView>
+          </View>
         </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -251,6 +257,9 @@ const styles = StyleSheet.create({
   },
   flexOne: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   background: {
     flex: 1,
