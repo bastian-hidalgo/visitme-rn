@@ -25,8 +25,13 @@ import { useSupabaseAuth } from '@/providers/supabase-auth-provider';
 
 const AnimatedImage = Animated.createAnimatedComponent(Image);
 
-const sanitizeUrlValue = (value: string | null | undefined) =>
-  value?.replace(/'/g, '').trim() || null;
+const sanitizeUrlValue = (value: string | null | undefined) => {
+  if (!value) return null;
+
+  const sanitized = value.replace(/["']/g, '').trim();
+
+  return sanitized.length > 0 ? sanitized : null;
+};
 
 const getMagicLinkRedirectUrl = () => {
   const fallbackUrl = sanitizeUrlValue(process.env.EXPO_PUBLIC_URL_AUTH ?? null);
@@ -48,15 +53,30 @@ const getMagicLinkRedirectUrl = () => {
     }
   };
 
-  if (Platform.OS !== 'web') {
-    const deepLink = buildDeepLink();
+  const deepLink = buildDeepLink();
 
+  if (fallbackUrl) {
     if (deepLink) {
-      return deepLink;
+      try {
+        const url = new URL(fallbackUrl);
+        url.searchParams.set('deep_link', deepLink);
+        return url.toString();
+      } catch (error) {
+        console.warn(
+          'No se pudo agregar el deep link a la URL de redirección. Usando la URL original.',
+          error,
+        );
+      }
     }
+
+    return fallbackUrl;
   }
 
-  return fallbackUrl ?? buildDeepLink();
+  if (Platform.OS !== 'web' && deepLink) {
+    return deepLink;
+  }
+
+  return deepLink;
 };
 
 export default function LoginScreen() {
