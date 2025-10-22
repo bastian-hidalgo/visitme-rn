@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import * as Linking from 'expo-linking';
 import { Redirect } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -14,7 +14,6 @@ import {
   View,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-import { Accelerometer } from 'expo-sensors';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -35,39 +34,7 @@ export default function LoginScreen() {
   const [isMagicLinkLoading, setIsMagicLinkLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
-  const deviceTiltX = useRef(new Animated.Value(0)).current;
-  const deviceTiltY = useRef(new Animated.Value(0)).current;
   const { height: windowHeight } = useWindowDimensions();
-
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      return;
-    }
-
-    let subscription: { remove: () => void } | null = null;
-
-    try {
-      Accelerometer.setUpdateInterval(32);
-
-      let lastX = 0;
-      let lastY = 0;
-      const smoothing = 0.85;
-
-      subscription = Accelerometer.addListener(({ x = 0, y = 0 }) => {
-        lastX = lastX * smoothing + x * (1 - smoothing);
-        lastY = lastY * smoothing + y * (1 - smoothing);
-
-        deviceTiltX.setValue(lastX);
-        deviceTiltY.setValue(lastY);
-      });
-    } catch (error) {
-      console.warn('Accelerometer sensor unavailable', error);
-    }
-
-    return () => {
-      subscription?.remove();
-    };
-  }, [deviceTiltX, deviceTiltY]);
 
   if (isLoading) {
     return (
@@ -86,20 +53,8 @@ export default function LoginScreen() {
   const baseBackgroundColor = isDarkMode ? '#0f172a' : '#f5f3ff';
 
   const parallaxOffset = scrollY.interpolate({
-    inputRange: [-120, 0, 200],
-    outputRange: [-60, 0, 40],
-    extrapolate: 'clamp',
-  });
-
-  const tiltTranslateX = deviceTiltX.interpolate({
-    inputRange: [-1, 1],
-    outputRange: [20, -20],
-    extrapolate: 'clamp',
-  });
-
-  const tiltTranslateY = deviceTiltY.interpolate({
-    inputRange: [-1, 1],
-    outputRange: [-18, 18],
+    inputRange: [-180, 0, 240],
+    outputRange: [-90, 0, 60],
     extrapolate: 'clamp',
   });
 
@@ -188,13 +143,13 @@ export default function LoginScreen() {
                 styles.backgroundImage,
                 {
                   transform: [
-                    { scale: 1.2 },
-                    { translateY: Animated.add(parallaxOffset, tiltTranslateY) },
-                    { translateX: tiltTranslateX },
+                    { scale: 1.16 },
+                    { translateY: parallaxOffset },
                   ],
                 },
               ]}
               contentFit="cover"
+              contentPosition="center"
             />
           </View>
 
@@ -345,16 +300,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   decorations: {
-    position: 'absolute',
-    inset: 0,
+    ...StyleSheet.absoluteFillObject,
   },
   backgroundImage: {
-    position: 'absolute',
-    top: -120,
-    bottom: -120,
-    left: -120,
-    right: -120,
-    opacity: 0.45,
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.55,
   },
   contentWrapper: {
     flex: 1,
