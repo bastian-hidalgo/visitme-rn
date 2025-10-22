@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase'
+import { useSupabaseAuth } from '@/providers/supabase-auth-provider'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import type { Session } from '@supabase/supabase-js'
 import { useRouter } from 'expo-router'
@@ -71,8 +72,9 @@ const defaultUserContext: UserContextType = {
 const UserContext = createContext<UserContextType>(defaultUserContext)
 
 export const UserProvider = ({ children }: UserProviderProps) => {
+  const { session: authSession } = useSupabaseAuth()
+  const [session, setSession] = useState<Session | null>(authSession ?? null)
   const [user, setUser] = useState<Omit<UserContextType, 'setUserData' | 'logout'> | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const refreshingRef = useRef(false)
@@ -91,7 +93,7 @@ export const UserProvider = ({ children }: UserProviderProps) => {
       ])
       setUser(null)
       setSession(null)
-      router.replace('/signin')
+      router.replace('/login')
     } finally {
       setLoading(false)
     }
@@ -150,28 +152,15 @@ export const UserProvider = ({ children }: UserProviderProps) => {
   // 🚀 Cargar sesión inicial
   useEffect(() => {
     const init = async () => {
-      const { data } = await supabase.auth.getSession()
-      if (data.session) {
-        setSession(data.session)
-        await fetchUserProfile(data.session.user.id)
+      const activeSession = authSession ?? (await supabase.auth.getSession()).data.session
+      if (activeSession) {
+        setSession(activeSession)
+        await fetchUserProfile(activeSession.user.id)
       }
       setLoading(false)
     }
     init()
-
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        setSession(newSession)
-        if (event === 'SIGNED_OUT') {
-          await logout()
-        } else if (newSession?.user?.id) {
-          await fetchUserProfile(newSession.user.id)
-        }
-      }
-    )
-
-    return () => listener.subscription.unsubscribe()
-  }, [])
+  }, [authSession])
 
   // 🔁 Refrescar token al volver a la app
   useEffect(() => {
