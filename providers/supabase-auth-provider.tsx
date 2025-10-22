@@ -48,9 +48,23 @@ export function SupabaseAuthProvider({ children }: PropsWithChildren) {
     const handleDeepLink = async (url: string | null) => {
       if (!url) return;
 
-      const { params } = Linking.parse(url);
-      const accessToken = getParamValue(params?.access_token);
-      const refreshToken = getParamValue(params?.refresh_token);
+      const linkingResult = Linking.parse(url);
+      const parsedParams = linkingResult.queryParams ?? linkingResult.params ?? {};
+      const hashParams: Record<string, string> = {};
+
+      const hashIndex = url.indexOf('#');
+
+      if (hashIndex !== -1) {
+        const hash = url.slice(hashIndex + 1);
+        const searchParams = new URLSearchParams(hash);
+
+        searchParams.forEach((value, key) => {
+          hashParams[key] = value;
+        });
+      }
+
+      const accessToken = getParamValue(hashParams.access_token ?? parsedParams.access_token ?? null);
+      const refreshToken = getParamValue(hashParams.refresh_token ?? parsedParams.refresh_token ?? null);
 
       if (accessToken && refreshToken) {
         await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
