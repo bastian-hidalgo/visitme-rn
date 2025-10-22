@@ -1,5 +1,6 @@
 import { FontAwesome } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
 import { Redirect } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -7,12 +8,12 @@ import {
   ActivityIndicator,
   Animated,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   TextInput,
   useWindowDimensions,
   View,
+  Platform,
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -23,6 +24,31 @@ import { supabase } from '@/lib/supabase';
 import { useSupabaseAuth } from '@/providers/supabase-auth-provider';
 
 const AnimatedImage = Animated.createAnimatedComponent(Image);
+
+const sanitizeUrlValue = (value: string | null | undefined) =>
+  value?.replace(/'/g, '').trim() || null;
+
+const getMagicLinkRedirectUrl = () => {
+  const fallbackUrl = sanitizeUrlValue(process.env.EXPO_PUBLIC_URL_AUTH ?? null);
+  const configuredScheme =
+    sanitizeUrlValue(process.env.EXPO_PUBLIC_DEEP_LINK_SCHEME ?? null) ??
+    Constants.expoConfig?.scheme ??
+    null;
+
+  if (Platform.OS !== 'web' && configuredScheme) {
+    try {
+      const deepLink = Linking.createURL('/auth/callback/client', { scheme: configuredScheme });
+
+      if (deepLink) {
+        return deepLink;
+      }
+    } catch (error) {
+      console.warn('No se pudo generar el deep link personalizado para el enlace mágico.', error);
+    }
+  }
+
+  return fallbackUrl ?? Linking.createURL('/auth/callback/client');
+};
 
 export default function LoginScreen() {
   const { session, isLoading } = useSupabaseAuth();
@@ -73,10 +99,12 @@ export default function LoginScreen() {
       setErrorMessage(null);
       setStatusMessage(null);
 
+      const emailRedirectTo = getMagicLinkRedirectUrl();
+
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: {
-          emailRedirectTo: process.env.EXPO_PUBLIC_URL_AUTH?.replace(/'/g, '') || undefined,
+          emailRedirectTo: emailRedirectTo ?? undefined,
         },
       });
 
