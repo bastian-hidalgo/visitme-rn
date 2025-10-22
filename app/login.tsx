@@ -1,3 +1,4 @@
+import { FontAwesome } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as Linking from 'expo-linking';
 import { Redirect } from 'expo-router';
@@ -13,7 +14,6 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { FontAwesome } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -35,8 +35,10 @@ export default function LoginScreen() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
   const { height: windowHeight } = useWindowDimensions();
-
+  console.log('render login screen');
+  console.log('session:', session);
   if (isLoading) {
+    console.log('loading auth state');
     return (
       <ThemedView style={styles.loadingContainer}>
         <ActivityIndicator />
@@ -45,6 +47,7 @@ export default function LoginScreen() {
   }
 
   if (!isLoading && session) {
+    console.log('has session');
     return <Redirect href="/(tabs)" />;
   }
 
@@ -70,11 +73,10 @@ export default function LoginScreen() {
       setErrorMessage(null);
       setStatusMessage(null);
 
-      const redirectTo = Linking.createURL('/');
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: {
-          emailRedirectTo: redirectTo,
+          emailRedirectTo: process.env.EXPO_PUBLIC_URL_AUTH?.replace(/'/g, '') || undefined,
         },
       });
 
