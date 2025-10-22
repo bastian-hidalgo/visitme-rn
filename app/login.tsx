@@ -1,15 +1,17 @@
+import { FontAwesome } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as Linking from 'expo-linking';
 import { Redirect } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -20,6 +22,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { supabase } from '@/lib/supabase';
 import { useSupabaseAuth } from '@/providers/supabase-auth-provider';
 
+const AnimatedImage = Animated.createAnimatedComponent(Image);
+
 export default function LoginScreen() {
   const { session, isLoading } = useSupabaseAuth();
   const colorScheme = useColorScheme();
@@ -29,8 +33,12 @@ export default function LoginScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isMagicLinkLoading, setIsMagicLinkLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const { height: windowHeight } = useWindowDimensions();
+  console.log('render login screen');
+  console.log('session:', session);
   if (isLoading) {
+    console.log('loading auth state');
     return (
       <ThemedView style={styles.loadingContainer}>
         <ActivityIndicator />
@@ -39,11 +47,20 @@ export default function LoginScreen() {
   }
 
   if (!isLoading && session) {
+    console.log('has session');
     return <Redirect href="/(tabs)" />;
   }
 
   const isBusy = isMagicLinkLoading || isGoogleLoading;
   const isDarkMode = colorScheme === 'dark';
+  const baseBackgroundColor = isDarkMode ? '#0f172a' : '#f5f3ff';
+
+  const parallaxOffset = scrollY.interpolate({
+    inputRange: [-180, 0, 240],
+    outputRange: [-90, 0, 60],
+    extrapolate: 'clamp',
+  });
+
   const handleSubmit = async () => {
     if (!email.trim()) {
       setErrorMessage('Ingresa un correo electrónico válido.');
@@ -56,11 +73,10 @@ export default function LoginScreen() {
       setErrorMessage(null);
       setStatusMessage(null);
 
-      const redirectTo = Linking.createURL('/');
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: {
-          emailRedirectTo: redirectTo,
+          emailRedirectTo: process.env.EXPO_PUBLIC_URL_AUTH?.replace(/'/g, '') || undefined,
         },
       });
 
@@ -105,146 +121,163 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.select({ ios: 'padding', android: 'height' })}
-      style={styles.flexOne}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
+      style={[styles.flexOne, { backgroundColor: baseBackgroundColor }]}
+    >
+      <Animated.ScrollView
+        style={[styles.scrollView, { backgroundColor: baseBackgroundColor }]}
+        contentContainerStyle={[styles.scrollContent, { minHeight: windowHeight }]}
         keyboardShouldPersistTaps="handled"
-        bounces={false}>
-        <View style={[styles.background, { backgroundColor: isDarkMode ? '#0f172a' : '#f6f4ff' }]}>
+        bounces={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true },
+        )}
+        scrollEventThrottle={16}>
+        <View
+          style={[
+            styles.background,
+            { backgroundColor: baseBackgroundColor, minHeight: windowHeight },
+          ]}>
           <View pointerEvents="none" style={styles.decorations}>
-            <Image
+            <AnimatedImage
               source={require('@/assets/backgrounds/loading-illustration.webp')}
-              style={styles.backgroundImage}
+              style={[
+                styles.backgroundImage,
+                {
+                  transform: [
+                    { scale: 1.16 },
+                    { translateY: parallaxOffset },
+                  ],
+                },
+              ]}
               contentFit="cover"
+              contentPosition="center"
             />
           </View>
 
-          <View style={styles.contentWrapper}>
+          <View style={[styles.contentWrapper, { minHeight: windowHeight }]}>
             <ThemedView
               lightColor="#ffffff"
               darkColor="#111827"
               style={[styles.card, isDarkMode && styles.cardDark]}
             >
-            <View style={styles.branding}>
-              <Image
-                source={require('@/assets/logo.png')}
-                style={styles.brandIcon}
-                contentFit="contain"
-              />
-            </View>
+              <View style={styles.branding}>
+                <Image
+                  source={require('@/assets/logo.png')}
+                  style={styles.brandIcon}
+                  contentFit="contain"
+                />
+              </View>
 
-            <View style={styles.header}>
-              <ThemedText type="title" style={styles.title}>
-                Bienvenido
-              </ThemedText>
-              <ThemedText style={[styles.subtitle, isDarkMode && styles.subtitleDark]}>
-                Ingresa tu correo y te enviaremos un enlace mágico para iniciar sesión.
-              </ThemedText>
-            </View>
+              <View style={styles.header}>
+                <ThemedText type="title" style={styles.title}>
+                  Bienvenido
+                </ThemedText>
+                <ThemedText style={[styles.subtitle, isDarkMode && styles.subtitleDark]}>
+                  Ingresa tu correo y te enviaremos un enlace mágico para iniciar sesión.
+                </ThemedText>
+              </View>
 
-            <Pressable
-              onPress={handleGoogleSignIn}
-              style={[
-                styles.googleButton,
-                {
-                  borderColor: isDarkMode ? '#1f2937' : '#E4E4F7',
-                  backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
-                },
-                isBusy && styles.disabledButton,
-              ]}
-              disabled={isBusy}>
-              {isGoogleLoading ? (
-                <ActivityIndicator color={isDarkMode ? '#E5E7EB' : '#11181C'} />
-              ) : (
-                <View style={styles.googleContent}>
-                  <View
-                    style={[
-                      styles.googleBadge,
-                      {
-                        borderColor: isDarkMode ? '#334155' : '#E0E7FF',
-                        backgroundColor: isDarkMode ? '#111827' : '#ffffff',
-                      },
-                    ]}>
-                    <ThemedText style={[styles.googleInitial, isDarkMode && styles.googleInitialDark]}>G</ThemedText>
-                  </View>
-                  <ThemedText
-                    type="defaultSemiBold"
-                    style={[styles.googleText, isDarkMode && styles.googleTextDark]}>
-                    Continuar con Google
-                  </ThemedText>
-                </View>
-              )}
-            </Pressable>
-
-            <View style={styles.divider}>
-              <View
-                style={[styles.dividerLine, { backgroundColor: isDarkMode ? '#1f2937' : '#E4E4F7' }]}
-              />
-              <ThemedText style={[styles.dividerText, isDarkMode && styles.dividerTextDark]}>
-                o usa tu correo
-              </ThemedText>
-              <View
-                style={[styles.dividerLine, { backgroundColor: isDarkMode ? '#1f2937' : '#E4E4F7' }]}
-              />
-            </View>
-
-            <View style={styles.formControl}>
-              <ThemedText
-                type="defaultSemiBold"
-                style={[styles.label, isDarkMode && styles.labelDark]}>
-                Correo electrónico
-              </ThemedText>
-              <TextInput
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="email-address"
-                placeholder="ejemplo@visitme.cl"
-                placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'}
+              <Pressable
+                onPress={handleGoogleSignIn}
                 style={[
-                  styles.input,
+                  styles.googleButton,
                   {
-                    borderColor: isDarkMode ? '#1f2937' : '#E4E4F7',
-                    color: palette.text,
+                    borderColor: isDarkMode ? '#1f2937' : '#E5E7EB',
                     backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
                   },
+                  isBusy && styles.disabledButton,
                 ]}
-                value={email}
-                onChangeText={setEmail}
-                editable={!isBusy}
-                textContentType="emailAddress"
-              />
-            </View>
+                disabled={isBusy}>
+                {isGoogleLoading ? (
+                  <ActivityIndicator color={isDarkMode ? '#E5E7EB' : '#11181C'} />
+                ) : (
+                  <View style={styles.googleContent}>
+                    <View
+                      style={[
+                        styles.googleIconWrapper,
+                        {
+                          backgroundColor: isDarkMode ? '#111827' : '#ffffff',
+                          borderColor: isDarkMode ? '#334155' : '#E5E7EB',
+                        },
+                      ]}>
+                      <FontAwesome
+                        name="google"
+                        size={18}
+                        color={isDarkMode ? '#E5E7EB' : '#11181C'}
+                      />
+                    </View>
+                    <ThemedText
+                      type="defaultSemiBold"
+                      style={[styles.googleText, isDarkMode && styles.googleTextDark]}>
+                      Continuar con Google
+                    </ThemedText>
+                  </View>
+                )}
+              </Pressable>
 
-            <Pressable
-              style={[
-                styles.submitButton,
-                { backgroundColor: isDarkMode ? '#6366F1' : '#6C5CE7' },
-                isBusy && styles.disabledButton,
-              ]}
-              onPress={handleSubmit}
-              disabled={isBusy}>
-              {isMagicLinkLoading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <ThemedText type="defaultSemiBold" style={styles.submitText}>
-                  Enviar enlace mágico
+              <View style={styles.formControl}>
+                <ThemedText
+                  type="defaultSemiBold"
+                  style={[styles.label, isDarkMode && styles.labelDark]}>
+                  Correo electrónico
                 </ThemedText>
-              )}
-            </Pressable>
+                <TextInput
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  placeholder="ejemplo@visitme.cl"
+                  placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'}
+                  style={[
+                    styles.input,
+                    {
+                      borderColor: isDarkMode ? '#1f2937' : '#E4E4F7',
+                      color: palette.text,
+                      backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
+                    },
+                  ]}
+                  value={email}
+                  onChangeText={setEmail}
+                  editable={!isBusy}
+                  textContentType="emailAddress"
+                />
+              </View>
 
-            {statusMessage ? (
-              <ThemedText style={[styles.feedbackText, { color: '#6366F1' }]}> 
-                {statusMessage}
+              <Pressable
+                style={[
+                  styles.submitButton,
+                  { backgroundColor: isDarkMode ? '#6366F1' : '#6C5CE7' },
+                  isBusy && styles.disabledButton,
+                ]}
+                onPress={handleSubmit}
+                disabled={isBusy}>
+                {isMagicLinkLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <ThemedText type="defaultSemiBold" style={styles.submitText}>
+                    Enviar enlace mágico
+                  </ThemedText>
+                )}
+              </Pressable>
+
+              {statusMessage ? (
+                <ThemedText style={[styles.feedbackText, { color: '#6366F1' }]}>
+                  {statusMessage}
+                </ThemedText>
+              ) : null}
+
+              {errorMessage ? (
+                <ThemedText style={[styles.feedbackText, styles.errorMessage]}>{errorMessage}</ThemedText>
+              ) : null}
+
+              <ThemedText style={[styles.infoText, isDarkMode && styles.infoTextDark]}>
+                Este sistema es exclusivo para residentes autorizados. Si no tienes acceso,
+                contacta a tu administrador.
               </ThemedText>
-            ) : null}
-
-            {errorMessage ? (
-              <ThemedText style={[styles.feedbackText, styles.errorMessage]}>{errorMessage}</ThemedText>
-            ) : null}
             </ThemedView>
           </View>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -258,6 +291,9 @@ const styles = StyleSheet.create({
   flexOne: {
     flex: 1,
   },
+  scrollView: {
+    flex: 1,
+  },
   scrollContent: {
     flexGrow: 1,
   },
@@ -266,32 +302,31 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   decorations: {
-    position: 'absolute',
-    inset: 0,
+    ...StyleSheet.absoluteFillObject,
   },
   backgroundImage: {
-    position: 'absolute',
-    inset: 0,
-    opacity: 0.45,
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.55,
   },
   contentWrapper: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingVertical: 32,
+    paddingVertical: 48,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   card: {
     borderRadius: 24,
-    padding: 24,
+    padding: 32,
     gap: 24,
     maxWidth: 420,
     width: '100%',
     alignSelf: 'center',
     shadowColor: '#1f2937',
-    shadowOpacity: 0.1,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 8,
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 6,
   },
   cardDark: {
     borderWidth: 1,
@@ -303,8 +338,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   brandIcon: {
-    width: 200,
-    height: 56,
+    width: 180,
+    height: 52,
     borderRadius: 16,
   },
   brandTitle: {
@@ -328,8 +363,8 @@ const styles = StyleSheet.create({
   googleButton: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E4E4F7',
     paddingVertical: 14,
+    paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -338,43 +373,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  googleBadge: {
+  googleIconWrapper: {
     width: 32,
     height: 32,
     borderRadius: 16,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
-  },
-  googleInitial: {
-    fontWeight: '600',
-  },
-  googleInitialDark: {
-    color: '#F8FAFC',
   },
   googleText: {
     color: '#11181C',
   },
   googleTextDark: {
     color: '#E5E7EB',
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  dividerLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth * 2,
-    borderRadius: 999,
-  },
-  dividerText: {
-    color: '#64748B',
-    fontSize: 14,
-  },
-  dividerTextDark: {
-    color: '#94A3B8',
   },
   formControl: {
     gap: 12,
@@ -409,5 +420,15 @@ const styles = StyleSheet.create({
   },
   errorMessage: {
     color: '#EF4444',
+  },
+  infoText: {
+    marginTop: 8,
+    fontSize: 12,
+    textAlign: 'center',
+    color: '#6B7280',
+    lineHeight: 18,
+  },
+  infoTextDark: {
+    color: '#9CA3AF',
   },
 });
