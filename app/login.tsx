@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import * as Linking from 'expo-linking';
 import { Redirect } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -10,9 +10,11 @@ import {
   Pressable,
   StyleSheet,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
+import { Accelerometer } from 'expo-sensors';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -33,6 +35,39 @@ export default function LoginScreen() {
   const [isMagicLinkLoading, setIsMagicLinkLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
+  const deviceTiltX = useRef(new Animated.Value(0)).current;
+  const deviceTiltY = useRef(new Animated.Value(0)).current;
+  const { height: windowHeight } = useWindowDimensions();
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      return;
+    }
+
+    let subscription: { remove: () => void } | null = null;
+
+    try {
+      Accelerometer.setUpdateInterval(32);
+
+      let lastX = 0;
+      let lastY = 0;
+      const smoothing = 0.85;
+
+      subscription = Accelerometer.addListener(({ x = 0, y = 0 }) => {
+        lastX = lastX * smoothing + x * (1 - smoothing);
+        lastY = lastY * smoothing + y * (1 - smoothing);
+
+        deviceTiltX.setValue(lastX);
+        deviceTiltY.setValue(lastY);
+      });
+    } catch (error) {
+      console.warn('Accelerometer sensor unavailable', error);
+    }
+
+    return () => {
+      subscription?.remove();
+    };
+  }, [deviceTiltX, deviceTiltY]);
 
   if (isLoading) {
     return (
@@ -48,6 +83,26 @@ export default function LoginScreen() {
 
   const isBusy = isMagicLinkLoading || isGoogleLoading;
   const isDarkMode = colorScheme === 'dark';
+  const baseBackgroundColor = isDarkMode ? '#0f172a' : '#f5f3ff';
+
+  const parallaxOffset = scrollY.interpolate({
+    inputRange: [-120, 0, 200],
+    outputRange: [-60, 0, 40],
+    extrapolate: 'clamp',
+  });
+
+  const tiltTranslateX = deviceTiltX.interpolate({
+    inputRange: [-1, 1],
+    outputRange: [20, -20],
+    extrapolate: 'clamp',
+  });
+
+  const tiltTranslateY = deviceTiltY.interpolate({
+    inputRange: [-1, 1],
+    outputRange: [-18, 18],
+    extrapolate: 'clamp',
+  });
+
   const handleSubmit = async () => {
     if (!email.trim()) {
       setErrorMessage('Ingresa un correo electrónico válido.');
@@ -109,9 +164,11 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.select({ ios: 'padding', android: 'height' })}
-      style={styles.flexOne}>
+      style={[styles.flexOne, { backgroundColor: baseBackgroundColor }]}
+    >
       <Animated.ScrollView
-        contentContainerStyle={styles.scrollContent}
+        style={[styles.scrollView, { backgroundColor: baseBackgroundColor }]}
+        contentContainerStyle={[styles.scrollContent, { minHeight: windowHeight }]}
         keyboardShouldPersistTaps="handled"
         bounces={false}
         onScroll={Animated.event(
@@ -119,7 +176,11 @@ export default function LoginScreen() {
           { useNativeDriver: true },
         )}
         scrollEventThrottle={16}>
-        <View style={[styles.background, { backgroundColor: isDarkMode ? '#0f172a' : '#f5f3ff' }]}>
+        <View
+          style={[
+            styles.background,
+            { backgroundColor: baseBackgroundColor, minHeight: windowHeight },
+          ]}>
           <View pointerEvents="none" style={styles.decorations}>
             <AnimatedImage
               source={require('@/assets/backgrounds/loading-illustration.webp')}
@@ -127,13 +188,9 @@ export default function LoginScreen() {
                 styles.backgroundImage,
                 {
                   transform: [
-                    {
-                      translateY: scrollY.interpolate({
-                        inputRange: [-120, 0, 200],
-                        outputRange: [-60, 0, 40],
-                        extrapolate: 'clamp',
-                      }),
-                    },
+                    { scale: 1.2 },
+                    { translateY: Animated.add(parallaxOffset, tiltTranslateY) },
+                    { translateX: tiltTranslateX },
                   ],
                 },
               ]}
@@ -141,7 +198,7 @@ export default function LoginScreen() {
             />
           </View>
 
-          <View style={styles.contentWrapper}>
+          <View style={[styles.contentWrapper, { minHeight: windowHeight }]}>
             <ThemedView
               lightColor="#ffffff"
               darkColor="#111827"
@@ -277,6 +334,9 @@ const styles = StyleSheet.create({
   flexOne: {
     flex: 1,
   },
+  scrollView: {
+    flex: 1,
+  },
   scrollContent: {
     flexGrow: 1,
   },
@@ -290,7 +350,10 @@ const styles = StyleSheet.create({
   },
   backgroundImage: {
     position: 'absolute',
-    inset: 0,
+    top: -120,
+    bottom: -120,
+    left: -120,
+    right: -120,
     opacity: 0.45,
   },
   contentWrapper: {
