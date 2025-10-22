@@ -35,19 +35,28 @@ const getMagicLinkRedirectUrl = () => {
     Constants.expoConfig?.scheme ??
     null;
 
-  if (Platform.OS !== 'web' && configuredScheme) {
+  const buildDeepLink = () => {
     try {
-      const deepLink = Linking.createURL('/auth/callback/client', { scheme: configuredScheme });
-
-      if (deepLink) {
-        return deepLink;
+      if (configuredScheme) {
+        return Linking.createURL('/auth/callback/client', { scheme: configuredScheme });
       }
+
+      return Linking.createURL('/auth/callback/client');
     } catch (error) {
       console.warn('No se pudo generar el deep link personalizado para el enlace mágico.', error);
+      return null;
+    }
+  };
+
+  if (Platform.OS !== 'web') {
+    const deepLink = buildDeepLink();
+
+    if (deepLink) {
+      return deepLink;
     }
   }
 
-  return fallbackUrl ?? Linking.createURL('/auth/callback/client');
+  return fallbackUrl ?? buildDeepLink();
 };
 
 export default function LoginScreen() {
