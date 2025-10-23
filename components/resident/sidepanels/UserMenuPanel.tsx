@@ -5,7 +5,27 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import { ArrowLeftRight, Camera, Lightbulb, LogOut } from 'lucide-react-native'
 import React, { useEffect, useState } from 'react'
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import {
+  Image,
+  LayoutChangeEvent,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native'
+import {
+  PanGestureHandler,
+  PanGestureHandlerGestureEvent,
+} from 'react-native-gesture-handler'
+import Animated, {
+  runOnJS,
+  useAnimatedGestureHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated'
 import Modal from 'react-native-modal'
 
 interface Props {
@@ -19,6 +39,9 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
   const { openFeedbackPanel } = useResidentContext()
   const [hasMultipleCommunities, setHasMultipleCommunities] = useState(false)
   const [activeItem, setActiveItem] = useState<string>('home')
+  const [panelWidthState, setPanelWidthState] = useState(0)
+  const translateX = useSharedValue(0)
+  const panelWidth = useSharedValue(0)
 
   useEffect(() => {
     if (!id) return
@@ -64,6 +87,68 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
     { id: 'logout', text: 'Cerrar sesión', icon: <LogOut size={18} color="#fff" />, onPress: handleLogout, isLogout: true },
   ]
 
+  useEffect(() => {
+    if (!panelWidthState) return
+
+    if (isOpen) {
+      translateX.value = panelWidthState
+      translateX.value = withTiming(0, { duration: 250 })
+    } else {
+      translateX.value = panelWidthState
+    }
+  }, [isOpen, panelWidthState, translateX])
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }))
+
+  const gestureHandler = useAnimatedGestureHandler<
+    PanGestureHandlerGestureEvent,
+    { startX: number }
+  >({
+    onStart: (_, ctx) => {
+      ctx.startX = translateX.value
+    },
+    onActive: (event, ctx) => {
+      const nextValue = Math.max(
+        0,
+        Math.min(ctx.startX + event.translationX, panelWidth.value)
+      )
+      translateX.value = nextValue
+    },
+    onEnd: () => {
+      const width = panelWidth.value
+
+      if (!width) {
+        translateX.value = withSpring(0)
+        return
+      }
+
+      const shouldClose = translateX.value > width * 0.35
+
+      if (shouldClose) {
+        translateX.value = withTiming(width, { duration: 200 }, (finished) => {
+          if (finished) {
+            runOnJS(onClose)()
+          }
+        })
+      } else {
+        translateX.value = withSpring(0, { damping: 20, stiffness: 180 })
+      }
+    },
+  })
+
+  const handlePanelLayout = (event: LayoutChangeEvent) => {
+    const { width } = event.nativeEvent.layout
+    panelWidth.value = width
+    setPanelWidthState(width)
+
+    if (isOpen) {
+      translateX.value = width
+      translateX.value = withTiming(0, { duration: 250 })
+    }
+  }
+
   return (
     <Modal
       isVisible={isOpen}
@@ -76,75 +161,86 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
       style={{ margin: 0 }}
     >
       <View style={styles.overlay}>
-        <LinearGradient
-          colors={['#7C3AED', '#5B21B6']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={styles.panel}
+        <PanGestureHandler
+          onGestureEvent={gestureHandler}
+          activeOffsetX={[-10, 10]}
+          failOffsetY={[-10, 10]}
         >
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {/* 🟣 Header con avatar */}
-            <View style={styles.header}>
-              <View style={styles.avatarWrapper}>
-                <Image
-                  source={
-                    avatarUrl
-                      ? { uri: avatarUrl }
-                      : require('@/assets/img/avatar.webp')
-                  }
-                  style={styles.avatar}
-                />
-              </View>
-              <View style={styles.headerText}>
-                <Text style={styles.communityLabel}>Tu comunidad</Text>
-                <Text style={styles.communityName}>
-                  {communityName || 'Sin nombre'}
-                </Text>
-              </View>
-            </View>
+          <Animated.View
+            style={[styles.panelWrapper, animatedStyle]}
+            onLayout={handlePanelLayout}
+          >
+            <LinearGradient
+              colors={['#7C3AED', '#5B21B6']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={styles.panel}
+            >
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* 🟣 Header con avatar */}
+                <View style={styles.header}>
+                  <View style={styles.avatarWrapper}>
+                    <Image
+                      source={
+                        avatarUrl
+                          ? { uri: avatarUrl }
+                          : require('@/assets/img/avatar.webp')
+                      }
+                      style={styles.avatar}
+                    />
+                  </View>
+                  <View style={styles.headerText}>
+                    <Text style={styles.communityLabel}>Tu comunidad</Text>
+                    <Text style={styles.communityName}>
+                      {communityName || 'Sin nombre'}
+                    </Text>
+                  </View>
+                </View>
 
-            {/* Separador */}
-            <View style={styles.separator} />
+                {/* Separador */}
+                <View style={styles.separator} />
 
-            {/* 🔹 Menú principal + logout */}
-            <View style={styles.menu}>
-              {MENU_ITEMS.map((item, index) => {
-                const isActive = activeItem === item.id
-                const isLogout = item.isLogout
+                {/* 🔹 Menú principal + logout */}
+                <View style={styles.menu}>
+                  {MENU_ITEMS.map((item) => {
+                    const isActive = activeItem === item.id
+                    const isLogout = item.isLogout
 
-                return (
-                  <React.Fragment key={item.id}>
-                    {isLogout && <View style={styles.separator} />}
-                    <Pressable
-                      onPress={() => {
-                        setActiveItem(item.id)
-                        item.onPress()
-                      }}
-                      style={[
-                        styles.menuItem,
-                        isActive && styles.menuItemActive,
-                      ]}
-                    >
-                      <View
-                        style={[styles.menuIcon, isActive && styles.menuIconActive]}
-                      >
-                        {item.icon}
-                      </View>
-                      <Text
-                        style={[
-                          styles.menuText,
-                          isActive && styles.menuTextActive,
-                        ]}
-                      >
-                        {item.text}
-                      </Text>
-                    </Pressable>
-                  </React.Fragment>
-                )
-              })}
-            </View>
-          </ScrollView>
-        </LinearGradient>
+                    return (
+                      <React.Fragment key={item.id}>
+                        {isLogout && <View style={styles.separator} />}
+                        <Pressable
+                          onPress={() => {
+                            setActiveItem(item.id)
+                            item.onPress()
+                          }}
+                          style={[
+                            styles.menuItem,
+                            isActive && styles.menuItemActive,
+                          ]}
+                        >
+                          <View
+                            style={[styles.menuIcon, isActive && styles.menuIconActive]}
+                          >
+                            {item.icon}
+                          </View>
+                          <Text
+                            style={[
+                              styles.menuText,
+                              isActive && styles.menuTextActive,
+                            ]}
+                          >
+                            {item.text}
+                          </Text>
+                        </Pressable>
+                      </React.Fragment>
+                    )
+                  })}
+                </View>
+              </ScrollView>
+            </LinearGradient>
+          </Animated.View>
+        </PanGestureHandler>
       </View>
     </Modal>
   )
@@ -157,9 +253,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
   },
-  panel: {
+  panelWrapper: {
     height: '100%',
     width: '75%',
+  },
+  panel: {
+    flex: 1,
     paddingHorizontal: 24,
     paddingTop: 60,
     paddingBottom: 40,
