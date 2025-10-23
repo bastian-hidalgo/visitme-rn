@@ -61,7 +61,7 @@ export default function HeroBanner({ reservationStatus, reservationDate }: HeroB
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    marginTop: 4,
+    marginTop: 1,
   },
   card: {
     position: 'relative',
@@ -72,15 +72,15 @@ const styles = StyleSheet.create({
   background: {
     flex: 1,
     minHeight: 120,
-    borderRadius: 26,
+    borderRadius: 16,
   },
   backgroundImage: {
-    borderRadius: 26,
+    borderRadius: 16,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(17, 24, 39, 0.25)',
-    borderRadius: 26,
+    borderRadius: 16,
   },
   content: {
     flexDirection: 'row',
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   },
   character: {
     position: 'absolute',
-    bottom: -22,
+    bottom: -16,
     right: -10,
     width: 140,
     height: 172,

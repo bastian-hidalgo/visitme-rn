@@ -104,7 +104,7 @@ export default function NewsSlider() {
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    marginTop: 16,
+    marginTop: 12,
   },
   listContent: {
     paddingHorizontal: 4,

@@ -2,8 +2,8 @@ import { MotiView } from 'moti'
 import React, { useMemo, useRef, useState } from 'react'
 import {
   Alert,
-  Linking,
   LayoutChangeEvent,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -212,8 +212,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   sectionWrapper: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
+    paddingHorizontal: 12,
   },
   sectionHeader: {
     paddingBottom: 8,
@@ -221,7 +220,6 @@ const styles = StyleSheet.create({
   sectionSurface: {
     backgroundColor: '#ffffff',
     borderRadius: 28,
-    padding: 24,
     shadowColor: 'rgba(15, 23, 42, 0.08)',
     shadowOpacity: 1,
     shadowRadius: 20,
