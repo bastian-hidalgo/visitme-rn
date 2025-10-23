@@ -199,10 +199,10 @@ export default function ChooseCommunityScreen() {
                 />
               </View>
 
-              <ThemedText type="title" style={styles.title}>
+              <ThemedText type="title" style={isDarkMode ? styles.titleDark : styles.title}>
                 Elige tu comunidad
               </ThemedText>
-              <ThemedText style={styles.subtitle}>
+              <ThemedText style={isDarkMode ? styles.subtitleDark : styles.subtitle}>
                 Selecciona la comunidad a la que deseas ingresar para continuar.
               </ThemedText>
 
@@ -273,8 +273,10 @@ const styles = StyleSheet.create({
   cardDark: { borderWidth: 1, borderColor: '#1f2937', shadowOpacity: 0.25 },
   logoContainer: { alignItems: 'center', gap: 12 },
   logo: { width: 180, height: 52, borderRadius: 16 },
-  title: { textAlign: 'center', fontSize: 24, fontWeight: '700', color: '#fff' },
-  subtitle: { textAlign: 'center', color: '#CBD5F5', fontSize: 14 },
+  title: { textAlign: 'center', fontSize: 24, fontWeight: '700', color: '#333' },
+  titleDark: { textAlign: 'center', fontSize: 24, fontWeight: '700', color: '#fff' },
+  subtitle: { textAlign: 'center', color: '#333', fontSize: 14 },
+  subtitleDark: { textAlign: 'center', color: '#fff', fontSize: 14 },
   communityList: { width: '100%', gap: 12 },
   communityButton: {
     flexDirection: 'row',
@@ -288,7 +290,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   communityName: { fontSize: 16, fontWeight: '600', color: '#fff' },
-  enterText: { color: '#6C5CE7', fontWeight: '600', fontSize: 14 },
+  enterText: { backgroundColor: '#6C5CE7', fontWeight: '600', fontSize: 14, padding: 4, color: '#fff', borderRadius: 8, overflow: 'hidden', paddingHorizontal: 8 },
   signOutText: {
     marginTop: 24,
     textAlign: 'center',
