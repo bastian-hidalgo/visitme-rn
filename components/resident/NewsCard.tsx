@@ -7,11 +7,12 @@ interface NewsCardProps {
   id: string
   date: string
   title: string
+  message?: string
   type: string
   onPress?: () => void
 }
 
-export default function NewsCard({ id, date, title, type, onPress }: NewsCardProps) {
+export default function NewsCard({ id, date, title, message, type, onPress }: NewsCardProps) {
   // 🎨 Colores según tipo
   const bgColors: Record<string, string> = {
     comunicado: '#ede9fe',
@@ -36,6 +37,9 @@ export default function NewsCard({ id, date, title, type, onPress }: NewsCardPro
 
   const colorScheme = useColorScheme()
 
+  const safeTitle = title?.trim().length ? title : 'Aviso importante'
+  const safeMessage = message?.trim().length ? message : undefined
+
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -54,8 +58,16 @@ export default function NewsCard({ id, date, title, type, onPress }: NewsCardPro
           style={[styles.title, colorScheme === 'dark' && styles.titleDark]}
           numberOfLines={2}
         >
-          {title}
+          {safeTitle}
         </Text>
+        {safeMessage ? (
+          <Text
+            style={[styles.message, colorScheme === 'dark' && styles.messageDark]}
+            numberOfLines={2}
+          >
+            {safeMessage}
+          </Text>
+        ) : null}
       </View>
 
       {/* 🔸 Ícono circular */}
@@ -100,6 +112,15 @@ const styles = StyleSheet.create({
   },
   titleDark: {
     color: '#f3f4f6',
+  },
+  message: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#4b5563',
+  },
+  messageDark: {
+    color: '#d1d5db',
   },
   iconWrapper: {
     alignItems: 'center',

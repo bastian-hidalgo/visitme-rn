@@ -65,38 +65,38 @@ const styles = StyleSheet.create({
   },
   card: {
     position: 'relative',
-    borderRadius: 24,
+    borderRadius: 28,
     overflow: 'visible',
-    minHeight: 150,
+    minHeight: 136,
   },
   background: {
     flex: 1,
-    minHeight: 150,
-    borderRadius: 24,
+    minHeight: 136,
+    borderRadius: 28,
   },
   backgroundImage: {
-    borderRadius: 24,
+    borderRadius: 28,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    borderRadius: 24,
+    borderRadius: 28,
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
     height: '100%',
     paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingVertical: 18,
   },
   textContainer: {
     flex: 1,
     justifyContent: 'center',
-    paddingRight: 88,
+    paddingRight: 84,
   },
   title: {
     color: '#ffffff',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
   },
   subtitle: {
@@ -106,10 +106,10 @@ const styles = StyleSheet.create({
   },
   character: {
     position: 'absolute',
-    bottom: -18,
-    right: -12,
-    width: 150,
-    height: 188,
+    bottom: -28,
+    right: -6,
+    width: 148,
+    height: 180,
     resizeMode: 'contain',
   },
 })

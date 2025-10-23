@@ -26,7 +26,7 @@ export default function QuickAccessBottom({ onNavigate }: QuickAccessProps) {
 
   return (
     <LinearGradient
-      colors={['rgba(255, 255, 255, 0.95)', 'rgba(244, 244, 255, 0.9)']}
+      colors={['rgba(255, 255, 255, 0.92)', 'rgba(244, 244, 255, 0.88)']}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={[styles.container, Platform.OS === 'android' && styles.containerAndroid]}
@@ -60,9 +60,7 @@ export default function QuickAccessBottom({ onNavigate }: QuickAccessProps) {
                   </Text>
                 </View>
               )}
-              <Text style={styles.actionLabel}>
-                {action.label}
-              </Text>
+              <Text style={styles.actionLabel}>{action.label}</Text>
             </View>
           </MotiPressable>
         )
@@ -74,33 +72,34 @@ export default function QuickAccessBottom({ onNavigate }: QuickAccessProps) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-evenly',
     alignItems: 'center',
-    borderRadius: 28,
+    borderRadius: 26,
     paddingVertical: 12,
-    paddingHorizontal: 20,
-    gap: 12,
+    paddingHorizontal: 18,
+    gap: 10,
     shadowColor: '#111827',
     shadowOpacity: 0.12,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 12 },
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 14 },
     elevation: 10,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.55)',
   },
   containerAndroid: {
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
   },
   action: {
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
     flex: 1,
-    minWidth: 68,
+    minWidth: 64,
+    gap: 6,
   },
   iconWrapper: {
-    width: 44,
-    height: 44,
+    width: 42,
+    height: 42,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
@@ -124,9 +123,9 @@ const styles = StyleSheet.create({
   },
   actionLabel: {
     fontSize: 11,
-    marginTop: 8,
     color: '#4338ca',
     fontWeight: '600',
     textAlign: 'center',
+    letterSpacing: 0.2,
   },
 })

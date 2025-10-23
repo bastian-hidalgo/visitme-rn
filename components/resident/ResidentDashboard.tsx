@@ -88,7 +88,7 @@ export default function ResidentDashboard() {
           }}
         >
           {/* Header */}
-          <View style={styles.sectionCard}>
+          <View style={[styles.sectionWrapper, styles.sectionHeader]}>
             <Header />
           </View>
 
@@ -96,10 +96,12 @@ export default function ResidentDashboard() {
             from={{ opacity: 0, translateY: 20 }}
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ type: 'timing', duration: 500 }}
-            style={styles.sectionCard}
+            style={styles.sectionWrapper}
             onLayout={registerSection('hero')}
           >
-            <HeroBanner reservationStatus={status} reservationDate={formattedDate} />
+            <View style={[styles.sectionSurface, colorScheme === 'dark' && styles.sectionSurfaceDark]}>
+              <HeroBanner reservationStatus={status} reservationDate={formattedDate} />
+            </View>
           </MotiView>
 
           {/* Encuestas */}
@@ -107,9 +109,11 @@ export default function ResidentDashboard() {
             from={{ opacity: 0, translateY: 20 }}
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ delay: 100, duration: 400 }}
-            style={styles.sectionCard}
+            style={styles.sectionWrapper}
           >
-            <SurveysSlider />
+            <View style={[styles.sectionSurface, colorScheme === 'dark' && styles.sectionSurfaceDark]}>
+              <SurveysSlider />
+            </View>
           </MotiView>
 
           {/* Noticias */}
@@ -117,10 +121,12 @@ export default function ResidentDashboard() {
             from={{ opacity: 0, translateY: 20 }}
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ delay: 200, duration: 400 }}
-            style={styles.sectionCard}
+            style={styles.sectionWrapper}
             onLayout={registerSection('news')}
           >
-            <NewsSlider />
+            <View style={[styles.sectionSurface, colorScheme === 'dark' && styles.sectionSurfaceDark]}>
+              <NewsSlider />
+            </View>
           </MotiView>
 
           {/* Reservas */}
@@ -128,13 +134,15 @@ export default function ResidentDashboard() {
             from={{ opacity: 0, translateY: 20 }}
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ delay: 300, duration: 400 }}
-            style={styles.sectionCard}
+            style={styles.sectionWrapper}
             onLayout={registerSection('reservations')}
           >
-            <ReservationsSlider
-              onCancel={handleCancelReservation}
-              onViewReason={handleViewReason}
-            />
+            <View style={[styles.sectionSurface, colorScheme === 'dark' && styles.sectionSurfaceDark]}>
+              <ReservationsSlider
+                onCancel={handleCancelReservation}
+                onViewReason={handleViewReason}
+              />
+            </View>
           </MotiView>
 
           {/* Invitaciones */}
@@ -142,10 +150,12 @@ export default function ResidentDashboard() {
             from={{ opacity: 0, translateY: 20 }}
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ delay: 400, duration: 400 }}
-            style={styles.sectionCard}
+            style={styles.sectionWrapper}
             onLayout={registerSection('invited')}
           >
-            <InvitationsSlider />
+            <View style={[styles.sectionSurface, colorScheme === 'dark' && styles.sectionSurfaceDark]}>
+              <InvitationsSlider />
+            </View>
           </MotiView>
 
           {/* Encomiendas */}
@@ -153,10 +163,12 @@ export default function ResidentDashboard() {
             from={{ opacity: 0, translateY: 20 }}
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ delay: 500, duration: 400 }}
-            style={styles.sectionCard}
+            style={styles.sectionWrapper}
             onLayout={registerSection('packages')}
           >
-            <PackageSlider />
+            <View style={[styles.sectionSurface, colorScheme === 'dark' && styles.sectionSurfaceDark]}>
+              <PackageSlider />
+            </View>
           </MotiView>
 
           {/* Placeholder de acciones */}
@@ -204,9 +216,25 @@ const styles = StyleSheet.create({
   screenDark: {
     backgroundColor: '#020617',
   },
-  sectionCard: {
+  sectionWrapper: {
     paddingHorizontal: 24,
     marginBottom: 24,
+  },
+  sectionHeader: {
+    paddingBottom: 8,
+  },
+  sectionSurface: {
+    backgroundColor: '#ffffff',
+    borderRadius: 28,
+    padding: 24,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.05,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 4,
+  },
+  sectionSurfaceDark: {
+    backgroundColor: '#0f172a',
   },
   placeholder: {
     alignItems: 'center',

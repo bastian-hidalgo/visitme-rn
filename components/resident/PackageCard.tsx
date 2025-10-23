@@ -5,7 +5,8 @@ import type { Parcel } from '@/types/parcel'
 import { PackageCheck, PackageSearch, PackageX } from 'lucide-react-native'
 import { MotiView } from 'moti'
 import React from 'react'
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { Image } from 'expo-image'
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 
 export default function PackageCard({ parcel }: { parcel: Parcel }) {
   const { openPackagesPanel, setParcelDetail } = useResidentContext()
@@ -30,6 +31,9 @@ export default function PackageCard({ parcel }: { parcel: Parcel }) {
     ? getUrlImageFromStorage(parcel.photo_url, 'parcel-photos') || fallbackImage
     : fallbackImage
 
+  const departmentNumber = (parcel as unknown as { department?: { number?: string | null } })
+    ?.department?.number
+
   return (
     <MotiView
       from={{ opacity: 0, translateY: 20 }}
@@ -42,21 +46,28 @@ export default function PackageCard({ parcel }: { parcel: Parcel }) {
         onPress={() => handleOpenDetails(parcel)}
         style={styles.touchable}
       >
-        {/* 🔹 Foto */}
         <View style={styles.imageWrapper}>
-          <Image source={{ uri: resolvedPhoto }} style={styles.image} resizeMode="cover" />
+          <Image
+            source={{ uri: resolvedPhoto }}
+            style={styles.image}
+            contentFit="cover"
+            transition={150}
+          />
         </View>
 
-        {/* 🔹 Información */}
         <View style={styles.info}>
-          {/* Fecha */}
-          <View style={styles.dateBadge}>
-            <Text style={styles.dateText}>
-              {formatDate(parcel.created_at)}
-            </Text>
+          <View style={styles.topRow}>
+            <View style={styles.dateBadge}>
+              <Text style={styles.dateText}>{formatDate(parcel.created_at)}</Text>
+            </View>
+
+            {departmentNumber ? (
+              <View style={styles.departmentBadge}>
+                <Text style={styles.departmentText}>Depto. {departmentNumber}</Text>
+              </View>
+            ) : null}
           </View>
 
-          {/* Estado */}
           <View style={styles.statusRow}>
             {iconByStatus[status]}
             <Text style={styles.statusText}>
@@ -70,11 +81,12 @@ export default function PackageCard({ parcel }: { parcel: Parcel }) {
             </Text>
           </View>
 
-          {/* Fecha de retiro */}
-          {parcel.picked_up_at && (
+          {parcel.picked_up_at ? (
             <Text style={styles.pickupText}>
               Retirada {format(parcel.picked_up_at, 'DD/MM/YYYY HH:mm')}
             </Text>
+          ) : (
+            <Text style={styles.pendingText}>Retírala con tu credencial</Text>
           )}
         </View>
       </TouchableOpacity>
@@ -85,26 +97,26 @@ export default function PackageCard({ parcel }: { parcel: Parcel }) {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#ffffff',
-    borderRadius: 20,
+    borderRadius: 22,
     width: '100%',
     padding: 16,
     shadowColor: '#0f172a',
     shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 3,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 4,
   },
   touchable: {
     width: '100%',
     alignItems: 'stretch',
+    gap: 12,
   },
   imageWrapper: {
     width: '100%',
-    height: 120,
+    height: 124,
     backgroundColor: '#f3f4f6',
-    borderRadius: 16,
+    borderRadius: 18,
     overflow: 'hidden',
-    marginBottom: 16,
   },
   image: {
     width: '100%',
@@ -112,24 +124,41 @@ const styles = StyleSheet.create({
   },
   info: {
     alignItems: 'flex-start',
+    gap: 10,
+  },
+  topRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
   },
   dateBadge: {
     backgroundColor: '#ede9fe',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 9999,
-    marginBottom: 10,
   },
   dateText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#6d28d9',
   },
+  departmentBadge: {
+    backgroundColor: '#e0e7ff',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 9999,
+  },
+  departmentText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#3730a3',
+  },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 6,
   },
   statusText: {
     fontSize: 14,
@@ -140,6 +169,10 @@ const styles = StyleSheet.create({
   pickupText: {
     fontSize: 12,
     color: '#6b7280',
-    marginTop: 2,
+  },
+  pendingText: {
+    fontSize: 12,
+    color: '#4338ca',
+    fontWeight: '500',
   },
 })

@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { formatDate, now, toServerUTC } from '@/lib/time'
 import { useUser } from '@/providers/user-provider'
 import type { Alert } from '@/types/alert'
+import type { Parcel } from '@/types/parcel'
 import type { Reservation } from '@/types/reservation'
 import type { ResidentContextType } from '@/types/resident'
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
@@ -15,9 +16,11 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [visits, setVisits] = useState<any[]>([])
-  const [packages, setPackages] = useState<any[]>([])
+  const [packages, setPackages] = useState<Parcel[]>([])
   const [surveys, setSurveys] = useState<any[]>([])
   const [selectedSurvey, setSelectedSurvey] = useState<any | null>(null)
+  const [selectedParcel, setSelectedParcel] = useState<Parcel | null>(null)
+  const [alertDetail, setAlertDetailState] = useState<Alert | null>(null)
 
   // 🔹 Estados de paneles
   const [isSurveyPanelOpen, setSurveyPanelOpen] = useState(false)
@@ -228,7 +231,10 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         .gte('created_at', toServerUTC(twoWeeksAgo))
         .order('created_at', { ascending: false })
 
-      setPackages(data || [])
+      setPackages(((data as Parcel[]) || []).map((parcel) => ({
+        ...parcel,
+        department: parcel.department ?? (parcel as any).department,
+      })))
     } catch (e) {
       console.error('Error al cargar paquetes:', e)
     } finally {
@@ -271,6 +277,8 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         packages,
         surveys,
         selectedSurvey,
+        selectedParcel,
+        alertDetail,
 
         // 🔹 Estado de paneles
         isSurveyPanelOpen,
@@ -308,12 +316,8 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
 
         // 🔹 Estado auxiliar
         setSelectedSurvey,
-        setAlertDetail: (alert) => {
-          console.log('setAlertDetail', alert)
-        },
-        setParcelDetail: (parcel) => {
-          console.log('setParcelDetail', parcel)
-        },
+        setAlertDetail: setAlertDetailState,
+        setParcelDetail: setSelectedParcel,
         setLoadingAlerts,
       }}
     >

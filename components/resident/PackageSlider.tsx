@@ -1,6 +1,4 @@
 import { useResidentContext } from '@/components/contexts/ResidentContext'
-import { useParcelDetails } from '@/hooks/useParcelDetails'
-import type { Parcel } from '@/types/parcel'
 import { Package } from 'lucide-react-native'
 import { MotiView } from 'moti'
 import React from 'react'
@@ -9,7 +7,6 @@ import {
   FlatList,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
   useColorScheme,
 } from 'react-native'
@@ -18,16 +15,10 @@ import PackageCard from './PackageCard'
 const { width } = Dimensions.get('window')
 
 export default function PackageSlider() {
-  const { packages, openPackagesPanel } = useResidentContext()
-  const { handleOpenDetails } = useParcelDetails()
+  const { packages } = useResidentContext()
   const colorScheme = useColorScheme()
 
-  const handleSelectPackage = (pkg: Parcel) => {
-    handleOpenDetails(pkg)
-    openPackagesPanel()
-  }
-
-  const cardWidth = Math.min(width * 0.72, 320)
+  const cardWidth = Math.max(Math.min(width - 120, 320), 220)
 
   return (
     <MotiView
@@ -55,14 +46,11 @@ export default function PackageSlider() {
         showsHorizontalScrollIndicator={false}
         data={packages}
         keyExtractor={(item) => item.id.toString()}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
         renderItem={({ item }) => (
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => handleSelectPackage(item)}
-            style={{ width: cardWidth, marginRight: 12 }}
-          >
+          <View style={[styles.cardWrapper, { width: cardWidth }]}> 
             <PackageCard parcel={item} />
-          </TouchableOpacity>
+          </View>
         )}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={() => (
@@ -85,6 +73,13 @@ const styles = StyleSheet.create({
   listContent: {
     paddingLeft: 4,
     paddingRight: 12,
+    paddingBottom: 4,
+  },
+  cardWrapper: {
+    overflow: 'visible',
+  },
+  separator: {
+    width: 12,
   },
   header: {
     flexDirection: 'row',

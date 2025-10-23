@@ -17,13 +17,8 @@ import NewsCard from './NewsCard'
 const { width } = Dimensions.get('window')
 
 export default function NewsSlider() {
-  const {
-    alerts,
-    openAlertPanel,
-    setAlertDetail,
-    setLoadingAlerts,
-    loadingAlerts,
-  } = useResidentContext()
+  const { alerts, openAlertPanel, setAlertDetail, setLoadingAlerts, loadingAlerts } =
+    useResidentContext()
 
   const colorScheme = useColorScheme()
 
@@ -63,6 +58,8 @@ export default function NewsSlider() {
     ? Array.from({ length: 3 }).map((_, i) => ({ skeleton: true, id: `skeleton-${i}` }))
     : alerts
 
+  const cardWidth = Math.max(Math.min(width - 120, 320), 220)
+
   return (
     <View style={styles.container}>
       <Text style={[styles.title, colorScheme === 'dark' && styles.titleDark]}>
@@ -76,11 +73,12 @@ export default function NewsSlider() {
         showsHorizontalScrollIndicator={false}
         data={data}
         keyExtractor={(item) => item.id.toString()}
+        contentContainerStyle={styles.listContent}
         renderItem={({ item }) => {
           if ('skeleton' in item) {
             return (
-              <View style={{ width: width - 96, marginRight: 16 }}>
-                <SkeletonCard height={86} width={width - 96} />
+              <View style={{ width: cardWidth, marginRight: 14 }}>
+                <SkeletonCard height={86} width={cardWidth} />
               </View>
             )
           }
@@ -90,7 +88,7 @@ export default function NewsSlider() {
               from={{ opacity: 0, translateY: 20 }}
               animate={{ opacity: 1, translateY: 0 }}
               transition={{ duration: 500 }}
-              style={{ width: width - 96, marginRight: 16 }}
+              style={{ width: cardWidth, marginRight: 14 }}
             >
               <TouchableOpacity
                 activeOpacity={0.9}
@@ -100,6 +98,7 @@ export default function NewsSlider() {
                   id={item.id}
                   date={item.created_at}
                   title={item.title}
+                  message={item.message}
                   type={item.type}
                 />
               </TouchableOpacity>
@@ -115,6 +114,9 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     marginTop: 16,
+  },
+  listContent: {
+    paddingHorizontal: 4,
   },
   title: {
     fontSize: 24,

@@ -11,6 +11,8 @@ export interface ResidentContextType {
   packages: Parcel[]
   surveys: any[]
   selectedSurvey: any | null
+  selectedParcel: Parcel | null
+  alertDetail: Alert | null
 
   // 🔹 Estado de paneles
   isSurveyPanelOpen: boolean
