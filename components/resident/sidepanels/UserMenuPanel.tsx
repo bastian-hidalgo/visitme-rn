@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useUser } from '@/providers/user-provider'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
-import { ArrowLeftRight, Camera, Lightbulb, LogOut } from 'lucide-react-native'
+import { ArrowLeftRight, Camera, Lightbulb, LogOut, X } from 'lucide-react-native'
 import React, { useEffect, useState } from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import Modal from 'react-native-modal'
@@ -69,6 +69,8 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
       isVisible={isOpen}
       onBackdropPress={onClose}
       onBackButtonPress={onClose}
+      onSwipeComplete={onClose}
+      swipeDirection={["right"]}
       animationIn="slideInRight"
       animationOut="slideOutRight"
       backdropOpacity={0.3}
@@ -76,6 +78,7 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
       style={{ margin: 0 }}
     >
       <View style={styles.overlay}>
+        <Pressable style={styles.backdrop} onPress={onClose} />
         <LinearGradient
           colors={['#7C3AED', '#5B21B6']}
           start={{ x: 0, y: 0 }}
@@ -85,22 +88,29 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
           <ScrollView showsVerticalScrollIndicator={false}>
             {/* 🟣 Header con avatar */}
             <View style={styles.header}>
-              <View style={styles.avatarWrapper}>
-                <Image
-                  source={
-                    avatarUrl
-                      ? { uri: avatarUrl }
-                      : require('@/assets/img/avatar.webp')
-                  }
-                  style={styles.avatar}
-                />
+              <View style={styles.headerContent}>
+                <View style={styles.avatarWrapper}>
+                  <Image
+                    source={
+                      avatarUrl
+                        ? { uri: avatarUrl }
+                        : require('@/assets/img/avatar.webp')
+                    }
+                    style={styles.avatar}
+                  />
+                </View>
+                <View style={styles.headerText}>
+                  <Text style={styles.communityLabel}>Tu comunidad</Text>
+                  <Text style={styles.communityName}>
+                    {communityName || 'Sin nombre'}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.headerText}>
-                <Text style={styles.communityLabel}>Tu comunidad</Text>
-                <Text style={styles.communityName}>
-                  {communityName || 'Sin nombre'}
-                </Text>
-              </View>
+              <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Cerrar panel de usuario">
+                <View style={styles.closeButton}>
+                  <X size={20} color="#fff" />
+                </View>
+              </Pressable>
             </View>
 
             {/* Separador */}
@@ -158,6 +168,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
   },
+  backdrop: {
+    flex: 1,
+  },
   panel: {
     height: '100%',
     width: '75%',
@@ -169,9 +182,15 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'flex-start',
+    justifyContent: 'space-between',
     gap: 15,
     marginBottom: 0,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
+    flex: 1,
   },
   avatarWrapper: {
     width: 70,
@@ -186,6 +205,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 8,
     marginLeft: 10,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   avatar: {
     width: 66,
