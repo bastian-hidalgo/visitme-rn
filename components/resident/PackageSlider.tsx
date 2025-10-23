@@ -1,31 +1,16 @@
 import { useResidentContext } from '@/components/contexts/ResidentContext'
-import { useParcelDetails } from '@/hooks/useParcelDetails'
-import type { Parcel } from '@/types/parcel'
 import { Package } from 'lucide-react-native'
 import { MotiView } from 'moti'
 import React from 'react'
-import {
-  Dimensions,
-  FlatList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  useColorScheme,
-} from 'react-native'
+import { Dimensions, FlatList, StyleSheet, Text, View } from 'react-native'
 import PackageCard from './PackageCard'
 
 const { width } = Dimensions.get('window')
 
 export default function PackageSlider() {
-  const { packages, openPackagesPanel } = useResidentContext()
-  const { handleOpenDetails } = useParcelDetails()
-  const colorScheme = useColorScheme()
+  const { packages } = useResidentContext()
 
-  const handleSelectPackage = (pkg: Parcel) => {
-    handleOpenDetails(pkg)
-    openPackagesPanel()
-  }
+  const cardWidth = Math.min(Math.max(width - 88, 220), 280)
 
   return (
     <MotiView
@@ -36,14 +21,10 @@ export default function PackageSlider() {
     >
       {/* 🔹 Header */}
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, colorScheme === 'dark' && styles.headerTitleDark]}>
-          Tus Encomiendas
-        </Text>
+        <Text style={styles.headerTitle}>Tus Encomiendas</Text>
         <View style={styles.packageCount}>
           <Package size={24} color="#f97316" />
-          <Text style={[styles.packageCountText, colorScheme === 'dark' && styles.packageCountTextDark]}>
-            {packages.length}
-          </Text>
+          <Text style={styles.packageCountText}>{packages.length}</Text>
         </View>
       </View>
 
@@ -53,20 +34,16 @@ export default function PackageSlider() {
         showsHorizontalScrollIndicator={false}
         data={packages}
         keyExtractor={(item) => item.id.toString()}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
         renderItem={({ item }) => (
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => handleSelectPackage(item)}
-            style={{ width: width * 0.7, marginRight: 16 }}
-          >
+          <View style={[styles.cardWrapper, { width: cardWidth }]}> 
             <PackageCard parcel={item} />
-          </TouchableOpacity>
+          </View>
         )}
+        contentContainerStyle={styles.listContent}
         ListEmptyComponent={() => (
           <View style={styles.emptyState}>
-            <Text style={[styles.emptyStateText, colorScheme === 'dark' && styles.emptyStateTextDark]}>
-              No tienes encomiendas.
-            </Text>
+            <Text style={styles.emptyStateText}>No tienes encomiendas.</Text>
           </View>
         )}
       />
@@ -78,7 +55,17 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     marginTop: 16,
-    paddingHorizontal: 16,
+  },
+  listContent: {
+    paddingLeft: 4,
+    paddingRight: 8,
+    paddingBottom: 4,
+  },
+  cardWrapper: {
+    overflow: 'visible',
+  },
+  separator: {
+    width: 10,
   },
   header: {
     flexDirection: 'row',
@@ -91,9 +78,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
   },
-  headerTitleDark: {
-    color: '#ffffff',
-  },
   packageCount: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -104,9 +88,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
   },
-  packageCountTextDark: {
-    color: '#d1d5db',
-  },
   emptyState: {
     width: '100%',
     height: 80,
@@ -116,8 +97,5 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 14,
     color: '#6b7280',
-  },
-  emptyStateTextDark: {
-    color: '#9ca3af',
   },
 })

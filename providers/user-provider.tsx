@@ -17,6 +17,8 @@ import Toast from 'react-native-toast-message'
 // 🔹 Keys de almacenamiento
 const LOCAL_STORAGE_KEY = 'visitme_user'
 const COMMUNITY_NAME_KEY = 'selected_community_name'
+const COMMUNITY_SLUG_KEY = 'selected_community'
+const COMMUNITY_ID_KEY = 'selected_community_id'
 
 // 🔹 Tipos de usuario
 export interface UserProfile {
@@ -102,11 +104,32 @@ export const UserProvider = ({ children }: UserProviderProps) => {
   // 💾 Actualizar data de usuario
   const setUserData = async (data: Partial<UserContextType>) => {
     setUser((prev) => {
-      if (!prev) return prev
-      const updated = { ...prev, ...data }
+      const base: Omit<UserContextType, 'setUserData' | 'logout'> =
+        prev ?? {
+          id: '',
+          name: '',
+          email: '',
+          role: '',
+          communityId: '',
+          communitySlug: '',
+          communityName: '',
+          avatarUrl: '',
+          loading: false,
+          session,
+          userDepartments: [],
+          profile: null,
+        }
+
+      const updated = { ...base, ...data }
       AsyncStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated))
       if (data.communityName) {
         AsyncStorage.setItem(COMMUNITY_NAME_KEY, data.communityName)
+      }
+      if (data.communitySlug) {
+        AsyncStorage.setItem(COMMUNITY_SLUG_KEY, data.communitySlug)
+      }
+      if (data.communityId) {
+        AsyncStorage.setItem(COMMUNITY_ID_KEY, data.communityId)
       }
       return updated
     })
@@ -121,14 +144,47 @@ export const UserProvider = ({ children }: UserProviderProps) => {
       .single()
 
     if (userProfile) {
+      const [[, storedCommunitySlug], [, storedCommunityId], [, storedCommunityName]] =
+        await AsyncStorage.multiGet([
+          COMMUNITY_SLUG_KEY,
+          COMMUNITY_ID_KEY,
+          COMMUNITY_NAME_KEY,
+        ])
+
+      let communitySlug = storedCommunitySlug ?? ''
+      let communityId = storedCommunityId ?? ''
+      let communityName = storedCommunityName ?? ''
+
+      if (!communitySlug || !communityId || !communityName) {
+        const { data: memberships } = await supabase
+          .from('user_communities')
+          .select('community:community_id(id, slug, name)')
+          .eq('user_id', userProfile.id)
+          .limit(1)
+
+        const primaryCommunity = memberships?.[0]?.community
+        if (primaryCommunity) {
+          communitySlug = communitySlug || primaryCommunity.slug
+          communityId = communityId || primaryCommunity.id
+          communityName =
+            communityName || primaryCommunity.name?.trim() || primaryCommunity.slug
+
+          await AsyncStorage.multiSet([
+            [COMMUNITY_SLUG_KEY, communitySlug],
+            [COMMUNITY_ID_KEY, communityId],
+            [COMMUNITY_NAME_KEY, communityName],
+          ])
+        }
+      }
+
       const newUser = {
         id: userProfile.id,
         name: userProfile.name || '',
         email: userProfile.email || '',
         role: userProfile.role || '',
-        communityId: '',
-        communitySlug: '',
-        communityName: '',
+        communityId,
+        communitySlug,
+        communityName,
         avatarUrl: userProfile.avatar_url || '',
         loading: false,
         session,

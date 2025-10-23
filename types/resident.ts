@@ -11,12 +11,17 @@ export interface ResidentContextType {
   packages: Parcel[]
   surveys: any[]
   selectedSurvey: any | null
+  selectedParcel: Parcel | null
+  alertDetail: Alert | null
 
   // 🔹 Estado de paneles
   isSurveyPanelOpen: boolean
   isFeedbackPanelOpen: boolean
+  isInvitationPanelOpen: boolean
+  isReservationPanelOpen: boolean
   isAnyPanelOpen: boolean
   isPackagesPanelOpen?: boolean // 👈 opcional si solo se usa en algunos contextos
+  isAlertPanelOpen?: boolean
 
   // 🔹 Cargas
   loadingSurveys: boolean

@@ -10,7 +10,6 @@ import {
   Text,
   TouchableOpacity,
   View,
-  useColorScheme,
 } from 'react-native'
 
 import EmptyActionCard from '@/components/ui/EmptyActionCard'
@@ -26,7 +25,6 @@ interface Props {
 export default function ReservationsSlider({ onCancel, onViewReason }: Props) {
   const { reservations, openReservationPanel } = useResidentContext()
   const reservationsWithWeather = useWeatherForReservations(reservations)
-  const colorScheme = useColorScheme()
 
   return (
     <MotiView
@@ -37,9 +35,7 @@ export default function ReservationsSlider({ onCancel, onViewReason }: Props) {
     >
       {/* Encabezado */}
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, colorScheme === 'dark' && styles.headerTitleDark]}>
-          Tus Reservas
-        </Text>
+        <Text style={styles.headerTitle}>Tus Reservas</Text>
 
         <TouchableOpacity
           activeOpacity={0.9}
@@ -86,7 +82,7 @@ export default function ReservationsSlider({ onCancel, onViewReason }: Props) {
             </MotiView>
           )
         }
-        contentContainerStyle={{ paddingLeft: 16, paddingBottom: 10 }}
+        contentContainerStyle={{ paddingLeft: 0, paddingRight: 16, paddingBottom: 10 }}
       />
     </MotiView>
   )
@@ -102,20 +98,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
-    paddingHorizontal: 16,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
     color: '#111827',
   },
-  headerTitleDark: {
-    color: '#ffffff',
-  },
   ctaButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#7c3aed',
+    backgroundColor: '#f97316',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
