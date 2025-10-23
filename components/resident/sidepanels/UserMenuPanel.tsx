@@ -5,16 +5,7 @@ import { useRouter } from 'expo-router'
 import { ArrowLeftRight, Camera, Lightbulb, LogOut } from 'lucide-react-native'
 import { MotiView } from 'moti'
 import React, { useEffect, useState } from 'react'
-import {
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  useColorScheme,
-} from 'react-native'
+import { Image, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import Modal from 'react-native-modal'
 
 interface Props {
@@ -27,7 +18,6 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
   const { avatarUrl, communityName, id, logout } = useUser()
   const { openFeedbackPanel } = useResidentContext()
   const [hasMultipleCommunities, setHasMultipleCommunities] = useState(false)
-  const colorScheme = useColorScheme()
 
   useEffect(() => {
     if (!id) return
@@ -78,10 +68,7 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
         from={{ translateX: 300 }}
         animate={{ translateX: 0 }}
         transition={{ type: 'timing', duration: 300 }}
-        style={[
-          styles.panel,
-          colorScheme === 'dark' && styles.panelDark,
-        ]}
+        style={styles.panel}
       >
         <ScrollView showsVerticalScrollIndicator={false}>
           {/* Avatar */}
@@ -156,26 +143,16 @@ const MenuItem = ({
   text: string
   onPress: () => void
 }) => {
-  const colorScheme = useColorScheme()
-
   return (
     <Pressable onPress={onPress}>
       <MotiView
         from={{ opacity: 0, translateX: 20 }}
         animate={{ opacity: 1, translateX: 0 }}
         transition={{ type: 'timing', duration: 300 }}
-        style={[
-          styles.menuItem,
-          colorScheme === 'dark' ? styles.menuItemDark : styles.menuItemLight,
-        ]}
+        style={[styles.menuItem, styles.menuItemLight]}
       >
         {icon}
-        <Text
-          style={[
-            styles.menuItemText,
-            colorScheme === 'dark' && styles.menuItemTextDark,
-          ]}
-        >
+        <Text style={styles.menuItemText}>
           {text}
         </Text>
       </MotiView>
@@ -192,9 +169,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderBottomLeftRadius: 24,
     padding: 20,
-  },
-  panelDark: {
-    backgroundColor: '#111827',
   },
   avatarSection: {
     alignItems: 'center',
@@ -244,22 +218,20 @@ const styles = StyleSheet.create({
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    marginBottom: 0,
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    marginBottom: 12,
   },
   menuItemLight: {
-    borderBottomColor: '#f3f4f6',
-  },
-  menuItemDark: {
-    borderBottomColor: '#1f2937',
+    backgroundColor: '#f5f3ff',
   },
   menuItemText: {
+    flex: 1,
     marginLeft: 12,
-    fontSize: 16,
-    color: '#1f2937',
-  },
-  menuItemTextDark: {
-    color: '#f3f4f6',
+    fontSize: 15,
+    color: '#312e81',
+    fontWeight: '600',
   },
 })

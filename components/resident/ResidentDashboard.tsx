@@ -8,7 +8,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -28,7 +27,6 @@ import getReservationBannerStatus from '@/lib/getReservationsBannerStatus'
 export default function ResidentDashboard() {
   const { reservations, isInvitationPanelOpen, isReservationPanelOpen, closePanels } =
     useResidentContext()
-  const colorScheme = useColorScheme()
 
   const handleCancelReservation = (id: string) => {
     Alert.alert(
@@ -77,7 +75,7 @@ export default function ResidentDashboard() {
   const contentPaddingBottom = useMemo(() => insets.bottom + 160, [insets.bottom])
 
   return (
-    <SafeAreaView style={[styles.safeArea, colorScheme === 'dark' && styles.screenDark]}>
+    <SafeAreaView style={styles.safeArea}>
       <View style={styles.screen}>
         <ScrollView
           ref={scrollViewRef}
@@ -99,7 +97,7 @@ export default function ResidentDashboard() {
             style={styles.sectionWrapper}
             onLayout={registerSection('hero')}
           >
-            <View style={[styles.sectionSurface, colorScheme === 'dark' && styles.sectionSurfaceDark]}>
+            <View style={styles.sectionSurface}>
               <HeroBanner reservationStatus={status} reservationDate={formattedDate} />
             </View>
           </MotiView>
@@ -111,7 +109,7 @@ export default function ResidentDashboard() {
             transition={{ delay: 100, duration: 400 }}
             style={styles.sectionWrapper}
           >
-            <View style={[styles.sectionSurface, colorScheme === 'dark' && styles.sectionSurfaceDark]}>
+            <View style={styles.sectionSurface}>
               <SurveysSlider />
             </View>
           </MotiView>
@@ -124,7 +122,7 @@ export default function ResidentDashboard() {
             style={styles.sectionWrapper}
             onLayout={registerSection('news')}
           >
-            <View style={[styles.sectionSurface, colorScheme === 'dark' && styles.sectionSurfaceDark]}>
+            <View style={styles.sectionSurface}>
               <NewsSlider />
             </View>
           </MotiView>
@@ -137,7 +135,7 @@ export default function ResidentDashboard() {
             style={styles.sectionWrapper}
             onLayout={registerSection('reservations')}
           >
-            <View style={[styles.sectionSurface, colorScheme === 'dark' && styles.sectionSurfaceDark]}>
+            <View style={styles.sectionSurface}>
               <ReservationsSlider
                 onCancel={handleCancelReservation}
                 onViewReason={handleViewReason}
@@ -153,7 +151,7 @@ export default function ResidentDashboard() {
             style={styles.sectionWrapper}
             onLayout={registerSection('invited')}
           >
-            <View style={[styles.sectionSurface, colorScheme === 'dark' && styles.sectionSurfaceDark]}>
+            <View style={styles.sectionSurface}>
               <InvitationsSlider />
             </View>
           </MotiView>
@@ -166,7 +164,7 @@ export default function ResidentDashboard() {
             style={styles.sectionWrapper}
             onLayout={registerSection('packages')}
           >
-            <View style={[styles.sectionSurface, colorScheme === 'dark' && styles.sectionSurfaceDark]}>
+            <View style={styles.sectionSurface}>
               <PackageSlider />
             </View>
           </MotiView>
@@ -213,9 +211,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     position: 'relative',
   },
-  screenDark: {
-    backgroundColor: '#020617',
-  },
   sectionWrapper: {
     paddingHorizontal: 24,
     marginBottom: 24,
@@ -227,14 +222,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 28,
     padding: 24,
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.05,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 4,
-  },
-  sectionSurfaceDark: {
-    backgroundColor: '#0f172a',
+    shadowColor: 'rgba(15, 23, 42, 0.08)',
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 6,
   },
   placeholder: {
     alignItems: 'center',

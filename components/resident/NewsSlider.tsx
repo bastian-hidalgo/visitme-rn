@@ -10,7 +10,6 @@ import {
   Text,
   TouchableOpacity,
   View,
-  useColorScheme,
 } from 'react-native'
 import NewsCard from './NewsCard'
 
@@ -19,8 +18,6 @@ const { width } = Dimensions.get('window')
 export default function NewsSlider() {
   const { alerts, openAlertPanel, setAlertDetail, setLoadingAlerts, loadingAlerts } =
     useResidentContext()
-
-  const colorScheme = useColorScheme()
 
   const handleShowAlertDetail = async (alertId: string) => {
     openAlertPanel()
@@ -39,14 +36,10 @@ export default function NewsSlider() {
   if (alerts.length === 0 && !loadingAlerts) {
     return (
       <View style={styles.container}>
-        <Text
-          style={[styles.title, styles.titleCompact, colorScheme === 'dark' && styles.titleDark]}
-        >
+        <Text style={[styles.title, styles.titleCompact]}>
           Lo último
         </Text>
-        <Text style={[styles.subtitle, colorScheme === 'dark' && styles.subtitleDark]}>
-          No hay alertas recientes.
-        </Text>
+        <Text style={styles.subtitle}>No hay alertas recientes.</Text>
       </View>
     )
   }
@@ -62,9 +55,7 @@ export default function NewsSlider() {
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.title, colorScheme === 'dark' && styles.titleDark]}>
-        Lo último
-      </Text>
+      <Text style={styles.title}>Lo último</Text>
 
       <FlatList<FlatListItem>
         horizontal
@@ -127,14 +118,8 @@ const styles = StyleSheet.create({
   titleCompact: {
     marginBottom: 8,
   },
-  titleDark: {
-    color: '#ffffff',
-  },
   subtitle: {
     fontSize: 14,
     color: '#6b7280',
-  },
-  subtitleDark: {
-    color: '#9ca3af',
   },
 })

@@ -8,7 +8,6 @@ import {
   Text,
   TouchableOpacity,
   View,
-  useColorScheme,
 } from 'react-native'
 import SurveyCard from './SurveyCard'
 
@@ -16,7 +15,6 @@ const { width } = Dimensions.get('window')
 
 export default function SurveysSlider() {
   const { surveys, openSurveyPanel, setSelectedSurvey } = useResidentContext()
-  const colorScheme = useColorScheme()
 
   const handleClick = (survey: any) => {
     setSelectedSurvey(survey)
@@ -34,9 +32,7 @@ export default function SurveysSlider() {
     >
       {/* Header */}
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, colorScheme === 'dark' && styles.headerTitleDark]}>
-          Encuestas activas
-        </Text>
+        <Text style={styles.headerTitle}>Encuestas activas</Text>
       </View>
 
       {/* Slider horizontal */}
@@ -90,8 +86,5 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#111827',
-  },
-  headerTitleDark: {
-    color: '#ffffff',
   },
 })

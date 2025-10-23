@@ -10,6 +10,8 @@ const getUrlImageFromStorage = (imageName: string, storage: string) => {
   }
 
   const supabaseUrl =
+    process.env.EXPO_PUBLIC_SUPABASE_URL ||
+    process.env.SUPABASE_URL ||
     Constants.expoConfig?.extra?.SUPABASE_URL ||
     Constants.manifest2?.extra?.SUPABASE_URL ||
     'https://tu-proyecto.supabase.co'

@@ -26,7 +26,7 @@ export default function QuickAccessBottom({ onNavigate }: QuickAccessProps) {
 
   return (
     <LinearGradient
-      colors={['rgba(255, 255, 255, 0.92)', 'rgba(244, 244, 255, 0.88)']}
+      colors={['rgba(255, 255, 255, 0.92)', 'rgba(245, 240, 255, 0.88)']}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={[styles.container, Platform.OS === 'android' && styles.containerAndroid]}
@@ -51,7 +51,7 @@ export default function QuickAccessBottom({ onNavigate }: QuickAccessProps) {
                 end={{ x: 1, y: 1 }}
                 style={styles.iconWrapper}
               >
-                <Icon size={20} color="#6d28d9" />
+                <Icon size={18} color="#6d28d9" />
               </LinearGradient>
               {showBadge && (
                 <View style={styles.badge}>
@@ -75,32 +75,32 @@ const styles = StyleSheet.create({
     justifyContent: 'space-evenly',
     alignItems: 'center',
     borderRadius: 26,
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-    gap: 10,
-    shadowColor: '#111827',
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 14 },
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    gap: 6,
+    shadowColor: 'rgba(17, 24, 39, 0.18)',
+    shadowOpacity: 1,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 12 },
     elevation: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.55)',
+    borderColor: 'rgba(255, 255, 255, 0.6)',
   },
   containerAndroid: {
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
   },
   action: {
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
     flex: 1,
-    minWidth: 64,
-    gap: 6,
+    minWidth: 62,
+    gap: 4,
   },
   iconWrapper: {
-    width: 42,
-    height: 42,
-    borderRadius: 16,
+    width: 38,
+    height: 38,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },

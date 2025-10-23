@@ -1,7 +1,7 @@
 import { formatDate } from '@/lib/time'
 import { AlertTriangle, Flame, Newspaper } from 'lucide-react-native'
 import React from 'react'
-import { StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native'
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 
 interface NewsCardProps {
   id: string
@@ -35,8 +35,6 @@ export default function NewsCard({ id, date, title, message, type, onPress }: Ne
 
   const Icon = icons[type as keyof typeof icons] || Newspaper
 
-  const colorScheme = useColorScheme()
-
   const safeTitle = title?.trim().length ? title : 'Aviso importante'
   const safeMessage = message?.trim().length ? message : undefined
 
@@ -51,20 +49,12 @@ export default function NewsCard({ id, date, title, message, type, onPress }: Ne
     >
       {/* 🕒 Texto */}
       <View style={styles.textContainer}>
-        <Text style={[styles.date, colorScheme === 'dark' && styles.dateDark]}>
-          {formatDate(date)}
-        </Text>
-        <Text
-          style={[styles.title, colorScheme === 'dark' && styles.titleDark]}
-          numberOfLines={2}
-        >
+        <Text style={styles.date}>{formatDate(date)}</Text>
+        <Text style={styles.title} numberOfLines={2}>
           {safeTitle}
         </Text>
         {safeMessage ? (
-          <Text
-            style={[styles.message, colorScheme === 'dark' && styles.messageDark]}
-            numberOfLines={2}
-          >
+          <Text style={styles.message} numberOfLines={2}>
             {safeMessage}
           </Text>
         ) : null}
@@ -100,9 +90,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6b7280',
   },
-  dateDark: {
-    color: '#9ca3af',
-  },
   title: {
     fontSize: 14,
     fontWeight: '500',
@@ -110,17 +97,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
     color: '#111827',
   },
-  titleDark: {
-    color: '#f3f4f6',
-  },
   message: {
     marginTop: 6,
     fontSize: 13,
     lineHeight: 18,
     color: '#4b5563',
-  },
-  messageDark: {
-    color: '#d1d5db',
   },
   iconWrapper: {
     alignItems: 'center',

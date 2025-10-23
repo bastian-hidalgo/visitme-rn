@@ -6,14 +6,13 @@ import type { Database } from '@/types/supabase'
 import { UserPlus } from 'lucide-react-native'
 import { MotiView } from 'moti'
 import React from 'react'
-import { FlatList, StyleSheet, Text, View, useColorScheme } from 'react-native'
+import { FlatList, StyleSheet, Text, View } from 'react-native'
 
 type Visit = Database['public']['Tables']['visits']['Row']
 type VisitItem = Visit | { id: 'new' }
 
 export default function InvitedSlider() {
   const { visits, openInvitationPanel } = useResidentContext()
-  const colorScheme = useColorScheme()
 
   const data: VisitItem[] = [
     ...visits,
@@ -32,9 +31,7 @@ export default function InvitedSlider() {
     >
       {/* 🔹 Header */}
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, colorScheme === 'dark' && styles.headerTitleDark]}>
-          Tus Invitados
-        </Text>
+        <Text style={styles.headerTitle}>Tus Invitados</Text>
 
         <ActionButton
           text="Invitar"
@@ -98,9 +95,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#111827',
-  },
-  headerTitleDark: {
-    color: '#ffffff',
   },
   separator: {
     width: 16,

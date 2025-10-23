@@ -51,6 +51,7 @@ export default function PackageCard({ parcel }: { parcel: Parcel }) {
             source={{ uri: resolvedPhoto }}
             style={styles.image}
             contentFit="cover"
+            cachePolicy="memory-disk"
             transition={150}
           />
         </View>

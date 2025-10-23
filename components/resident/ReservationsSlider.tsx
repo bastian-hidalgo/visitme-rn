@@ -10,7 +10,6 @@ import {
   Text,
   TouchableOpacity,
   View,
-  useColorScheme,
 } from 'react-native'
 
 import EmptyActionCard from '@/components/ui/EmptyActionCard'
@@ -26,7 +25,6 @@ interface Props {
 export default function ReservationsSlider({ onCancel, onViewReason }: Props) {
   const { reservations, openReservationPanel } = useResidentContext()
   const reservationsWithWeather = useWeatherForReservations(reservations)
-  const colorScheme = useColorScheme()
 
   return (
     <MotiView
@@ -37,9 +35,7 @@ export default function ReservationsSlider({ onCancel, onViewReason }: Props) {
     >
       {/* Encabezado */}
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, colorScheme === 'dark' && styles.headerTitleDark]}>
-          Tus Reservas
-        </Text>
+        <Text style={styles.headerTitle}>Tus Reservas</Text>
 
         <TouchableOpacity
           activeOpacity={0.9}
@@ -107,9 +103,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#111827',
-  },
-  headerTitleDark: {
-    color: '#ffffff',
   },
   ctaButton: {
     flexDirection: 'row',

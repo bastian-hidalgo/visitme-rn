@@ -1,14 +1,7 @@
 import ActionButton from '@/components/resident/ActionButton'
 import { ExternalLink, UserPlus } from 'lucide-react-native'
 import React from 'react'
-import {
-  Linking,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  useColorScheme,
-} from 'react-native'
+import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import Modal from 'react-native-modal'
 
 interface Props {
@@ -22,7 +15,6 @@ const getWebUrl = (path: string) => {
 }
 
 export default function InvitationPanel({ isOpen, onClose }: Props) {
-  const colorScheme = useColorScheme()
 
   const handleOpenWeb = () => {
     const url = getWebUrl('/invitados')
@@ -41,20 +33,13 @@ export default function InvitationPanel({ isOpen, onClose }: Props) {
       backdropTransitionOutTiming={0}
       style={{ margin: 0, justifyContent: 'flex-end' }}
     >
-      <View
-        style={[
-          styles.panel,
-          colorScheme === 'dark' && styles.panelDark,
-        ]}
-      >
+      <View style={styles.panel}>
         <View style={styles.header}>
           <UserPlus size={22} color="#f97316" />
-          <Text style={[styles.title, colorScheme === 'dark' && styles.titleDark]}>
-            Invita a tus visitas
-          </Text>
+          <Text style={styles.title}>Invita a tus visitas</Text>
         </View>
 
-        <Text style={[styles.description, colorScheme === 'dark' && styles.descriptionDark]}>
+        <Text style={styles.description}>
           Estamos trabajando para que puedas crear invitaciones desde la app. Mientras tanto,
           continúa gestionándolas desde la versión web de VisitMe.
         </Text>
@@ -62,9 +47,7 @@ export default function InvitationPanel({ isOpen, onClose }: Props) {
         <View style={styles.actions}>
           <ActionButton text="Crear invitación en la web" icon={ExternalLink} onPress={handleOpenWeb} />
           <TouchableOpacity onPress={onClose} style={styles.secondaryButton}>
-            <Text style={[styles.secondaryLabel, colorScheme === 'dark' && styles.secondaryLabelDark]}>
-              Cerrar
-            </Text>
+            <Text style={styles.secondaryLabel}>Cerrar</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -82,9 +65,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderBottomLeftRadius: 24,
   },
-  panelDark: {
-    backgroundColor: '#0f172a',
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -96,17 +76,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
   },
-  titleDark: {
-    color: '#f8fafc',
-  },
   description: {
     fontSize: 15,
     lineHeight: 22,
     color: '#4b5563',
     marginBottom: 24,
-  },
-  descriptionDark: {
-    color: '#cbd5f5',
   },
   actions: {
     gap: 12,
@@ -119,8 +93,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#7e22ce',
-  },
-  secondaryLabelDark: {
-    color: '#c4b5fd',
   },
 })
