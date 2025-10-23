@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
   ctaButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#7c3aed',
+    backgroundColor: '#f97316',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,

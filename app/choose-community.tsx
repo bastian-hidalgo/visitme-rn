@@ -15,6 +15,8 @@ import {
   useColorScheme,
 } from 'react-native'
 
+import { useUser } from '@/providers/user-provider'
+
 const SELECTED_COMMUNITY_KEY = 'selected_community'
 const SELECTED_COMMUNITY_ID_KEY = 'selected_community_id'
 const SELECTED_COMMUNITY_NAME_KEY = 'selected_community_name'
@@ -36,6 +38,7 @@ interface CommunityOption {
 export default function ChooseCommunityScreen() {
   const { session, isLoading: authLoading } = useSupabaseAuth()
   const router = useRouter()
+  const { setUserData } = useUser()
   const [communities, setCommunities] = useState<CommunityOption[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -102,6 +105,11 @@ export default function ChooseCommunityScreen() {
           [SELECTED_COMMUNITY_ID_KEY, community.id],
           [SELECTED_COMMUNITY_NAME_KEY, community.name],
         ])
+        await setUserData({
+          communitySlug: community.slug,
+          communityId: community.id,
+          communityName: community.name,
+        })
         await AsyncStorage.removeItem(SKIP_COMMUNITY_AUTO_REDIRECT_KEY)
         router.replace({ pathname: '/(tabs)', params: { community: community.slug } })
       } catch (err) {
@@ -111,7 +119,7 @@ export default function ChooseCommunityScreen() {
         setSelectingId(null)
       }
     },
-    [router]
+    [router, setUserData]
   )
 
   const handleSignOut = useCallback(async () => {

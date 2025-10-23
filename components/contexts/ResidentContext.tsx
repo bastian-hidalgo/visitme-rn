@@ -5,7 +5,6 @@ import type { Alert } from '@/types/alert'
 import type { Reservation } from '@/types/reservation'
 import type { ResidentContextType } from '@/types/resident'
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { Linking } from 'react-native'
 
 const ResidentContext = createContext<ResidentContextType | undefined>(undefined)
 
@@ -24,6 +23,9 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   const [isSurveyPanelOpen, setSurveyPanelOpen] = useState(false)
   const [isFeedbackPanelOpen, setFeedbackPanelOpen] = useState(false)
   const [isInvitationPanelOpen, setInvitationPanelOpen] = useState(false)
+  const [isReservationPanelOpen, setReservationPanelOpen] = useState(false)
+  const [isPackagesPanelOpen, setPackagesPanelOpen] = useState(false)
+  const [isAlertPanelOpen, setAlertPanelOpen] = useState(false)
 
   // 🔹 Cargas
   const [loadingAlerts, setLoadingAlerts] = useState(true)
@@ -32,35 +34,32 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   const [loadingPackages, setLoadingPackages] = useState(true)
   const [loadingSurveys, setLoadingSurveys] = useState(true)
 
-  // 🔹 Acceso rápido a rutas web de Visitme
-  const openWebRoute = (path: string) => {
-    const baseUrl = process.env.EXPO_PUBLIC_WEB_APP_URL || 'https://app.visitme.cl'
-    const url = `${baseUrl}${path}`
-    Linking.openURL(url).catch((error) => {
-      console.error(`No fue posible abrir ${url}`, error)
-    })
-  }
-
   // 🔹 Abrir paneles / rutas
-  const openSurveyPanel = () => {
-    setSurveyPanelOpen(true)
-    openWebRoute('/encuestas')
-  }
+  const openSurveyPanel = () => setSurveyPanelOpen(true)
   const openFeedbackPanel = () => setFeedbackPanelOpen(true)
-  const openInvitationPanel = () => {
-    setInvitationPanelOpen(true)
-    openWebRoute('/invitados')
-  }
+  const openInvitationPanel = () => setInvitationPanelOpen(true)
+  const openReservationPanel = () => setReservationPanelOpen(true)
+  const openPackagesPanel = () => setPackagesPanelOpen(true)
+  const openAlertPanel = () => setAlertPanelOpen(true)
 
   // 🔹 Cerrar todos los paneles
   const closePanels = () => {
     setSurveyPanelOpen(false)
     setFeedbackPanelOpen(false)
     setInvitationPanelOpen(false)
+    setReservationPanelOpen(false)
+    setPackagesPanelOpen(false)
+    setAlertPanelOpen(false)
   }
 
   // 🔹 Estado combinado
-  const isAnyPanelOpen = isSurveyPanelOpen || isFeedbackPanelOpen || isInvitationPanelOpen
+  const isAnyPanelOpen =
+    isSurveyPanelOpen ||
+    isFeedbackPanelOpen ||
+    isInvitationPanelOpen ||
+    isReservationPanelOpen ||
+    isPackagesPanelOpen ||
+    isAlertPanelOpen
 
   // 🔹 Encuestas
   const refreshSurveys = useCallback(async () => {
@@ -276,6 +275,10 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         // 🔹 Estado de paneles
         isSurveyPanelOpen,
         isFeedbackPanelOpen,
+        isInvitationPanelOpen,
+        isReservationPanelOpen,
+        isPackagesPanelOpen,
+        isAlertPanelOpen,
         isAnyPanelOpen,
 
         // 🔹 Cargas
@@ -296,9 +299,9 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         openSurveyPanel,
         openFeedbackPanel,
         openInvitationPanel,
-        openAlertPanel: () => openWebRoute('/noticias'),
-        openPackagesPanel: () => openWebRoute('/encomiendas'),
-        openReservationPanel: () => openWebRoute('/reservas'),
+        openAlertPanel,
+        openPackagesPanel,
+        openReservationPanel,
 
         // 🔹 Cierre general
         closePanels,

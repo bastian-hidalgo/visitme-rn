@@ -21,10 +21,13 @@ import PackageSlider from '@/components/resident/PackageSlider'
 import QuickAccess from '@/components/resident/QuickAccess'
 import ReservationsSlider from '@/components/resident/ReservationsSlider'
 import SurveysSlider from '@/components/resident/SurveysSlider'
+import InvitationPanel from '@/components/resident/sidepanels/InvitationPanel'
+import ReservationPanel from '@/components/resident/sidepanels/ReservationPanel'
 import getReservationBannerStatus from '@/lib/getReservationsBannerStatus'
 
 export default function ResidentDashboard() {
-  const { reservations } = useResidentContext()
+  const { reservations, isInvitationPanelOpen, isReservationPanelOpen, closePanels } =
+    useResidentContext()
   const colorScheme = useColorScheme()
 
   const handleCancelReservation = (id: string) => {
@@ -181,6 +184,8 @@ export default function ResidentDashboard() {
           </View>
         </MotiView>
       </View>
+      <InvitationPanel isOpen={isInvitationPanelOpen} onClose={closePanels} />
+      <ReservationPanel isOpen={isReservationPanelOpen} onClose={closePanels} />
       {/* TODO: agregar modales de cancelación y motivo */}
     </SafeAreaView>
   )

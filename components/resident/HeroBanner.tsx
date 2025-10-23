@@ -67,11 +67,11 @@ const styles = StyleSheet.create({
     position: 'relative',
     borderRadius: 24,
     overflow: 'visible',
-    minHeight: 190,
+    minHeight: 170,
   },
   background: {
     flex: 1,
-    minHeight: 190,
+    minHeight: 170,
     borderRadius: 24,
   },
   backgroundImage: {
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
   textContainer: {
     flex: 1,
     justifyContent: 'center',
-    paddingRight: 120,
+    paddingRight: 110,
   },
   title: {
     color: '#ffffff',
@@ -106,10 +106,10 @@ const styles = StyleSheet.create({
   },
   character: {
     position: 'absolute',
-    bottom: -16,
-    right: -12,
-    width: 150,
-    height: 180,
+    bottom: -8,
+    right: -4,
+    width: 140,
+    height: 170,
     resizeMode: 'contain',
   },
 })
