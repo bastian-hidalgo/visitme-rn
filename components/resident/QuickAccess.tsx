@@ -40,7 +40,7 @@ export default function QuickAccessBottom() {
             })}
           >
             <View style={styles.action}>
-              <Icon size={26} color="#6d28d9" /> {/* violet-700 */}
+              <Icon size={26} color="#6d28d9" />
               {showBadge && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>

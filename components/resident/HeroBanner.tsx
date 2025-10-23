@@ -18,7 +18,7 @@ export default function HeroBanner({ reservationStatus, reservationDate }: HeroB
     <View style={styles.container}>
       {/* Fondo */}
       <ImageBackground
-        source={{ uri: backgroundImage }}
+        source={backgroundImage}
         resizeMode="cover"
         style={{
           width: width - 32,
@@ -58,7 +58,7 @@ export default function HeroBanner({ reservationStatus, reservationDate }: HeroB
           {/* Personaje ilustrado */}
           {characterImage ? (
             <Image
-              source={{ uri: characterImage }}
+              source={characterImage}
               style={{
                 width: 120,
                 height: 120,

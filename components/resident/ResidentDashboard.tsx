@@ -44,7 +44,6 @@ export default function ResidentDashboard() {
         {/* Header */}
         <Header />
 
-        {/* Hero Banner */}
         <MotiView
           from={{ opacity: 0, translateY: 20 }}
           animate={{ opacity: 1, translateY: 0 }}

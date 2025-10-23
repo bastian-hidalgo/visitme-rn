@@ -1,3 +1,4 @@
+import { ResidentProvider } from '@/components/contexts/ResidentContext'
 import ResidentDashboard from '@/components/resident/ResidentDashboard'
 import { useSupabaseAuth } from '@/providers/supabase-auth-provider'
 import { useUser } from '@/providers/user-provider'
@@ -50,10 +51,10 @@ export default function ResidentPage() {
   }
 
   return (
-    <>
+    <ResidentProvider>
       <ResidentDashboard />
       <Toast />
-    </>
+    </ResidentProvider>
   )
 }
 
