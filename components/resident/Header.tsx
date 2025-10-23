@@ -7,7 +7,7 @@ import { MotiView } from 'moti'
 import React, { useState } from 'react'
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native'
 
-export default function Header() {
+export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const greeting = getGreeting()
   const { name, avatarUrl, communityName } = useUser()
@@ -52,14 +52,10 @@ export default function Header() {
             animate={{ scale: isMenuOpen ? 0.95 : 1 }}
             transition={{ type: 'timing', duration: 150 }}
           >
-            <Pressable onPress={() => setIsMenuOpen(true)}>
+            <Pressable onPress={onToggleMenu}>
               <View style={styles.avatarWrapper}>
                 <Image
-                  source={
-                    avatarUrl
-                      ? { uri: avatarUrl }
-                      : require('@/assets/img/avatar.webp')
-                  }
+                  source={avatarUrl ? { uri: avatarUrl } : require('@/assets/img/avatar.webp')}
                   style={{ width: '100%', height: '100%' }}
                 />
               </View>

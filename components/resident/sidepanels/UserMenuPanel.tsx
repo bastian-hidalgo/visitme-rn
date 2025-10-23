@@ -1,11 +1,11 @@
 import { useResidentContext } from '@/components/contexts/ResidentContext'
 import { supabase } from '@/lib/supabase'
 import { useUser } from '@/providers/user-provider'
+import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import { ArrowLeftRight, Camera, Lightbulb, LogOut } from 'lucide-react-native'
-import { MotiView } from 'moti'
 import React, { useEffect, useState } from 'react'
-import { Image, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import Modal from 'react-native-modal'
 
 interface Props {
@@ -18,6 +18,7 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
   const { avatarUrl, communityName, id, logout } = useUser()
   const { openFeedbackPanel } = useResidentContext()
   const [hasMultipleCommunities, setHasMultipleCommunities] = useState(false)
+  const [activeItem, setActiveItem] = useState<string>('home')
 
   useEffect(() => {
     if (!id) return
@@ -36,7 +37,6 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
 
   const handleEditPhoto = () => {
     onClose()
-    // aquí podrías abrir tu panel o pantalla de edición de avatar
     router.push('/profile/edit-avatar' as any)
   }
 
@@ -54,6 +54,16 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
     await logout()
   }
 
+  const MENU_ITEMS = [
+    { id: 'photo', text: 'Editar foto', icon: <Camera size={18} color="#fff" />, onPress: handleEditPhoto },
+    { id: 'suggest', text: 'Realizar una sugerencia', icon: <Lightbulb size={18} color="#fff" />, onPress: handleFeedback },
+    ...(hasMultipleCommunities
+      ? [{ id: 'change', text: 'Cambiar comunidad', icon: <ArrowLeftRight size={18} color="#fff" />, onPress: handleChangeCommunity }]
+      : []),
+    // logout agregado al mismo nivel, con separador arriba
+    { id: 'logout', text: 'Cerrar sesión', icon: <LogOut size={18} color="#fff" />, onPress: handleLogout, isLogout: true },
+  ]
+
   return (
     <Modal
       isVisible={isOpen}
@@ -61,177 +71,176 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
       onBackButtonPress={onClose}
       animationIn="slideInRight"
       animationOut="slideOutRight"
+      backdropOpacity={0.3}
       backdropTransitionOutTiming={0}
-      style={{ margin: 0, justifyContent: 'flex-end' }}
+      style={{ margin: 0 }}
     >
-      <MotiView
-        from={{ translateX: 300 }}
-        animate={{ translateX: 0 }}
-        transition={{ type: 'timing', duration: 300 }}
-        style={styles.panel}
-      >
-        <ScrollView showsVerticalScrollIndicator={false}>
-          {/* Avatar */}
-          <View style={styles.avatarSection}>
-            <View style={styles.avatarContainer}>
-              <Image
-                source={
-                  avatarUrl
-                    ? { uri: avatarUrl }
-                    : require('@/assets/img/avatar.webp')
-                }
-                style={{ width: '100%', height: '100%' }}
-              />
-            </View>
-            {communityName ? (
-              <View style={styles.communityBadge}>
-                <Text style={styles.communityBadgeText}>
-                  {communityName}
+      <View style={styles.overlay}>
+        <LinearGradient
+          colors={['#7C3AED', '#5B21B6']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.panel}
+        >
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {/* 🟣 Header con avatar */}
+            <View style={styles.header}>
+              <View style={styles.avatarWrapper}>
+                <Image
+                  source={
+                    avatarUrl
+                      ? { uri: avatarUrl }
+                      : require('@/assets/img/avatar.webp')
+                  }
+                  style={styles.avatar}
+                />
+              </View>
+              <View style={styles.headerText}>
+                <Text style={styles.communityLabel}>Tu comunidad</Text>
+                <Text style={styles.communityName}>
+                  {communityName || 'Sin nombre'}
                 </Text>
               </View>
-            ) : null}
-          </View>
+            </View>
 
-          {/* Opciones */}
-          <View style={styles.options}>
-            <MenuItem
-              icon={<Camera size={18} />}
-              text="Editar foto"
-              onPress={handleEditPhoto}
-            />
-            <MenuItem
-              icon={<Lightbulb size={18} />}
-              text="Realizar una sugerencia"
-              onPress={handleFeedback}
-            />
-            {hasMultipleCommunities && (
-              <MenuItem
-                icon={<ArrowLeftRight size={18} />}
-                text="Cambiar comunidad"
-                onPress={handleChangeCommunity}
-              />
-            )}
-          </View>
+            {/* Separador */}
+            <View style={styles.separator} />
 
-          {/* Logout */}
-          <View style={styles.logoutContainer}>
-            <TouchableOpacity
-              onPress={handleLogout}
-              style={styles.logoutButton}
-            >
-              <LogOut color="#fff" size={18} />
-              <Text style={styles.logoutText}>
-                Cerrar sesión
-              </Text>
-            </TouchableOpacity>
-          </View>
+            {/* 🔹 Menú principal + logout */}
+            <View style={styles.menu}>
+              {MENU_ITEMS.map((item, index) => {
+                const isActive = activeItem === item.id
+                const isLogout = item.isLogout
 
-          <View style={styles.bottomSpacer} />
-        </ScrollView>
-      </MotiView>
+                return (
+                  <React.Fragment key={item.id}>
+                    {isLogout && <View style={styles.separator} />}
+                    <Pressable
+                      onPress={() => {
+                        setActiveItem(item.id)
+                        item.onPress()
+                      }}
+                      style={[
+                        styles.menuItem,
+                        isActive && styles.menuItemActive,
+                      ]}
+                    >
+                      <View
+                        style={[styles.menuIcon, isActive && styles.menuIconActive]}
+                      >
+                        {item.icon}
+                      </View>
+                      <Text
+                        style={[
+                          styles.menuText,
+                          isActive && styles.menuTextActive,
+                        ]}
+                      >
+                        {item.text}
+                      </Text>
+                    </Pressable>
+                  </React.Fragment>
+                )
+              })}
+            </View>
+          </ScrollView>
+        </LinearGradient>
+      </View>
     </Modal>
   )
 }
 
-/* 🔹 Componente auxiliar para cada item */
-const MenuItem = ({
-  icon,
-  text,
-  onPress,
-}: {
-  icon: React.ReactNode
-  text: string
-  onPress: () => void
-}) => {
-  return (
-    <Pressable onPress={onPress}>
-      <MotiView
-        from={{ opacity: 0, translateX: 20 }}
-        animate={{ opacity: 1, translateX: 0 }}
-        transition={{ type: 'timing', duration: 300 }}
-        style={[styles.menuItem, styles.menuItemLight]}
-      >
-        {icon}
-        <Text style={styles.menuItemText}>
-          {text}
-        </Text>
-      </MotiView>
-    </Pressable>
-  )
-}
-
+/* 🎨 Estilos */
 const styles = StyleSheet.create({
-  panel: {
-    backgroundColor: '#ffffff',
-    height: '100%',
-    width: '80%',
-    marginLeft: 'auto',
-    borderTopLeftRadius: 24,
-    borderBottomLeftRadius: 24,
-    padding: 20,
-  },
-  avatarSection: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  avatarContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 24,
-    overflow: 'hidden',
-    backgroundColor: '#e5e7eb',
-  },
-  communityBadge: {
-    backgroundColor: 'rgba(126, 34, 206, 0.1)',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginTop: 8,
-  },
-  communityBadgeText: {
-    color: '#7e22ce',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  options: {
-    gap: 12,
-  },
-  logoutContainer: {
-    marginTop: 40,
-  },
-  logoutButton: {
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  panel: {
+    height: '100%',
+    width: '75%',
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 40,
+    boxShadow: '0 40px 12px rgba(139, 92, 246, 1)',
+  },
+  header: {
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    gap: 15,
+    marginBottom: 0,
+  },
+  avatarWrapper: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'rgba(139, 92, 246, 1)',
     justifyContent: 'center',
-    backgroundColor: '#7e22ce',
-    paddingVertical: 12,
-    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+    marginLeft: 10,
   },
-  logoutText: {
-    color: '#ffffff',
-    marginLeft: 8,
-    fontWeight: '600',
+  avatar: {
+    width: 66,
+    height: 66,
+    borderRadius: 33,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.7)',
   },
-  bottomSpacer: {
-    height: 80,
+  headerText: {
+    alignItems: 'flex-start',
+  },
+  communityLabel: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    marginBottom: 2,
+  },
+  communityName: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  separator: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    marginVertical: 24,
+    width: '100%',
+  },
+  menu: {
+    gap: 12,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 12,
-    borderRadius: 16,
-    marginBottom: 12,
+    borderRadius: 30,
   },
-  menuItemLight: {
-    backgroundColor: '#f5f3ff',
+  menuItemActive: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
   },
-  menuItemText: {
-    flex: 1,
-    marginLeft: 12,
+  menuIcon: {
+    marginRight: 14,
+    opacity: 0.9,
+    color: '#fff',
+  },
+  menuIconActive: {
+    opacity: 1,
+  },
+  menuText: {
+    color: '#fff',
     fontSize: 15,
-    color: '#312e81',
-    fontWeight: '600',
+    fontWeight: '500',
+  },
+  menuTextActive: {
+    color: '#fff',
+    fontWeight: '700',
   },
 })

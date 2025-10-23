@@ -1,5 +1,6 @@
+import { LinearGradient } from 'expo-linear-gradient'
 import { MotiView } from 'moti'
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   LayoutChangeEvent,
@@ -22,9 +23,25 @@ import ReservationsSlider from '@/components/resident/ReservationsSlider'
 import SurveysSlider from '@/components/resident/SurveysSlider'
 import InvitationPanel from '@/components/resident/sidepanels/InvitationPanel'
 import ReservationPanel from '@/components/resident/sidepanels/ReservationPanel'
+import UserMenuPanel from '@/components/resident/sidepanels/UserMenuPanel'
 import getReservationBannerStatus from '@/lib/getReservationsBannerStatus'
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated'
 
 export default function ResidentDashboard() {
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const offset = useSharedValue(0)
+  useEffect(() => {
+    offset.value = withTiming(isMenuOpen ? 1 : 0, { duration: 300 })
+  }, [isMenuOpen])
+  const dashboardStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: withTiming(-offset.value * 120) },
+      { scale: withTiming(1 - offset.value * 0.1) },
+      { rotateY: `${offset.value * 8}deg` },
+    ],
+    borderRadius: withTiming(offset.value * 26),
+    shadowOpacity: offset.value ? 0.3 : 0,
+  }))
   const { reservations, isInvitationPanelOpen, isReservationPanelOpen, closePanels } =
     useResidentContext()
 
@@ -76,127 +93,134 @@ export default function ResidentDashboard() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.screen}>
-        <ScrollView
-          ref={scrollViewRef}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{
-            paddingBottom: contentPaddingBottom,
-            paddingTop: 24,
-          }}
+        <LinearGradient
+          colors={['#7C3AED', '#5B21B6']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={{ flex: 1 }}
         >
-          {/* Header */}
-          <View style={[styles.sectionWrapper, styles.sectionHeader]}>
-            <Header />
-          </View>
+          <Animated.View style={[styles.screen, dashboardStyle]}>
+            <ScrollView
+              ref={scrollViewRef}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{
+                paddingBottom: contentPaddingBottom,
+                paddingTop: 24,
+              }}
+            >
+              {/* Header */}
+              <View style={[styles.sectionWrapper, styles.sectionHeader]}>
+                <Header onToggleMenu={() => setIsMenuOpen(true)}  />
+              </View>
 
-          <MotiView
-            from={{ opacity: 0, translateY: 20 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 500 }}
-            style={styles.sectionWrapper}
-            onLayout={registerSection('hero')}
-          >
-            <View style={styles.sectionSurface}>
-              <HeroBanner reservationStatus={status} reservationDate={formattedDate} />
-            </View>
-          </MotiView>
+              <MotiView
+                from={{ opacity: 0, translateY: 20 }}
+                animate={{ opacity: 1, translateY: 0 }}
+                transition={{ type: 'timing', duration: 500 }}
+                style={styles.sectionWrapper}
+                onLayout={registerSection('hero')}
+              >
+                <View style={styles.sectionSurface}>
+                  <HeroBanner reservationStatus={status} reservationDate={formattedDate} />
+                </View>
+              </MotiView>
 
-          {/* Encuestas */}
-          <MotiView
-            from={{ opacity: 0, translateY: 20 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ delay: 100, duration: 400 }}
-            style={styles.sectionWrapper}
-          >
-            <View style={styles.sectionSurface}>
-              <SurveysSlider />
-            </View>
-          </MotiView>
+              {/* Encuestas */}
+              <MotiView
+                from={{ opacity: 0, translateY: 20 }}
+                animate={{ opacity: 1, translateY: 0 }}
+                transition={{ delay: 100, duration: 400 }}
+                style={styles.sectionWrapper}
+              >
+                <View style={styles.sectionSurface}>
+                  <SurveysSlider />
+                </View>
+              </MotiView>
 
-          {/* Noticias */}
-          <MotiView
-            from={{ opacity: 0, translateY: 20 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ delay: 200, duration: 400 }}
-            style={styles.sectionWrapper}
-            onLayout={registerSection('news')}
-          >
-            <View style={styles.sectionSurface}>
-              <NewsSlider />
-            </View>
-          </MotiView>
+              {/* Noticias */}
+              <MotiView
+                from={{ opacity: 0, translateY: 20 }}
+                animate={{ opacity: 1, translateY: 0 }}
+                transition={{ delay: 200, duration: 400 }}
+                style={styles.sectionWrapper}
+                onLayout={registerSection('news')}
+              >
+                <View style={styles.sectionSurface}>
+                  <NewsSlider />
+                </View>
+              </MotiView>
 
-          {/* Reservas */}
-          <MotiView
-            from={{ opacity: 0, translateY: 20 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ delay: 300, duration: 400 }}
-            style={styles.sectionWrapper}
-            onLayout={registerSection('reservations')}
-          >
-            <View style={styles.sectionSurface}>
-              <ReservationsSlider
-                onCancel={handleCancelReservation}
-                onViewReason={handleViewReason}
-              />
-            </View>
-          </MotiView>
+              {/* Reservas */}
+              <MotiView
+                from={{ opacity: 0, translateY: 20 }}
+                animate={{ opacity: 1, translateY: 0 }}
+                transition={{ delay: 300, duration: 400 }}
+                style={styles.sectionWrapper}
+                onLayout={registerSection('reservations')}
+              >
+                <View style={styles.sectionSurface}>
+                  <ReservationsSlider
+                    onCancel={handleCancelReservation}
+                    onViewReason={handleViewReason}
+                  />
+                </View>
+              </MotiView>
 
-          {/* Invitaciones */}
-          <MotiView
-            from={{ opacity: 0, translateY: 20 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ delay: 400, duration: 400 }}
-            style={styles.sectionWrapper}
-            onLayout={registerSection('invited')}
-          >
-            <View style={styles.sectionSurface}>
-              <InvitationsSlider />
-            </View>
-          </MotiView>
+              {/* Invitaciones */}
+              <MotiView
+                from={{ opacity: 0, translateY: 20 }}
+                animate={{ opacity: 1, translateY: 0 }}
+                transition={{ delay: 400, duration: 400 }}
+                style={styles.sectionWrapper}
+                onLayout={registerSection('invited')}
+              >
+                <View style={styles.sectionSurface}>
+                  <InvitationsSlider />
+                </View>
+              </MotiView>
 
-          {/* Encomiendas */}
-          <MotiView
-            from={{ opacity: 0, translateY: 20 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ delay: 500, duration: 400 }}
-            style={styles.sectionWrapper}
-            onLayout={registerSection('packages')}
-          >
-            <View style={styles.sectionSurface}>
-              <PackageSlider />
-            </View>
-          </MotiView>
+              {/* Encomiendas */}
+              <MotiView
+                from={{ opacity: 0, translateY: 20 }}
+                animate={{ opacity: 1, translateY: 0 }}
+                transition={{ delay: 500, duration: 400 }}
+                style={styles.sectionWrapper}
+                onLayout={registerSection('packages')}
+              >
+                <View style={styles.sectionSurface}>
+                  <PackageSlider />
+                </View>
+              </MotiView>
 
-          {/* Placeholder de acciones */}
-          <View style={styles.placeholder}>
-            <Text style={styles.placeholderText}>
-              Aquí aparecerán tus próximas acciones ✨
-            </Text>
-          </View>
-        </ScrollView>
+              {/* Placeholder de acciones */}
+              <View style={styles.placeholder}>
+                <Text style={styles.placeholderText}>
+                  Aquí aparecerán tus próximas acciones ✨
+                </Text>
+              </View>
+            </ScrollView>
 
-        {/* Quick Access (fijo inferior) */}
-        <MotiView
-          from={{ translateY: 120, scale: 0.9 }}
-          animate={{ translateY: 10, scale: 1 }}
-          transition={{
-            type: 'spring',
-            stiffness: 160,
-            damping: 24,
-            delay: 700,
-          }}
-          style={[styles.quickAccessWrapper, { paddingBottom: insets.bottom + 12 }]}
-        >
-          <View style={styles.quickAccessInner}>
-            <QuickAccess onNavigate={handleNavigateToSection} />
-          </View>
-        </MotiView>
-      </View>
+            {/* Quick Access (fijo inferior) */}
+            <MotiView
+              from={{ translateY: 120, scale: 0.9 }}
+              animate={{ translateY: 10, scale: 1 }}
+              transition={{
+                type: 'spring',
+                stiffness: 160,
+                damping: 24,
+                delay: 700,
+              }}
+              style={[styles.quickAccessWrapper, { paddingBottom: insets.bottom + 12 }]}
+            >
+              <View style={styles.quickAccessInner}>
+                <QuickAccess onNavigate={handleNavigateToSection} />
+              </View>
+            </MotiView>
+          </Animated.View>
+        </LinearGradient>
       <InvitationPanel isOpen={isInvitationPanelOpen} onClose={closePanels} />
       <ReservationPanel isOpen={isReservationPanelOpen} onClose={closePanels} />
-      {/* TODO: agregar modales de cancelación y motivo */}
+      <UserMenuPanel isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
     </SafeAreaView>
   )
 }
