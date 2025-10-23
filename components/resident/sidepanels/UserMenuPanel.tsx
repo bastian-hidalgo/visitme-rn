@@ -4,8 +4,18 @@ import { useUser } from '@/providers/user-provider'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import { ArrowLeftRight, Camera, Lightbulb, LogOut, X } from 'lucide-react-native'
-import React, { useEffect, useState } from 'react'
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import React, { useEffect, useRef, useState } from 'react'
+import {
+  Animated,
+  Easing,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native'
 import Modal from 'react-native-modal'
 
 interface Props {
@@ -19,6 +29,17 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
   const { openFeedbackPanel } = useResidentContext()
   const [hasMultipleCommunities, setHasMultipleCommunities] = useState(false)
   const [activeItem, setActiveItem] = useState<string>('home')
+  const { width } = useWindowDimensions()
+  const slideAnim = useRef(new Animated.Value(isOpen ? 0 : 1)).current
+
+  useEffect(() => {
+    Animated.timing(slideAnim, {
+      toValue: isOpen ? 0 : 1,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start()
+  }, [isOpen, slideAnim])
 
   useEffect(() => {
     if (!id) return
@@ -70,21 +91,36 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
       onBackdropPress={onClose}
       onBackButtonPress={onClose}
       onSwipeComplete={onClose}
-      swipeDirection={["right"]}
-      animationIn="slideInRight"
-      animationOut="slideOutRight"
+      swipeDirection={['right']}
+      animationIn="fadeIn"
+      animationOut="fadeOut"
       backdropOpacity={0.3}
       backdropTransitionOutTiming={0}
       style={{ margin: 0 }}
     >
       <View style={styles.overlay}>
         <Pressable style={styles.backdrop} onPress={onClose} />
-        <LinearGradient
-          colors={['#7C3AED', '#5B21B6']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={styles.panel}
+        <Animated.View
+          style={[
+            styles.panelContainer,
+            {
+              transform: [
+                {
+                  translateX: slideAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, width * 0.75],
+                  }),
+                },
+              ],
+            },
+          ]}
         >
+          <LinearGradient
+            colors={['#7C3AED', '#5B21B6']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={styles.panel}
+          >
           <ScrollView showsVerticalScrollIndicator={false}>
             {/* 🟣 Header con avatar */}
             <View style={styles.header}>
@@ -154,7 +190,8 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
               })}
             </View>
           </ScrollView>
-        </LinearGradient>
+          </LinearGradient>
+        </Animated.View>
       </View>
     </Modal>
   )
@@ -170,6 +207,9 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     flex: 1,
+  },
+  panelContainer: {
+    height: '100%',
   },
   panel: {
     height: '100%',
