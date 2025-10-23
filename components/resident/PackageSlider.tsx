@@ -27,6 +27,8 @@ export default function PackageSlider() {
     openPackagesPanel()
   }
 
+  const cardWidth = Math.min(width * 0.72, 320)
+
   return (
     <MotiView
       from={{ opacity: 0, translateY: 20 }}
@@ -57,12 +59,12 @@ export default function PackageSlider() {
           <TouchableOpacity
             activeOpacity={0.9}
             onPress={() => handleSelectPackage(item)}
-            style={{ width: width * 0.7, marginRight: 16 }}
+            style={{ width: cardWidth, marginRight: 12 }}
           >
             <PackageCard parcel={item} />
           </TouchableOpacity>
         )}
-        contentContainerStyle={{ paddingLeft: 0, paddingRight: 16 }}
+        contentContainerStyle={styles.listContent}
         ListEmptyComponent={() => (
           <View style={styles.emptyState}>
             <Text style={[styles.emptyStateText, colorScheme === 'dark' && styles.emptyStateTextDark]}>
@@ -79,6 +81,10 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     marginTop: 16,
+  },
+  listContent: {
+    paddingLeft: 4,
+    paddingRight: 12,
   },
   header: {
     flexDirection: 'row',

@@ -2,7 +2,8 @@ import { useResidentContext } from '@/components/contexts/ResidentContext'
 import { Bell, Calendar, Package, Users } from 'lucide-react-native'
 import { MotiPressable } from 'moti/interactions'
 import React, { useMemo } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { Platform, StyleSheet, Text, View } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 
 const QUICK_ACTIONS = [
   { id: 'news', label: 'Noticias', icon: Bell },
@@ -24,7 +25,12 @@ export default function QuickAccessBottom({ onNavigate }: QuickAccessProps) {
   )
 
   return (
-    <View style={styles.container}>
+    <LinearGradient
+      colors={['rgba(255, 255, 255, 0.95)', 'rgba(244, 244, 255, 0.9)']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[styles.container, Platform.OS === 'android' && styles.containerAndroid]}
+    >
       {QUICK_ACTIONS.map((action) => {
         const Icon = action.icon
         const showBadge = action.id === 'packages' && pendingPackages > 0
@@ -39,9 +45,14 @@ export default function QuickAccessBottom({ onNavigate }: QuickAccessProps) {
             })}
           >
             <View style={styles.action}>
-              <View style={styles.iconWrapper}>
-                <Icon size={22} color="#6d28d9" />
-              </View>
+              <LinearGradient
+                colors={['#ede9fe', '#e0e7ff']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.iconWrapper}
+              >
+                <Icon size={20} color="#6d28d9" />
+              </LinearGradient>
               {showBadge && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>
@@ -56,7 +67,7 @@ export default function QuickAccessBottom({ onNavigate }: QuickAccessProps) {
           </MotiPressable>
         )
       })}
-    </View>
+    </LinearGradient>
   )
 }
 
@@ -65,37 +76,39 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderRadius: 28,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    gap: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    gap: 12,
     shadowColor: '#111827',
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 12,
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.7)',
+    borderColor: 'rgba(255, 255, 255, 0.55)',
+  },
+  containerAndroid: {
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
   },
   action: {
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    minWidth: 72,
+    flex: 1,
+    minWidth: 68,
   },
   iconWrapper: {
-    width: 46,
-    height: 46,
+    width: 44,
+    height: 44,
     borderRadius: 16,
-    backgroundColor: 'rgba(124, 58, 237, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   badge: {
     position: 'absolute',
-    top: -6,
-    right: 0,
+    top: -4,
+    right: 14,
     backgroundColor: '#ef4444',
     borderRadius: 8,
     height: 16,
@@ -110,9 +123,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   actionLabel: {
-    fontSize: 12,
+    fontSize: 11,
     marginTop: 8,
-    color: '#1f2937',
+    color: '#4338ca',
     fontWeight: '600',
     textAlign: 'center',
   },

@@ -25,6 +25,11 @@ export default function PackageCard({ parcel }: { parcel: Parcel }) {
     setParcelDetail(parcel)
   }
 
+  const fallbackImage = 'https://www.visitme.cl/img/placeholder-package.webp'
+  const resolvedPhoto = parcel.photo_url
+    ? getUrlImageFromStorage(parcel.photo_url, 'parcel-photos') || fallbackImage
+    : fallbackImage
+
   return (
     <MotiView
       from={{ opacity: 0, translateY: 20 }}
@@ -39,15 +44,7 @@ export default function PackageCard({ parcel }: { parcel: Parcel }) {
       >
         {/* 🔹 Foto */}
         <View style={styles.imageWrapper}>
-          <Image
-            source={{
-              uri: parcel.photo_url
-                ? getUrlImageFromStorage(parcel.photo_url, 'parcel-photos')
-                : 'https://www.visitme.cl/img/placeholder-package.webp',
-            }}
-            style={styles.image}
-            resizeMode="cover"
-          />
+          <Image source={{ uri: resolvedPhoto }} style={styles.image} resizeMode="cover" />
         </View>
 
         {/* 🔹 Información */}
@@ -88,54 +85,51 @@ export default function PackageCard({ parcel }: { parcel: Parcel }) {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#ffffff',
-    borderRadius: 16,
-    width: 200,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 8,
+    borderRadius: 20,
+    width: '100%',
+    padding: 16,
     shadowColor: '#0f172a',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
   },
   touchable: {
     width: '100%',
-    alignItems: 'center',
+    alignItems: 'stretch',
   },
   imageWrapper: {
     width: '100%',
-    height: 160,
-    backgroundColor: '#e5e7eb',
+    height: 120,
+    backgroundColor: '#f3f4f6',
     borderRadius: 16,
     overflow: 'hidden',
+    marginBottom: 16,
   },
   image: {
     width: '100%',
     height: '100%',
   },
   info: {
-    alignItems: 'center',
-    marginTop: 12,
-    marginBottom: 16,
-    paddingHorizontal: 8,
+    alignItems: 'flex-start',
   },
   dateBadge: {
-    backgroundColor: '#c4b5fd',
+    backgroundColor: '#ede9fe',
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 6,
     borderRadius: 9999,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   dateText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#5b21b6',
+    color: '#6d28d9',
   },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginBottom: 6,
   },
   statusText: {
     fontSize: 14,
@@ -146,6 +140,6 @@ const styles = StyleSheet.create({
   pickupText: {
     fontSize: 12,
     color: '#6b7280',
-    marginTop: 4,
+    marginTop: 2,
   },
 })
