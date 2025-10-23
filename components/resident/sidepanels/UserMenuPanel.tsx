@@ -3,9 +3,19 @@ import { supabase } from '@/lib/supabase'
 import { useUser } from '@/providers/user-provider'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
-import { ArrowLeftRight, Camera, Lightbulb, LogOut } from 'lucide-react-native'
-import React, { useEffect, useState } from 'react'
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ArrowLeftRight, Camera, Lightbulb, LogOut, X } from 'lucide-react-native'
+import React, { useEffect, useRef, useState } from 'react'
+import {
+  Animated,
+  Easing,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native'
 import Modal from 'react-native-modal'
 
 interface Props {
@@ -19,6 +29,17 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
   const { openFeedbackPanel } = useResidentContext()
   const [hasMultipleCommunities, setHasMultipleCommunities] = useState(false)
   const [activeItem, setActiveItem] = useState<string>('home')
+  const { width } = useWindowDimensions()
+  const slideAnim = useRef(new Animated.Value(isOpen ? 0 : 1)).current
+
+  useEffect(() => {
+    Animated.timing(slideAnim, {
+      toValue: isOpen ? 0 : 1,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start()
+  }, [isOpen, slideAnim])
 
   useEffect(() => {
     if (!id) return
@@ -69,38 +90,63 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
       isVisible={isOpen}
       onBackdropPress={onClose}
       onBackButtonPress={onClose}
-      animationIn="slideInRight"
-      animationOut="slideOutRight"
+      onSwipeComplete={onClose}
+      swipeDirection={['right']}
+      animationIn="fadeIn"
+      animationOut="fadeOut"
       backdropOpacity={0.3}
       backdropTransitionOutTiming={0}
       style={{ margin: 0 }}
     >
       <View style={styles.overlay}>
-        <LinearGradient
-          colors={['#7C3AED', '#5B21B6']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={styles.panel}
+        <Pressable style={styles.backdrop} onPress={onClose} />
+        <Animated.View
+          style={[
+            styles.panelContainer,
+            {
+              transform: [
+                {
+                  translateX: slideAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, width * 0.75],
+                  }),
+                },
+              ],
+            },
+          ]}
         >
+          <LinearGradient
+            colors={['#7C3AED', '#5B21B6']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={styles.panel}
+          >
           <ScrollView showsVerticalScrollIndicator={false}>
             {/* 🟣 Header con avatar */}
             <View style={styles.header}>
-              <View style={styles.avatarWrapper}>
-                <Image
-                  source={
-                    avatarUrl
-                      ? { uri: avatarUrl }
-                      : require('@/assets/img/avatar.webp')
-                  }
-                  style={styles.avatar}
-                />
+              <View style={styles.headerContent}>
+                <View style={styles.avatarWrapper}>
+                  <Image
+                    source={
+                      avatarUrl
+                        ? { uri: avatarUrl }
+                        : require('@/assets/img/avatar.webp')
+                    }
+                    style={styles.avatar}
+                  />
+                </View>
+                <View style={styles.headerText}>
+                  <Text style={styles.communityLabel}>Tu comunidad</Text>
+                  <Text style={styles.communityName}>
+                    {communityName || 'Sin nombre'}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.headerText}>
-                <Text style={styles.communityLabel}>Tu comunidad</Text>
-                <Text style={styles.communityName}>
-                  {communityName || 'Sin nombre'}
-                </Text>
-              </View>
+              <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Cerrar panel de usuario">
+                <View style={styles.closeButton}>
+                  <X size={20} color="#fff" />
+                </View>
+              </Pressable>
             </View>
 
             {/* Separador */}
@@ -144,7 +190,8 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
               })}
             </View>
           </ScrollView>
-        </LinearGradient>
+          </LinearGradient>
+        </Animated.View>
       </View>
     </Modal>
   )
@@ -157,6 +204,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
   },
+  backdrop: {
+    flex: 1,
+  },
+  panelContainer: {
+    height: '100%',
+  },
   panel: {
     height: '100%',
     width: '75%',
@@ -168,9 +221,15 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'flex-start',
+    justifyContent: 'space-between',
     gap: 15,
     marginBottom: 0,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
+    flex: 1,
   },
   avatarWrapper: {
     width: 70,
@@ -185,6 +244,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 8,
     marginLeft: 10,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   avatar: {
     width: 66,
