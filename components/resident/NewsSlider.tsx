@@ -1,6 +1,5 @@
 import { useResidentContext } from '@/components/contexts/ResidentContext'
 import SkeletonCard from '@/components/ui/SkeletonCard'
-import { useUser } from '@/providers/user-provider'
 import type { Alert } from '@/types/alert'
 import { MotiView } from 'moti'
 import React from 'react'
@@ -26,7 +25,6 @@ export default function NewsSlider() {
     loadingAlerts,
   } = useResidentContext()
 
-  const { communitySlug } = useUser()
   const colorScheme = useColorScheme()
 
   const handleShowAlertDetail = async (alertId: string) => {
@@ -81,8 +79,8 @@ export default function NewsSlider() {
         renderItem={({ item }) => {
           if ('skeleton' in item) {
             return (
-              <View style={{ width: width - 60, marginRight: 16 }}>
-                <SkeletonCard height={80} width={width - 60} />
+              <View style={{ width: width - 96, marginRight: 16 }}>
+                <SkeletonCard height={86} width={width - 96} />
               </View>
             )
           }
@@ -92,7 +90,7 @@ export default function NewsSlider() {
               from={{ opacity: 0, translateY: 20 }}
               animate={{ opacity: 1, translateY: 0 }}
               transition={{ duration: 500 }}
-              style={{ width: width - 60, marginRight: 16 }}
+              style={{ width: width - 96, marginRight: 16 }}
             >
               <TouchableOpacity
                 activeOpacity={0.9}
@@ -117,7 +115,6 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     marginTop: 16,
-    paddingHorizontal: 16,
   },
   title: {
     fontSize: 24,

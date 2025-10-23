@@ -49,6 +49,7 @@ export default function InvitedSlider() {
         data={data}
         keyExtractor={(item) => item.id.toString()}
         showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingRight: 16 }}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         renderItem={({ item }) => {
           if (!isVisit(item)) {

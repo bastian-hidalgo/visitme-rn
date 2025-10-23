@@ -1,9 +1,11 @@
 import { supabase } from '@/lib/supabase'
 import { formatDate, now, toServerUTC } from '@/lib/time'
 import { useUser } from '@/providers/user-provider'
+import type { Alert } from '@/types/alert'
 import type { Reservation } from '@/types/reservation'
 import type { ResidentContextType } from '@/types/resident'
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { Linking } from 'react-native'
 
 const ResidentContext = createContext<ResidentContextType | undefined>(undefined)
 
@@ -11,7 +13,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   const { communityId, id, loading: userLoading } = useUser()
 
   // 🔹 Datos principales
-  const [alerts, setAlerts] = useState<any[]>([])
+  const [alerts, setAlerts] = useState<Alert[]>([])
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [visits, setVisits] = useState<any[]>([])
   const [packages, setPackages] = useState<any[]>([])
@@ -30,10 +32,25 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   const [loadingPackages, setLoadingPackages] = useState(true)
   const [loadingSurveys, setLoadingSurveys] = useState(true)
 
-  // 🔹 Abrir paneles
-  const openSurveyPanel = () => setSurveyPanelOpen(true)
+  // 🔹 Acceso rápido a rutas web de Visitme
+  const openWebRoute = (path: string) => {
+    const baseUrl = process.env.EXPO_PUBLIC_WEB_APP_URL || 'https://app.visitme.cl'
+    const url = `${baseUrl}${path}`
+    Linking.openURL(url).catch((error) => {
+      console.error(`No fue posible abrir ${url}`, error)
+    })
+  }
+
+  // 🔹 Abrir paneles / rutas
+  const openSurveyPanel = () => {
+    setSurveyPanelOpen(true)
+    openWebRoute('/encuestas')
+  }
   const openFeedbackPanel = () => setFeedbackPanelOpen(true)
-  const openInvitationPanel = () => setInvitationPanelOpen(true)
+  const openInvitationPanel = () => {
+    setInvitationPanelOpen(true)
+    openWebRoute('/invitados')
+  }
 
   // 🔹 Cerrar todos los paneles
   const closePanels = () => {
@@ -46,7 +63,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   const isAnyPanelOpen = isSurveyPanelOpen || isFeedbackPanelOpen || isInvitationPanelOpen
 
   // 🔹 Encuestas
-  const refreshSurveys = async () => {
+  const refreshSurveys = useCallback(async () => {
     if (!id || !communityId) return
     setLoadingSurveys(true)
 
@@ -84,49 +101,79 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
 
     setSurveys(enriched)
     setLoadingSurveys(false)
-  }
+  }, [communityId, id])
 
   // 🔹 Alertas (API pública)
-  const fetchAlerts = async () => {
+  const fetchAlerts = useCallback(async () => {
+    if (!communityId) {
+      setAlerts([])
+      setLoadingAlerts(false)
+      return
+    }
+
     setLoadingAlerts(true)
     try {
-      const response = await fetch(
-        `${process.env.EXPO_PUBLIC_URL_API}/api/alerts?community_id=${communityId}`
-      )
-      const data = await response.json()
-      if (response.ok) setAlerts(data)
+      const { data, error } = await supabase
+        .from('alerts')
+        .select('id, title, message, created_at, tags, image_url, type')
+        .eq('community_id', communityId)
+        .order('created_at', { ascending: false })
+        .limit(10)
+
+      if (error) throw error
+
+      const normalized = (data || []).map<Alert>((alert) => ({
+        id: alert.id,
+        title: alert.title ?? 'Aviso importante',
+        message: alert.message ?? '',
+        description: alert.message ?? '',
+        created_at: alert.created_at ?? now().toISOString(),
+        tags: alert.tags ?? [],
+        image_url: alert.image_url ?? undefined,
+        type: alert.type ?? 'comunicado',
+      }))
+
+      setAlerts(normalized)
     } catch (e) {
       console.error('Error al cargar alertas:', e)
+      setAlerts([])
     } finally {
       setLoadingAlerts(false)
     }
-  }
+  }, [communityId])
 
   // 🔹 Reservas
-  const fetchReservations = async () => {
+  const fetchReservations = useCallback(async () => {
+    if (!communityId || !id) {
+      setReservations([])
+      setLoadingReservations(false)
+      return
+    }
+
     setLoadingReservations(true)
     try {
-      const res = await fetch(
-        `${process.env.EXPO_PUBLIC_URL_API}/api/users/reservations?onlyFuture=true&communityId=${communityId}`
-      )
-      const data = await res.json()
-      if (res.ok) {
-        const sorted = [...data].sort((a, b) => {
-          const dateA = new Date(a.date).getTime()
-          const dateB = new Date(b.date).getTime()
-          return dateA - dateB
-        })
-        setReservations(sorted)
-      }
+      const { data, error } = await supabase
+        .from('common_space_reservations_with_user')
+        .select('*')
+        .eq('community_id', communityId)
+        .eq('reserved_by', id)
+        .gte('date', toServerUTC(now().startOf('day')))
+        .order('date', { ascending: true })
+        .limit(10)
+
+      if (error) throw error
+
+      setReservations((data as Reservation[]) || [])
     } catch (e) {
       console.error('Error al cargar reservas:', e)
+      setReservations([])
     } finally {
       setLoadingReservations(false)
     }
-  }
+  }, [communityId, id])
 
   // 🔹 Visitas
-  const fetchVisits = async () => {
+  const fetchVisits = useCallback(async () => {
     if (!id || !communityId) return
     setLoadingVisits(true)
     try {
@@ -157,10 +204,10 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
     } finally {
       setLoadingVisits(false)
     }
-  }
+  }, [communityId, id])
 
   // 🔹 Paquetes
-  const fetchPackages = async () => {
+  const fetchPackages = useCallback(async () => {
     if (!id || !communityId) return
     setLoadingPackages(true)
     try {
@@ -188,7 +235,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
     } finally {
       setLoadingPackages(false)
     }
-  }
+  }, [communityId, id])
 
   // 🔹 Cargar todo en montaje
   useEffect(() => {
@@ -203,7 +250,16 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
     loadAll()
     const interval = setInterval(loadAll, 60000)
     return () => clearInterval(interval)
-  }, [userLoading, id, communityId])
+  }, [
+    userLoading,
+    id,
+    communityId,
+    fetchAlerts,
+    fetchReservations,
+    fetchVisits,
+    fetchPackages,
+    refreshSurveys,
+  ])
 
   // ✅ Contexto
   return (
@@ -240,18 +296,9 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         openSurveyPanel,
         openFeedbackPanel,
         openInvitationPanel,
-        openAlertPanel: () => {
-          // ⚙️ Si tienes un panel real en el futuro, aquí puedes abrirlo
-          console.log('openAlertPanel() llamado')
-        },
-        openPackagesPanel: () => {
-          // ⚙️ Si tienes un panel real en el futuro, aquí puedes abrirlo
-          console.log('openPackagesPanel() llamado')
-        },
-        openReservationPanel: () => {
-          // ⚙️ Si tienes un panel real en el futuro, aquí puedes abrirlo
-          console.log('openReservationPanel() llamado')
-        },
+        openAlertPanel: () => openWebRoute('/noticias'),
+        openPackagesPanel: () => openWebRoute('/encomiendas'),
+        openReservationPanel: () => openWebRoute('/reservas'),
 
         // 🔹 Cierre general
         closePanels,

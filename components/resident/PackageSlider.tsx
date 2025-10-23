@@ -62,6 +62,7 @@ export default function PackageSlider() {
             <PackageCard parcel={item} />
           </TouchableOpacity>
         )}
+        contentContainerStyle={{ paddingLeft: 0, paddingRight: 16 }}
         ListEmptyComponent={() => (
           <View style={styles.emptyState}>
             <Text style={[styles.emptyStateText, colorScheme === 'dark' && styles.emptyStateTextDark]}>
@@ -78,7 +79,6 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     marginTop: 16,
-    paddingHorizontal: 16,
   },
   header: {
     flexDirection: 'row',

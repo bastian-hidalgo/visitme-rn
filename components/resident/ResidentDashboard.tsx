@@ -1,6 +1,16 @@
 import { MotiView } from 'moti'
-import React, { useState } from 'react'
-import { Dimensions, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native'
+import React, { useMemo, useRef, useState } from 'react'
+import {
+  Alert,
+  Linking,
+  LayoutChangeEvent,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useColorScheme,
+} from 'react-native'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useResidentContext } from '@/components/contexts/ResidentContext'
 import Header from '@/components/resident/Header'
@@ -13,148 +23,190 @@ import ReservationsSlider from '@/components/resident/ReservationsSlider'
 import SurveysSlider from '@/components/resident/SurveysSlider'
 import getReservationBannerStatus from '@/lib/getReservationsBannerStatus'
 
-const { width } = Dimensions.get('window')
-
 export default function ResidentDashboard() {
   const { reservations } = useResidentContext()
   const colorScheme = useColorScheme()
 
-  // Estado local de modales
-  const [cancelReservationId, setCancelReservationId] = useState<string | null>(null)
-  const [cancellationReason, setCancellationReason] = useState<string | null>(null)
+  const handleCancelReservation = (id: string) => {
+    Alert.alert(
+      'Cancelar reserva',
+      'Muy pronto podrás gestionar tus reservas desde la aplicación móvil. Por ahora te redirigiremos a la versión web.',
+      [
+        {
+          text: 'Abrir en la web',
+          onPress: () => {
+            const url = `${process.env.EXPO_PUBLIC_WEB_APP_URL || 'https://app.visitme.cl'}/reservas`
+            Linking.openURL(url).catch((error) => {
+              console.error('No fue posible abrir la URL de reservas', error)
+            })
+          },
+        },
+        { text: 'Cerrar', style: 'cancel' },
+      ]
+    )
+  }
 
-  // Acciones de modal
-  const openCancelModal = (id: string) => setCancelReservationId(id)
-  const openReasonModal = (reason: string) => setCancellationReason(reason)
-  const closeCancelModal = () => setCancelReservationId(null)
-  const closeReasonModal = () => setCancellationReason(null)
+  const handleViewReason = (reason: string) => {
+    Alert.alert('Motivo de cancelación', reason)
+  }
 
   // Estado del banner de reserva (hoy / mañana / pasada)
   const { status, formattedDate } = getReservationBannerStatus(reservations)
 
+  const scrollViewRef = useRef<ScrollView>(null)
+  const insets = useSafeAreaInsets()
+  const [sectionPositions, setSectionPositions] = useState<Record<string, number>>({})
+
+  const registerSection = (sectionId: string) => ({ nativeEvent }: LayoutChangeEvent) => {
+    setSectionPositions((prev) => ({
+      ...prev,
+      [sectionId]: nativeEvent.layout.y,
+    }))
+  }
+
+  const handleNavigateToSection = (sectionId: string) => {
+    const y = sectionPositions[sectionId]
+    if (scrollViewRef.current && typeof y === 'number') {
+      scrollViewRef.current.scrollTo({ y: Math.max(0, y - 32), animated: true })
+    }
+  }
+
+  const contentPaddingBottom = useMemo(() => insets.bottom + 160, [insets.bottom])
+
   return (
-    <View style={[styles.screen, colorScheme === 'dark' && styles.screenDark]}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingBottom: 140,
-          paddingTop: 20,
-        }}
-      >
-        {/* Header */}
-        <Header />
-
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 500 }}
-          style={styles.heroSection}
+    <SafeAreaView style={[styles.safeArea, colorScheme === 'dark' && styles.screenDark]}>
+      <View style={styles.screen}>
+        <ScrollView
+          ref={scrollViewRef}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingBottom: contentPaddingBottom,
+            paddingTop: 24,
+          }}
         >
-          <HeroBanner reservationStatus={status} reservationDate={formattedDate} />
-        </MotiView>
+          {/* Header */}
+          <View style={styles.sectionCard}>
+            <Header />
+          </View>
 
-        {/* Encuestas */}
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'timing', duration: 500 }}
+            style={styles.sectionCard}
+            onLayout={registerSection('hero')}
+          >
+            <HeroBanner reservationStatus={status} reservationDate={formattedDate} />
+          </MotiView>
+
+          {/* Encuestas */}
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ delay: 100, duration: 400 }}
+            style={styles.sectionCard}
+          >
+            <SurveysSlider />
+          </MotiView>
+
+          {/* Noticias */}
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ delay: 200, duration: 400 }}
+            style={styles.sectionCard}
+            onLayout={registerSection('news')}
+          >
+            <NewsSlider />
+          </MotiView>
+
+          {/* Reservas */}
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ delay: 300, duration: 400 }}
+            style={styles.sectionCard}
+            onLayout={registerSection('reservations')}
+          >
+            <ReservationsSlider
+              onCancel={handleCancelReservation}
+              onViewReason={handleViewReason}
+            />
+          </MotiView>
+
+          {/* Invitaciones */}
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ delay: 400, duration: 400 }}
+            style={styles.sectionCard}
+            onLayout={registerSection('invited')}
+          >
+            <InvitationsSlider />
+          </MotiView>
+
+          {/* Encomiendas */}
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ delay: 500, duration: 400 }}
+            style={styles.sectionCard}
+            onLayout={registerSection('packages')}
+          >
+            <PackageSlider />
+          </MotiView>
+
+          {/* Placeholder de acciones */}
+          <View style={styles.placeholder}>
+            <Text style={styles.placeholderText}>
+              Aquí aparecerán tus próximas acciones ✨
+            </Text>
+          </View>
+        </ScrollView>
+
+        {/* Quick Access (fijo inferior) */}
         <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ delay: 100, duration: 400 }}
-          style={styles.section}
+          from={{ translateY: 120, scale: 0.9 }}
+          animate={{ translateY: -12, scale: 1 }}
+          transition={{
+            type: 'spring',
+            stiffness: 160,
+            damping: 24,
+            delay: 700,
+          }}
+          style={[styles.quickAccessWrapper, { paddingBottom: insets.bottom + 12 }]}
         >
-          <SurveysSlider />
+          <View style={styles.quickAccessInner}>
+            <QuickAccess onNavigate={handleNavigateToSection} />
+          </View>
         </MotiView>
-
-        {/* Noticias */}
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ delay: 200, duration: 400 }}
-          style={styles.section}
-        >
-          <NewsSlider />
-        </MotiView>
-
-        {/* Reservas */}
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ delay: 300, duration: 400 }}
-          style={styles.section}
-        >
-          <ReservationsSlider
-            onCancel={openCancelModal}
-            onViewReason={openReasonModal}
-          />
-        </MotiView>
-
-        {/* Invitaciones */}
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ delay: 400, duration: 400 }}
-          style={styles.section}
-        >
-          <InvitationsSlider />
-        </MotiView>
-
-        {/* Encomiendas */}
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ delay: 500, duration: 400 }}
-          style={styles.section}
-        >
-          <PackageSlider />
-        </MotiView>
-
-        {/* Placeholder de acciones */}
-        <View style={styles.placeholder}>
-          <Text style={styles.placeholderText}>
-            Aquí aparecerán tus próximas acciones ✨
-          </Text>
-        </View>
-      </ScrollView>
-
-      {/* Quick Access (fijo inferior) */}
-      <MotiView
-        from={{ translateY: 120, scale: 0.9 }}
-        animate={{ translateY: -10, scale: 1 }}
-        transition={{
-          type: 'spring',
-          stiffness: 160,
-          damping: 24,
-          delay: 700,
-        }}
-        style={styles.quickAccessWrapper}
-      >
-        <View style={styles.quickAccessInner}>
-          <QuickAccess />
-        </View>
-      </MotiView>
-
+      </View>
       {/* TODO: agregar modales de cancelación y motivo */}
-    </View>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
   screen: {
     flex: 1,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
     position: 'relative',
   },
   screenDark: {
     backgroundColor: '#020617',
   },
-  heroSection: {
-    marginTop: 8,
-  },
-  section: {
-    marginTop: 24,
+  sectionCard: {
+    paddingHorizontal: 24,
+    marginBottom: 24,
   },
   placeholder: {
     alignItems: 'center',
-    marginTop: 32,
-    marginBottom: 32,
+    marginTop: 8,
+    marginBottom: 40,
   },
   placeholderText: {
     color: '#9ca3af',
@@ -169,8 +221,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   quickAccessInner: {
-    width: '85%',
-    maxWidth: 768,
-    padding: 16,
+    width: '90%',
+    maxWidth: 420,
   },
 })

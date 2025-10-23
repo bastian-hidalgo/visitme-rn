@@ -69,7 +69,7 @@ export default function SurveysSlider() {
             </TouchableOpacity>
           </MotiView>
         )}
-        contentContainerStyle={{ paddingLeft: 16, paddingBottom: 10 }}
+        contentContainerStyle={{ paddingLeft: 0, paddingRight: 16, paddingBottom: 10 }}
       />
     </MotiView>
   )
@@ -85,7 +85,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
-    paddingHorizontal: 16,
   },
   headerTitle: {
     fontSize: 24,
