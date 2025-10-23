@@ -1,75 +1,81 @@
 import { useResidentContext } from '@/components/contexts/ResidentContext'
 import getUrlImageFromStorage from '@/lib/getUrlImageFromStorage'
-import { format, formatDate } from '@/lib/time'
-import type { Parcel } from '@/types/parcel'
+import { formatDate } from '@/lib/time'
+import { Image } from 'expo-image'
+import { LinearGradient } from 'expo-linear-gradient'
 import { PackageCheck, PackageSearch, PackageX } from 'lucide-react-native'
 import { MotiView } from 'moti'
 import React from 'react'
-import { Image } from 'expo-image'
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 
-export default function PackageCard({ parcel }: { parcel: Parcel }) {
+const CARD_WIDTH = 150
+const CARD_HEIGHT = CARD_WIDTH * 1.2
+
+export default function PackageCard({ parcel, scrollX, index }: any) {
   const { openPackagesPanel, setParcelDetail } = useResidentContext()
-  type ParcelStatus = 'received' | 'pending' | 'picked_up' | 'cancelled'
 
-  const status: ParcelStatus = (parcel.status ?? 'received') as ParcelStatus
-
-  const iconByStatus: Record<ParcelStatus, React.ReactNode> = {
-    received: <PackageSearch size={24} color="#3b82f6" />,
-    pending: <PackageX size={24} color="#f59e0b" />,
-    picked_up: <PackageCheck size={24} color="#10b981" />,
-    cancelled: <PackageX size={24} color="#6b7280" />,
-  }
-
-  const handleOpenDetails = (parcel: Parcel) => {
+  const handlePress = () => {
     openPackagesPanel()
     setParcelDetail(parcel)
   }
 
-  const fallbackImage = 'https://www.visitme.cl/img/placeholder-package.webp'
-  const resolvedPhoto = parcel.photo_url
-    ? getUrlImageFromStorage(parcel.photo_url, 'parcel-photos') || fallbackImage
-    : fallbackImage
+  const status = (parcel.status ?? 'received') as
+    | 'received'
+    | 'pending'
+    | 'picked_up'
+    | 'cancelled'
 
-  const departmentNumber = (parcel as unknown as { department?: { number?: string | null } })
-    ?.department?.number
+  const iconByStatus = {
+    received: <PackageSearch size={16} color="#fff" />,
+    pending: <PackageX size={16} color="#fff" />,
+    picked_up: <PackageCheck size={16} color="#fff" />,
+    cancelled: <PackageX size={16} color="#fff" />,
+  }
+
+  const fallbackImage = 'https://www.visitme.cl/img/placeholder-package.webp'
+  const resolvedPhoto =
+    parcel.photo_url
+      ? getUrlImageFromStorage(parcel.photo_url, 'parcel-photos') || fallbackImage
+      : fallbackImage
+
+  const departmentNumber = (parcel as any)?.department?.number
+
+  // Parallax: ampliamos el rango pero mantenemos dentro del marco
+  const inputRange = [(index - 1) * CARD_WIDTH, index * CARD_WIDTH, (index + 1) * CARD_WIDTH]
+  const translateX = scrollX.interpolate({
+    inputRange,
+    outputRange: [-15, 0, 15],
+  })
 
   return (
-    <MotiView
-      from={{ opacity: 0, translateY: 20 }}
-      animate={{ opacity: 1, translateY: 0 }}
-      transition={{ duration: 500 }}
-      style={styles.container}
-    >
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={() => handleOpenDetails(parcel)}
-        style={styles.touchable}
+    <TouchableOpacity activeOpacity={0.9} onPress={handlePress}>
+      <MotiView
+        style={[styles.card, { width: CARD_WIDTH, height: CARD_HEIGHT }]}
+        from={{ opacity: 0, translateY: 60 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ duration: 500 }}
       >
-        <View style={styles.imageWrapper}>
+        {/* Imagen ampliada para no dejar zonas negras */}
+        <Animated.View style={[styles.imageWrapper, { transform: [{ translateX }] }]}>
           <Image
             source={{ uri: resolvedPhoto }}
             style={styles.image}
             contentFit="cover"
-            cachePolicy="memory-disk"
-            transition={150}
+            transition={200}
           />
-        </View>
+        </Animated.View>
 
+        {/* Gradiente para texto */}
+        <LinearGradient
+          colors={['rgba(0,0,0,0.7)', 'rgba(0,0,0,0.0)']}
+          start={{ x: 0.5, y: 1 }}
+          end={{ x: 0.5, y: 0 }}
+          style={styles.gradient}
+        />
+
+        {/* Texto superpuesto */}
         <View style={styles.info}>
-          <View style={styles.topRow}>
-            <View style={styles.dateBadge}>
-              <Text style={styles.dateText}>{formatDate(parcel.created_at)}</Text>
-            </View>
-
-            {departmentNumber ? (
-              <View style={styles.departmentBadge}>
-                <Text style={styles.departmentText}>Depto. {departmentNumber}</Text>
-              </View>
-            ) : null}
-          </View>
-
-          <View style={styles.statusRow}>
+          <View style={[styles.statusBadge, styles[`badge_${status}`]]}>
             {iconByStatus[status]}
             <Text style={styles.statusText}>
               {status === 'pending'
@@ -82,98 +88,74 @@ export default function PackageCard({ parcel }: { parcel: Parcel }) {
             </Text>
           </View>
 
-          {parcel.picked_up_at ? (
-            <Text style={styles.pickupText}>
-              Retirada {format(parcel.picked_up_at, 'DD/MM/YYYY HH:mm')}
-            </Text>
-          ) : (
-            <Text style={styles.pendingText}>Retírala con tu credencial</Text>
-          )}
+          {departmentNumber ? (
+            <Text style={styles.departmentText}>Depto. {departmentNumber}</Text>
+          ) : null}
+
+          <Text style={styles.dateText}>{formatDate(parcel.created_at)}</Text>
         </View>
-      </TouchableOpacity>
-    </MotiView>
+      </MotiView>
+    </TouchableOpacity>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#ffffff',
-    borderRadius: 22,
-    width: '100%',
-    padding: 16,
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.06,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 4,
-  },
-  touchable: {
-    width: '100%',
-    alignItems: 'stretch',
-    gap: 12,
+  card: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginHorizontal: 6,
+    backgroundColor: '#000',
   },
   imageWrapper: {
-    width: '100%',
-    height: 124,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 18,
-    overflow: 'hidden',
+    position: 'absolute',
+    top: 0,
+    left: '-10%',
+    width: '120%', // imagen más grande para permitir movimiento
+    height: '100%',
   },
   image: {
     width: '100%',
     height: '100%',
   },
+  gradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '60%',
+  },
   info: {
-    alignItems: 'flex-start',
-    gap: 10,
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    right: 12,
+    gap: 6,
   },
-  topRow: {
-    width: '100%',
+  statusBadge: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
-  },
-  dateBadge: {
-    backgroundColor: '#ede9fe',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 9999,
-  },
-  dateText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6d28d9',
-  },
-  departmentBadge: {
-    backgroundColor: '#e0e7ff',
+    alignSelf: 'flex-start',
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 9999,
+    paddingVertical: 4,
+    borderRadius: 20,
+    gap: 6,
+  },
+  badge_received: { backgroundColor: '#3b82f6' },
+  badge_pending: { backgroundColor: '#f59e0b' },
+  badge_picked_up: { backgroundColor: '#10b981' },
+  badge_cancelled: { backgroundColor: '#6b7280' },
+  statusText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
   },
   departmentText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#3730a3',
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  statusText: {
-    fontSize: 14,
-    fontWeight: '600',
-    textTransform: 'capitalize',
-    color: '#1f2937',
-  },
-  pickupText: {
+    color: '#f3f4f6',
     fontSize: 12,
-    color: '#6b7280',
-  },
-  pendingText: {
-    fontSize: 12,
-    color: '#4338ca',
     fontWeight: '500',
+  },
+  dateText: {
+    color: '#d1d5db',
+    fontSize: 11,
   },
 })

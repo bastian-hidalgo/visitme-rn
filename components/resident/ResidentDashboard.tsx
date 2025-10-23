@@ -180,7 +180,7 @@ export default function ResidentDashboard() {
         {/* Quick Access (fijo inferior) */}
         <MotiView
           from={{ translateY: 120, scale: 0.9 }}
-          animate={{ translateY: -12, scale: 1 }}
+          animate={{ translateY: 10, scale: 1 }}
           transition={{
             type: 'spring',
             stiffness: 160,

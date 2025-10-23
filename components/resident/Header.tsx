@@ -79,7 +79,6 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     paddingVertical: 0,
     paddingBottom: 16,
-    paddingHorizontal: 16,
     gap: 10,
   },
   logoRow: {

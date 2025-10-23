@@ -76,11 +76,14 @@ export default function NewsCard({ id, date, title, message, type, onPress }: Ne
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     borderRadius: 16,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     width: '100%',
+    minHeight: 120,
+    marginBottom: 8
   },
   textContainer: {
     flex: 1,
