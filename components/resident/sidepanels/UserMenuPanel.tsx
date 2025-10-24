@@ -4,25 +4,26 @@ import { useUser } from '@/providers/user-provider'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import { ArrowLeftRight, Camera, Lightbulb, LogOut } from 'lucide-react-native'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
-  BackHandler,
   Image,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
 } from 'react-native'
-import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import Animated, {
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-  type SharedValue,
-} from 'react-native-reanimated'
+import type { SharedValue } from 'react-native-reanimated'
+
+import SidePanelContainer from './SidePanelContainer'
+
+type MenuItem = {
+  id: string
+  text: string
+  icon: React.ReactNode
+  onPress: () => Promise<void> | void
+  isLogout?: boolean
+}
 
 interface Props {
   isOpen: boolean
@@ -30,17 +31,12 @@ interface Props {
   progress: SharedValue<number>
 }
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
-
 export default function UserMenuPanel({ isOpen, onClose, progress }: Props) {
   const router = useRouter()
   const { avatarUrl, communityName, id, logout } = useUser()
   const { openFeedbackPanel } = useResidentContext()
   const [hasMultipleCommunities, setHasMultipleCommunities] = useState(false)
   const [activeItem, setActiveItem] = useState('home')
-  const { width } = useWindowDimensions()
-  const panelWidth = useMemo(() => width * 0.75, [width])
-  const startSV = useSharedValue(0)
 
   useEffect(() => {
     if (!id) return
@@ -57,154 +53,123 @@ export default function UserMenuPanel({ isOpen, onClose, progress }: Props) {
     }
   }, [id])
 
-  useEffect(() => {
-    const handleBack = () => {
-      if (!isOpen) return false
-      progress.value = withTiming(0, { duration: 250 }, () => runOnJS(onClose)())
-      return true
-    }
-    const sub = BackHandler.addEventListener('hardwareBackPress', handleBack)
-    return () => sub.remove()
-  }, [isOpen, onClose])
-
-  const closeWithAnim = () => {
-    progress.value = withTiming(0, { duration: 250 }, () => runOnJS(onClose)())
-  }
-
-  const handleEditPhoto = () => {
-    closeWithAnim()
-    setTimeout(() => router.push('/profile/edit-avatar' as any), 250)
-  }
-
-  const handleFeedback = () => {
-    closeWithAnim()
-    setTimeout(() => openFeedbackPanel(), 250)
-  }
-
-  const handleChangeCommunity = () => {
-    closeWithAnim()
-    setTimeout(() => router.replace('/choose-community'), 250)
-  }
-
-  const handleLogout = async () => {
-    await logout()
-  }
-
-  const MENU_ITEMS = [
-    { id: 'photo', text: 'Editar foto', icon: <Camera size={18} color="#fff" />, onPress: handleEditPhoto },
-    { id: 'suggest', text: 'Realizar una sugerencia', icon: <Lightbulb size={18} color="#fff" />, onPress: handleFeedback },
-    ...(hasMultipleCommunities
-      ? [{ id: 'change', text: 'Cambiar comunidad', icon: <ArrowLeftRight size={18} color="#fff" />, onPress: handleChangeCommunity }]
-      : []),
-    { id: 'logout', text: 'Cerrar sesión', icon: <LogOut size={18} color="#fff" />, onPress: handleLogout, isLogout: true },
-  ]
-
-  const backdropStyle = useAnimatedStyle(() => ({
-    opacity: progress.value * 0.3,
-  }))
-
-  const panelStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: (1 - progress.value) * panelWidth }],
-  }))
-
-  const panGesture = Gesture.Pan()
-    .onStart(() => {
-      startSV.value = progress.value
-    })
-    .onChange((event) => {
-      const next = startSV.value - event.translationX / panelWidth
-      progress.value = Math.min(Math.max(next, 0), 1)
-    })
-    .onEnd((event) => {
-      const shouldClose = progress.value < 0.5 || event.velocityX > 500
-      if (shouldClose) {
-        progress.value = withTiming(0, { duration: 250 }, () => runOnJS(onClose)())
-      } else {
-        progress.value = withTiming(1, { duration: 250 })
-      }
-    })
-
-  if (!isOpen) return null
-
   return (
-    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-      <AnimatedPressable
-        onPress={closeWithAnim}
-        style={[StyleSheet.absoluteFillObject, styles.backdrop, backdropStyle]}
-      />
+    <SidePanelContainer
+      isOpen={isOpen}
+      onClose={onClose}
+      progress={progress}
+      widthFactor={0.75}
+      backdropOpacity={0.3}
+    >
+      {({ close }) => {
+        const handleEditPhoto = async () => {
+          await close()
+          router.push('/profile/edit-avatar' as any)
+        }
 
-      <View pointerEvents="box-none" style={styles.overlay}>
-        <GestureDetector gesture={panGesture}>
-          <Animated.View style={[styles.panelWrapper, { width: panelWidth }, panelStyle]}>
-            <LinearGradient
-              colors={['#7C3AED', '#5B21B6']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={styles.panel}
-            >
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <View style={styles.header}>
-                  <View style={styles.avatarWrapper}>
-                    <Image
-                      source={avatarUrl ? { uri: avatarUrl } : require('@/assets/img/avatar.webp')}
-                      style={styles.avatar}
-                    />
-                  </View>
-                  <View style={styles.headerText}>
-                    <Text style={styles.communityLabel}>Tu comunidad</Text>
-                    <Text style={styles.communityName}>{communityName || 'Sin nombre'}</Text>
-                  </View>
+        const handleFeedback = async () => {
+          await close()
+          openFeedbackPanel()
+        }
+
+        const handleChangeCommunity = async () => {
+          await close()
+          router.replace('/choose-community')
+        }
+
+        const handleLogout = async () => {
+          await logout()
+        }
+
+        const menuItems: MenuItem[] = [
+          {
+            id: 'photo',
+            text: 'Editar foto',
+            icon: <Camera size={18} color="#fff" />,
+            onPress: handleEditPhoto,
+          },
+          {
+            id: 'suggest',
+            text: 'Realizar una sugerencia',
+            icon: <Lightbulb size={18} color="#fff" />,
+            onPress: handleFeedback,
+          },
+          ...(hasMultipleCommunities
+            ? [
+                {
+                  id: 'change',
+                  text: 'Cambiar comunidad',
+                  icon: <ArrowLeftRight size={18} color="#fff" />,
+                  onPress: handleChangeCommunity,
+                },
+              ]
+            : []),
+          {
+            id: 'logout',
+            text: 'Cerrar sesión',
+            icon: <LogOut size={18} color="#fff" />,
+            onPress: handleLogout,
+            isLogout: true,
+          },
+        ]
+
+        return (
+          <LinearGradient
+            colors={['#7C3AED', '#5B21B6']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={styles.panel}
+          >
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.header}>
+                <View style={styles.avatarWrapper}>
+                  <Image
+                    source={avatarUrl ? { uri: avatarUrl } : require('@/assets/img/avatar.webp')}
+                    style={styles.avatar}
+                  />
                 </View>
-
-                <View style={styles.separator} />
-
-                <View style={styles.menu}>
-                  {MENU_ITEMS.map((item) => {
-                    const isActive = activeItem === item.id
-                    const isLogout = (item as any).isLogout
-                    return (
-                      <React.Fragment key={item.id}>
-                        {isLogout && <View style={styles.separator} />}
-                        <Pressable
-                          onPress={() => {
-                            setActiveItem(item.id)
-                            item.onPress()
-                          }}
-                          style={[styles.menuItem, isActive && styles.menuItemActive]}
-                        >
-                          <View style={[styles.menuIcon, isActive && styles.menuIconActive]}>
-                            {item.icon}
-                          </View>
-                          <Text style={[styles.menuText, isActive && styles.menuTextActive]}>
-                            {item.text}
-                          </Text>
-                        </Pressable>
-                      </React.Fragment>
-                    )
-                  })}
+                <View style={styles.headerText}>
+                  <Text style={styles.communityLabel}>Tu comunidad</Text>
+                  <Text style={styles.communityName}>{communityName || 'Sin nombre'}</Text>
                 </View>
-              </ScrollView>
-            </LinearGradient>
-          </Animated.View>
-        </GestureDetector>
-      </View>
-    </View>
+              </View>
+
+              <View style={styles.separator} />
+
+              <View style={styles.menu}>
+                {menuItems.map((item) => {
+                  const isActive = activeItem === item.id
+                  const isLogout = item.isLogout
+                  return (
+                    <React.Fragment key={item.id}>
+                      {isLogout && <View style={styles.separator} />}
+                      <Pressable
+                        onPress={async () => {
+                          setActiveItem(item.id)
+                          await item.onPress()
+                        }}
+                        style={[styles.menuItem, isActive && styles.menuItemActive]}
+                      >
+                        <View style={[styles.menuIcon, isActive && styles.menuIconActive]}>
+                          {item.icon}
+                        </View>
+                        <Text style={[styles.menuText, isActive && styles.menuTextActive]}>
+                          {item.text}
+                        </Text>
+                      </Pressable>
+                    </React.Fragment>
+                  )
+                })}
+              </View>
+            </ScrollView>
+          </LinearGradient>
+        )
+      }}
+    </SidePanelContainer>
   )
 }
 
-/* 🎨 Estilos */
 const styles = StyleSheet.create({
-  backdrop: {
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  panelWrapper: {
-    height: '100%',
-  },
   panel: {
     height: '100%',
     width: '100%',

@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient'
 import { MotiView } from 'moti'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useMemo, useRef, useState } from 'react'
 import {
   Alert,
   LayoutChangeEvent,
@@ -25,14 +25,11 @@ import InvitationPanel from '@/components/resident/sidepanels/InvitationPanel'
 import ReservationPanel from '@/components/resident/sidepanels/ReservationPanel'
 import UserMenuPanel from '@/components/resident/sidepanels/UserMenuPanel'
 import getReservationBannerStatus from '@/lib/getReservationsBannerStatus'
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated'
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated'
 
 export default function ResidentDashboard() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const menuProgress = useSharedValue(0)
-  useEffect(() => {
-    menuProgress.value = withTiming(isMenuOpen ? 1 : 0, { duration: 300 })
-  }, [isMenuOpen, menuProgress])
   const dashboardStyle = useAnimatedStyle(() => {
     const progress = menuProgress.value
     return {
