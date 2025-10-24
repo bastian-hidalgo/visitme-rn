@@ -29,19 +29,22 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 
 export default function ResidentDashboard() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const offset = useSharedValue(0)
+  const menuProgress = useSharedValue(0)
   useEffect(() => {
-    offset.value = withTiming(isMenuOpen ? 1 : 0, { duration: 300 })
-  }, [isMenuOpen])
-  const dashboardStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: withTiming(-offset.value * 120) },
-      { scale: withTiming(1 - offset.value * 0.1) },
-      { rotateY: `${offset.value * 8}deg` },
-    ],
-    borderRadius: withTiming(offset.value * 26),
-    shadowOpacity: offset.value ? 0.3 : 0,
-  }))
+    menuProgress.value = withTiming(isMenuOpen ? 1 : 0, { duration: 300 })
+  }, [isMenuOpen, menuProgress])
+  const dashboardStyle = useAnimatedStyle(() => {
+    const progress = menuProgress.value
+    return {
+      transform: [
+        { translateX: -progress * 120 },
+        { scale: 1 - progress * 0.1 },
+        { rotateY: `${progress * 8}deg` },
+      ],
+      borderRadius: progress * 26,
+      shadowOpacity: progress ? 0.3 : 0,
+    }
+  })
   const { reservations, isInvitationPanelOpen, isReservationPanelOpen, closePanels } =
     useResidentContext()
 
@@ -220,7 +223,11 @@ export default function ResidentDashboard() {
         </LinearGradient>
       <InvitationPanel isOpen={isInvitationPanelOpen} onClose={closePanels} />
       <ReservationPanel isOpen={isReservationPanelOpen} onClose={closePanels} />
-      <UserMenuPanel isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+      <UserMenuPanel
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        progress={menuProgress}
+      />
     </SafeAreaView>
   )
 }

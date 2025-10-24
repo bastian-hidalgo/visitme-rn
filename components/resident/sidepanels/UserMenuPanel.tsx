@@ -4,21 +4,71 @@ import { useUser } from '@/providers/user-provider'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import { ArrowLeftRight, Camera, Lightbulb, LogOut } from 'lucide-react-native'
-import React, { useEffect, useState } from 'react'
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import Modal from 'react-native-modal'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { BackHandler, Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useDerivedValue,
+  type SharedValue,
+  withTiming,
+} from 'react-native-reanimated'
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
+
+type GestureContext = {
+  start: number
+}
 
 interface Props {
   isOpen: boolean
   onClose: () => void
+  progress: SharedValue<number>
 }
 
-export default function UserMenuPanel({ isOpen, onClose }: Props) {
+export default function UserMenuPanel({ isOpen, onClose, progress }: Props) {
   const router = useRouter()
   const { avatarUrl, communityName, id, logout } = useUser()
   const { openFeedbackPanel } = useResidentContext()
   const [hasMultipleCommunities, setHasMultipleCommunities] = useState(false)
   const [activeItem, setActiveItem] = useState<string>('home')
+  const { width } = useWindowDimensions()
+  const panelWidth = useMemo(() => width * 0.75, [width])
+  const [isVisible, setIsVisible] = useState(isOpen)
+
+  const requestClose = useCallback(() => {
+    progress.value = withTiming(0, { duration: 250 })
+    onClose()
+  }, [onClose, progress])
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsVisible(true)
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isVisible) {
+      return
+    }
+
+    const handleBack = () => {
+      requestClose()
+      return true
+    }
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', handleBack)
+    return () => {
+      subscription.remove()
+    }
+  }, [isVisible, requestClose])
+
+  useDerivedValue(() => {
+    if (!isOpen && progress.value <= 0.01 && isVisible) {
+      runOnJS(setIsVisible)(false)
+    }
+  }, [isOpen, isVisible])
 
   useEffect(() => {
     if (!id) return
@@ -36,17 +86,17 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
   }, [id])
 
   const handleEditPhoto = () => {
-    onClose()
+    requestClose()
     router.push('/profile/edit-avatar' as any)
   }
 
   const handleFeedback = () => {
-    onClose()
+    requestClose()
     openFeedbackPanel()
   }
 
   const handleChangeCommunity = () => {
-    onClose()
+    requestClose()
     router.replace('/choose-community')
   }
 
@@ -64,106 +114,151 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
     { id: 'logout', text: 'Cerrar sesión', icon: <LogOut size={18} color="#fff" />, onPress: handleLogout, isLogout: true },
   ]
 
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: progress.value * 0.3,
+  }))
+
+  const panelStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: (1 - progress.value) * panelWidth },
+    ],
+  }))
+
+  const panGesture = Gesture.Pan<GestureContext>()
+    .onStart((_, context) => {
+      context.start = progress.value
+    })
+    .onChange((event, context) => {
+      const next = context.start - event.translationX / panelWidth
+      const clamped = Math.min(Math.max(next, 0), 1)
+      progress.value = clamped
+    })
+    .onEnd((event) => {
+      const shouldClose = progress.value < 0.5 || event.velocityX > 500
+      if (shouldClose) {
+        progress.value = withTiming(0, { duration: 250 })
+        runOnJS(onClose)()
+      } else {
+        progress.value = withTiming(1, { duration: 250 })
+      }
+    })
+
+  if (!isVisible) {
+    return null
+  }
+
   return (
-    <Modal
-      isVisible={isOpen}
-      onBackdropPress={onClose}
-      onBackButtonPress={onClose}
-      animationIn="slideInRight"
-      animationOut="slideOutRight"
-      backdropOpacity={0.3}
-      backdropTransitionOutTiming={0}
-      style={{ margin: 0 }}
-    >
-      <View style={styles.overlay}>
-        <LinearGradient
-          colors={['#7C3AED', '#5B21B6']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={styles.panel}
-        >
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {/* 🟣 Header con avatar */}
-            <View style={styles.header}>
-              <View style={styles.avatarWrapper}>
-                <Image
-                  source={
-                    avatarUrl
-                      ? { uri: avatarUrl }
-                      : require('@/assets/img/avatar.webp')
-                  }
-                  style={styles.avatar}
-                />
-              </View>
-              <View style={styles.headerText}>
-                <Text style={styles.communityLabel}>Tu comunidad</Text>
-                <Text style={styles.communityName}>
-                  {communityName || 'Sin nombre'}
-                </Text>
-              </View>
-            </View>
+    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      <AnimatedPressable
+        onPress={requestClose}
+        style={[StyleSheet.absoluteFillObject, styles.backdrop, backdropStyle]}
+      />
 
-            {/* Separador */}
-            <View style={styles.separator} />
+      <View pointerEvents="box-none" style={styles.overlay}>
+        <GestureDetector gesture={panGesture}>
+          <Animated.View style={[styles.panelWrapper, { width: panelWidth }, panelStyle]}>
+            <LinearGradient
+              colors={['#7C3AED', '#5B21B6']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={styles.panel}
+            >
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* 🟣 Header con avatar */}
+                <View style={styles.header}>
+                  <View style={styles.avatarWrapper}>
+                    <Image
+                      source={
+                        avatarUrl
+                          ? { uri: avatarUrl }
+                          : require('@/assets/img/avatar.webp')
+                      }
+                      style={styles.avatar}
+                    />
+                  </View>
+                  <View style={styles.headerText}>
+                    <Text style={styles.communityLabel}>Tu comunidad</Text>
+                    <Text style={styles.communityName}>
+                      {communityName || 'Sin nombre'}
+                    </Text>
+                  </View>
+                </View>
 
-            {/* 🔹 Menú principal + logout */}
-            <View style={styles.menu}>
-              {MENU_ITEMS.map((item, index) => {
-                const isActive = activeItem === item.id
-                const isLogout = item.isLogout
+                {/* Separador */}
+                <View style={styles.separator} />
 
-                return (
-                  <React.Fragment key={item.id}>
-                    {isLogout && <View style={styles.separator} />}
-                    <Pressable
-                      onPress={() => {
-                        setActiveItem(item.id)
-                        item.onPress()
-                      }}
-                      style={[
-                        styles.menuItem,
-                        isActive && styles.menuItemActive,
-                      ]}
-                    >
-                      <View
-                        style={[styles.menuIcon, isActive && styles.menuIconActive]}
-                      >
-                        {item.icon}
-                      </View>
-                      <Text
-                        style={[
-                          styles.menuText,
-                          isActive && styles.menuTextActive,
-                        ]}
-                      >
-                        {item.text}
-                      </Text>
-                    </Pressable>
-                  </React.Fragment>
-                )
-              })}
-            </View>
-          </ScrollView>
-        </LinearGradient>
+                {/* 🔹 Menú principal + logout */}
+                <View style={styles.menu}>
+                  {MENU_ITEMS.map((item) => {
+                    const isActive = activeItem === item.id
+                    const isLogout = item.isLogout
+
+                    return (
+                      <React.Fragment key={item.id}>
+                        {isLogout && <View style={styles.separator} />}
+                        <Pressable
+                          onPress={() => {
+                            setActiveItem(item.id)
+                            item.onPress()
+                          }}
+                          style={[
+                            styles.menuItem,
+                            isActive && styles.menuItemActive,
+                          ]}
+                        >
+                          <View
+                            style={[styles.menuIcon, isActive && styles.menuIconActive]}
+                          >
+                            {item.icon}
+                          </View>
+                          <Text
+                            style={[
+                              styles.menuText,
+                              isActive && styles.menuTextActive,
+                            ]}
+                          >
+                            {item.text}
+                          </Text>
+                        </Pressable>
+                      </React.Fragment>
+                    )
+                  })}
+                </View>
+              </ScrollView>
+            </LinearGradient>
+          </Animated.View>
+        </GestureDetector>
       </View>
-    </Modal>
+    </View>
   )
 }
 
 /* 🎨 Estilos */
 const styles = StyleSheet.create({
+  backdrop: {
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+  },
   overlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     flexDirection: 'row',
     justifyContent: 'flex-end',
   },
+  panelWrapper: {
+    height: '100%',
+  },
   panel: {
     height: '100%',
-    width: '75%',
+    width: '100%',
     paddingHorizontal: 24,
     paddingTop: 60,
     paddingBottom: 40,
-    boxShadow: '0 40px 12px rgba(139, 92, 246, 1)',
+    borderTopLeftRadius: 24,
+    borderBottomLeftRadius: 24,
+    shadowColor: 'rgba(15, 23, 42, 0.35)',
+    shadowOpacity: 1,
+    shadowRadius: 24,
+    shadowOffset: { width: -4, height: 12 },
+    elevation: 12,
   },
   header: {
     alignItems: 'center',
