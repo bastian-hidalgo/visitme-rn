@@ -2,7 +2,8 @@ import ActionButton from '@/components/resident/ActionButton'
 import { CalendarDays, ExternalLink } from 'lucide-react-native'
 import React from 'react'
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
-import Modal from 'react-native-modal'
+
+import SidePanelContainer from './SidePanelContainer'
 
 interface Props {
   isOpen: boolean
@@ -15,7 +16,6 @@ const getWebUrl = (path: string) => {
 }
 
 export default function ReservationPanel({ isOpen, onClose }: Props) {
-
   const handleOpenWeb = () => {
     const url = getWebUrl('/reservas')
     Linking.openURL(url).catch((error) => {
@@ -24,34 +24,33 @@ export default function ReservationPanel({ isOpen, onClose }: Props) {
   }
 
   return (
-    <Modal
-      isVisible={isOpen}
-      onBackdropPress={onClose}
-      onBackButtonPress={onClose}
-      animationIn="slideInRight"
-      animationOut="slideOutRight"
-      backdropTransitionOutTiming={0}
-      style={{ margin: 0, justifyContent: 'flex-end' }}
-    >
-      <View style={styles.panel}>
-        <View style={styles.header}>
-          <CalendarDays size={22} color="#f97316" />
-          <Text style={styles.title}>Gestiona tus reservas</Text>
-        </View>
+    <SidePanelContainer isOpen={isOpen} onClose={onClose}>
+      {({ close }) => (
+        <View style={styles.panel}>
+          <View style={styles.header}>
+            <CalendarDays size={22} color="#f97316" />
+            <Text style={styles.title}>Gestiona tus reservas</Text>
+          </View>
 
-        <Text style={styles.description}>
-          Muy pronto podrás agendar y administrar tus reservas directamente desde la app.
-          Mientras tanto, puedes usar la versión web para completar el proceso.
-        </Text>
+          <Text style={styles.description}>
+            Muy pronto podrás agendar y administrar tus reservas directamente desde la app. Mientras tanto,
+            puedes usar la versión web para completar el proceso.
+          </Text>
 
-        <View style={styles.actions}>
-          <ActionButton text="Agendar en la web" icon={ExternalLink} onPress={handleOpenWeb} />
-          <TouchableOpacity onPress={onClose} style={styles.secondaryButton}>
-            <Text style={styles.secondaryLabel}>Cerrar</Text>
-          </TouchableOpacity>
+          <View style={styles.actions}>
+            <ActionButton text="Agendar en la web" icon={ExternalLink} onPress={handleOpenWeb} />
+            <TouchableOpacity
+              onPress={() => {
+                void close()
+              }}
+              style={styles.secondaryButton}
+            >
+              <Text style={styles.secondaryLabel}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </Modal>
+      )}
+    </SidePanelContainer>
   )
 }
 
@@ -59,8 +58,7 @@ const styles = StyleSheet.create({
   panel: {
     backgroundColor: '#ffffff',
     height: '100%',
-    width: '85%',
-    marginLeft: 'auto',
+    width: '100%',
     padding: 24,
     borderTopLeftRadius: 24,
     borderBottomLeftRadius: 24,
