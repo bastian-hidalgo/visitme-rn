@@ -113,7 +113,10 @@ export default function ResidentDashboard() {
             >
               {/* Header */}
               <View style={[styles.sectionWrapper, styles.sectionHeader]}>
-                <Header onToggleMenu={() => setIsMenuOpen(true)}  />
+                <Header
+                  onToggleMenu={() => setIsMenuOpen(true)}
+                  progress={menuProgress}
+                />
               </View>
 
               <MotiView
