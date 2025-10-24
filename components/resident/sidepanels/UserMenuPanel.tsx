@@ -4,22 +4,25 @@ import { useUser } from '@/providers/user-provider'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import { ArrowLeftRight, Camera, Lightbulb, LogOut } from 'lucide-react-native'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { BackHandler, Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
+import React, { useEffect, useMemo, useState } from 'react'
+import {
+  BackHandler,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, {
   runOnJS,
   useAnimatedStyle,
-  useDerivedValue,
-  type SharedValue,
+  useSharedValue,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated'
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
-
-type GestureContext = {
-  start: number
-}
 
 interface Props {
   isOpen: boolean
@@ -27,77 +30,60 @@ interface Props {
   progress: SharedValue<number>
 }
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
+
 export default function UserMenuPanel({ isOpen, onClose, progress }: Props) {
   const router = useRouter()
   const { avatarUrl, communityName, id, logout } = useUser()
   const { openFeedbackPanel } = useResidentContext()
   const [hasMultipleCommunities, setHasMultipleCommunities] = useState(false)
-  const [activeItem, setActiveItem] = useState<string>('home')
+  const [activeItem, setActiveItem] = useState('home')
   const { width } = useWindowDimensions()
   const panelWidth = useMemo(() => width * 0.75, [width])
-  const [isVisible, setIsVisible] = useState(isOpen)
-
-  const requestClose = useCallback(() => {
-    progress.value = withTiming(0, { duration: 250 })
-    onClose()
-  }, [onClose, progress])
-
-  useEffect(() => {
-    if (isOpen) {
-      setIsVisible(true)
-    }
-  }, [isOpen])
-
-  useEffect(() => {
-    if (!isVisible) {
-      return
-    }
-
-    const handleBack = () => {
-      requestClose()
-      return true
-    }
-
-    const subscription = BackHandler.addEventListener('hardwareBackPress', handleBack)
-    return () => {
-      subscription.remove()
-    }
-  }, [isVisible, requestClose])
-
-  useDerivedValue(() => {
-    if (!isOpen && progress.value <= 0.01 && isVisible) {
-      runOnJS(setIsVisible)(false)
-    }
-  }, [isOpen, isVisible])
+  const startSV = useSharedValue(0)
 
   useEffect(() => {
     if (!id) return
-    let mounted = true
+    let alive = true
     supabase
       .from('user_communities')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', id)
       .then(({ count }) => {
-        if (mounted && count && count > 1) setHasMultipleCommunities(true)
+        if (alive && count && count > 1) setHasMultipleCommunities(true)
       })
     return () => {
-      mounted = false
+      alive = false
     }
   }, [id])
 
+  useEffect(() => {
+    const handleBack = () => {
+      if (!isOpen) return false
+      progress.value = withTiming(0, { duration: 250 }, () => runOnJS(onClose)())
+      return true
+    }
+    const sub = BackHandler.addEventListener('hardwareBackPress', handleBack)
+    return () => sub.remove()
+  }, [isOpen, onClose])
+
+  const closeWithAnim = () => {
+    progress.value = withTiming(0, { duration: 250 }, () => runOnJS(onClose)())
+  }
+
   const handleEditPhoto = () => {
-    requestClose()
-    router.push('/profile/edit-avatar' as any)
+    closeWithAnim()
+    setTimeout(() => router.push('/profile/edit-avatar' as any), 250)
   }
 
   const handleFeedback = () => {
-    requestClose()
-    openFeedbackPanel()
+    closeWithAnim()
+    setTimeout(() => openFeedbackPanel(), 250)
   }
 
   const handleChangeCommunity = () => {
-    requestClose()
-    router.replace('/choose-community')
+    closeWithAnim()
+    setTimeout(() => router.replace('/choose-community'), 250)
   }
 
   const handleLogout = async () => {
@@ -110,7 +96,6 @@ export default function UserMenuPanel({ isOpen, onClose, progress }: Props) {
     ...(hasMultipleCommunities
       ? [{ id: 'change', text: 'Cambiar comunidad', icon: <ArrowLeftRight size={18} color="#fff" />, onPress: handleChangeCommunity }]
       : []),
-    // logout agregado al mismo nivel, con separador arriba
     { id: 'logout', text: 'Cerrar sesión', icon: <LogOut size={18} color="#fff" />, onPress: handleLogout, isLogout: true },
   ]
 
@@ -119,38 +104,32 @@ export default function UserMenuPanel({ isOpen, onClose, progress }: Props) {
   }))
 
   const panelStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: (1 - progress.value) * panelWidth },
-    ],
+    transform: [{ translateX: (1 - progress.value) * panelWidth }],
   }))
 
-  const panGesture = Gesture.Pan<GestureContext>()
-    .onStart((_, context) => {
-      context.start = progress.value
+  const panGesture = Gesture.Pan()
+    .onStart(() => {
+      startSV.value = progress.value
     })
-    .onChange((event, context) => {
-      const next = context.start - event.translationX / panelWidth
-      const clamped = Math.min(Math.max(next, 0), 1)
-      progress.value = clamped
+    .onChange((event) => {
+      const next = startSV.value - event.translationX / panelWidth
+      progress.value = Math.min(Math.max(next, 0), 1)
     })
     .onEnd((event) => {
       const shouldClose = progress.value < 0.5 || event.velocityX > 500
       if (shouldClose) {
-        progress.value = withTiming(0, { duration: 250 })
-        runOnJS(onClose)()
+        progress.value = withTiming(0, { duration: 250 }, () => runOnJS(onClose)())
       } else {
         progress.value = withTiming(1, { duration: 250 })
       }
     })
 
-  if (!isVisible) {
-    return null
-  }
+  if (!isOpen) return null
 
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       <AnimatedPressable
-        onPress={requestClose}
+        onPress={closeWithAnim}
         style={[StyleSheet.absoluteFillObject, styles.backdrop, backdropStyle]}
       />
 
@@ -164,35 +143,25 @@ export default function UserMenuPanel({ isOpen, onClose, progress }: Props) {
               style={styles.panel}
             >
               <ScrollView showsVerticalScrollIndicator={false}>
-                {/* 🟣 Header con avatar */}
                 <View style={styles.header}>
                   <View style={styles.avatarWrapper}>
                     <Image
-                      source={
-                        avatarUrl
-                          ? { uri: avatarUrl }
-                          : require('@/assets/img/avatar.webp')
-                      }
+                      source={avatarUrl ? { uri: avatarUrl } : require('@/assets/img/avatar.webp')}
                       style={styles.avatar}
                     />
                   </View>
                   <View style={styles.headerText}>
                     <Text style={styles.communityLabel}>Tu comunidad</Text>
-                    <Text style={styles.communityName}>
-                      {communityName || 'Sin nombre'}
-                    </Text>
+                    <Text style={styles.communityName}>{communityName || 'Sin nombre'}</Text>
                   </View>
                 </View>
 
-                {/* Separador */}
                 <View style={styles.separator} />
 
-                {/* 🔹 Menú principal + logout */}
                 <View style={styles.menu}>
                   {MENU_ITEMS.map((item) => {
                     const isActive = activeItem === item.id
-                    const isLogout = item.isLogout
-
+                    const isLogout = (item as any).isLogout
                     return (
                       <React.Fragment key={item.id}>
                         {isLogout && <View style={styles.separator} />}
@@ -201,22 +170,12 @@ export default function UserMenuPanel({ isOpen, onClose, progress }: Props) {
                             setActiveItem(item.id)
                             item.onPress()
                           }}
-                          style={[
-                            styles.menuItem,
-                            isActive && styles.menuItemActive,
-                          ]}
+                          style={[styles.menuItem, isActive && styles.menuItemActive]}
                         >
-                          <View
-                            style={[styles.menuIcon, isActive && styles.menuIconActive]}
-                          >
+                          <View style={[styles.menuIcon, isActive && styles.menuIconActive]}>
                             {item.icon}
                           </View>
-                          <Text
-                            style={[
-                              styles.menuText,
-                              isActive && styles.menuTextActive,
-                            ]}
-                          >
+                          <Text style={[styles.menuText, isActive && styles.menuTextActive]}>
                             {item.text}
                           </Text>
                         </Pressable>
