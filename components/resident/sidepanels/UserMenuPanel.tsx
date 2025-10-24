@@ -4,50 +4,86 @@ import { useUser } from '@/providers/user-provider'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import { ArrowLeftRight, Camera, Lightbulb, LogOut } from 'lucide-react-native'
-import React, { useEffect, useState } from 'react'
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import Modal from 'react-native-modal'
+import React, { useEffect, useMemo, useState } from 'react'
+import {
+  BackHandler,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated'
 
 interface Props {
   isOpen: boolean
   onClose: () => void
+  progress: SharedValue<number>
 }
 
-export default function UserMenuPanel({ isOpen, onClose }: Props) {
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
+
+export default function UserMenuPanel({ isOpen, onClose, progress }: Props) {
   const router = useRouter()
   const { avatarUrl, communityName, id, logout } = useUser()
   const { openFeedbackPanel } = useResidentContext()
   const [hasMultipleCommunities, setHasMultipleCommunities] = useState(false)
-  const [activeItem, setActiveItem] = useState<string>('home')
+  const [activeItem, setActiveItem] = useState('home')
+  const { width } = useWindowDimensions()
+  const panelWidth = useMemo(() => width * 0.75, [width])
+  const startSV = useSharedValue(0)
 
   useEffect(() => {
     if (!id) return
-    let mounted = true
+    let alive = true
     supabase
       .from('user_communities')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', id)
       .then(({ count }) => {
-        if (mounted && count && count > 1) setHasMultipleCommunities(true)
+        if (alive && count && count > 1) setHasMultipleCommunities(true)
       })
     return () => {
-      mounted = false
+      alive = false
     }
   }, [id])
 
+  useEffect(() => {
+    const handleBack = () => {
+      if (!isOpen) return false
+      progress.value = withTiming(0, { duration: 250 }, () => runOnJS(onClose)())
+      return true
+    }
+    const sub = BackHandler.addEventListener('hardwareBackPress', handleBack)
+    return () => sub.remove()
+  }, [isOpen, onClose])
+
+  const closeWithAnim = () => {
+    progress.value = withTiming(0, { duration: 250 }, () => runOnJS(onClose)())
+  }
+
   const handleEditPhoto = () => {
-    onClose()
-    router.push('/profile/edit-avatar' as any)
+    closeWithAnim()
+    setTimeout(() => router.push('/profile/edit-avatar' as any), 250)
   }
 
   const handleFeedback = () => {
-    onClose()
-    openFeedbackPanel()
+    closeWithAnim()
+    setTimeout(() => openFeedbackPanel(), 250)
   }
 
   const handleChangeCommunity = () => {
-    onClose()
-    router.replace('/choose-community')
+    closeWithAnim()
+    setTimeout(() => router.replace('/choose-community'), 250)
   }
 
   const handleLogout = async () => {
@@ -60,110 +96,128 @@ export default function UserMenuPanel({ isOpen, onClose }: Props) {
     ...(hasMultipleCommunities
       ? [{ id: 'change', text: 'Cambiar comunidad', icon: <ArrowLeftRight size={18} color="#fff" />, onPress: handleChangeCommunity }]
       : []),
-    // logout agregado al mismo nivel, con separador arriba
     { id: 'logout', text: 'Cerrar sesión', icon: <LogOut size={18} color="#fff" />, onPress: handleLogout, isLogout: true },
   ]
 
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: progress.value * 0.3,
+  }))
+
+  const panelStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: (1 - progress.value) * panelWidth }],
+  }))
+
+  const panGesture = Gesture.Pan()
+    .onStart(() => {
+      startSV.value = progress.value
+    })
+    .onChange((event) => {
+      const next = startSV.value - event.translationX / panelWidth
+      progress.value = Math.min(Math.max(next, 0), 1)
+    })
+    .onEnd((event) => {
+      const shouldClose = progress.value < 0.5 || event.velocityX > 500
+      if (shouldClose) {
+        progress.value = withTiming(0, { duration: 250 }, () => runOnJS(onClose)())
+      } else {
+        progress.value = withTiming(1, { duration: 250 })
+      }
+    })
+
+  if (!isOpen) return null
+
   return (
-    <Modal
-      isVisible={isOpen}
-      onBackdropPress={onClose}
-      onBackButtonPress={onClose}
-      animationIn="slideInRight"
-      animationOut="slideOutRight"
-      backdropOpacity={0.3}
-      backdropTransitionOutTiming={0}
-      style={{ margin: 0 }}
-    >
-      <View style={styles.overlay}>
-        <LinearGradient
-          colors={['#7C3AED', '#5B21B6']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={styles.panel}
-        >
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {/* 🟣 Header con avatar */}
-            <View style={styles.header}>
-              <View style={styles.avatarWrapper}>
-                <Image
-                  source={
-                    avatarUrl
-                      ? { uri: avatarUrl }
-                      : require('@/assets/img/avatar.webp')
-                  }
-                  style={styles.avatar}
-                />
-              </View>
-              <View style={styles.headerText}>
-                <Text style={styles.communityLabel}>Tu comunidad</Text>
-                <Text style={styles.communityName}>
-                  {communityName || 'Sin nombre'}
-                </Text>
-              </View>
-            </View>
+    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      <AnimatedPressable
+        onPress={closeWithAnim}
+        style={[StyleSheet.absoluteFillObject, styles.backdrop, backdropStyle]}
+      />
 
-            {/* Separador */}
-            <View style={styles.separator} />
+      <View pointerEvents="box-none" style={styles.overlay}>
+        <GestureDetector gesture={panGesture}>
+          <Animated.View style={[styles.panelWrapper, { width: panelWidth }, panelStyle]}>
+            <LinearGradient
+              colors={['#7C3AED', '#5B21B6']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={styles.panel}
+            >
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={styles.header}>
+                  <View style={styles.avatarWrapper}>
+                    <Image
+                      source={avatarUrl ? { uri: avatarUrl } : require('@/assets/img/avatar.webp')}
+                      style={styles.avatar}
+                    />
+                  </View>
+                  <View style={styles.headerText}>
+                    <Text style={styles.communityLabel}>Tu comunidad</Text>
+                    <Text style={styles.communityName}>{communityName || 'Sin nombre'}</Text>
+                  </View>
+                </View>
 
-            {/* 🔹 Menú principal + logout */}
-            <View style={styles.menu}>
-              {MENU_ITEMS.map((item, index) => {
-                const isActive = activeItem === item.id
-                const isLogout = item.isLogout
+                <View style={styles.separator} />
 
-                return (
-                  <React.Fragment key={item.id}>
-                    {isLogout && <View style={styles.separator} />}
-                    <Pressable
-                      onPress={() => {
-                        setActiveItem(item.id)
-                        item.onPress()
-                      }}
-                      style={[
-                        styles.menuItem,
-                        isActive && styles.menuItemActive,
-                      ]}
-                    >
-                      <View
-                        style={[styles.menuIcon, isActive && styles.menuIconActive]}
-                      >
-                        {item.icon}
-                      </View>
-                      <Text
-                        style={[
-                          styles.menuText,
-                          isActive && styles.menuTextActive,
-                        ]}
-                      >
-                        {item.text}
-                      </Text>
-                    </Pressable>
-                  </React.Fragment>
-                )
-              })}
-            </View>
-          </ScrollView>
-        </LinearGradient>
+                <View style={styles.menu}>
+                  {MENU_ITEMS.map((item) => {
+                    const isActive = activeItem === item.id
+                    const isLogout = (item as any).isLogout
+                    return (
+                      <React.Fragment key={item.id}>
+                        {isLogout && <View style={styles.separator} />}
+                        <Pressable
+                          onPress={() => {
+                            setActiveItem(item.id)
+                            item.onPress()
+                          }}
+                          style={[styles.menuItem, isActive && styles.menuItemActive]}
+                        >
+                          <View style={[styles.menuIcon, isActive && styles.menuIconActive]}>
+                            {item.icon}
+                          </View>
+                          <Text style={[styles.menuText, isActive && styles.menuTextActive]}>
+                            {item.text}
+                          </Text>
+                        </Pressable>
+                      </React.Fragment>
+                    )
+                  })}
+                </View>
+              </ScrollView>
+            </LinearGradient>
+          </Animated.View>
+        </GestureDetector>
       </View>
-    </Modal>
+    </View>
   )
 }
 
 /* 🎨 Estilos */
 const styles = StyleSheet.create({
+  backdrop: {
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+  },
   overlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     flexDirection: 'row',
     justifyContent: 'flex-end',
   },
+  panelWrapper: {
+    height: '100%',
+  },
   panel: {
     height: '100%',
-    width: '75%',
+    width: '100%',
     paddingHorizontal: 24,
     paddingTop: 60,
     paddingBottom: 40,
-    boxShadow: '0 40px 12px rgba(139, 92, 246, 1)',
+    borderTopLeftRadius: 24,
+    borderBottomLeftRadius: 24,
+    shadowColor: 'rgba(15, 23, 42, 0.35)',
+    shadowOpacity: 1,
+    shadowRadius: 24,
+    shadowOffset: { width: -4, height: 12 },
+    elevation: 12,
   },
   header: {
     alignItems: 'center',

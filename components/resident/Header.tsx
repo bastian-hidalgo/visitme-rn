@@ -1,16 +1,25 @@
-import UserMenuPanel from '@/components/resident/sidepanels/UserMenuPanel'
 import { getGreeting } from '@/lib/greetings'
 import { useUser } from '@/providers/user-provider'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Building2 } from 'lucide-react-native'
-import { MotiView } from 'moti'
-import React, { useState } from 'react'
+import React from 'react'
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native'
+import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated'
 
-export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
+interface Props {
+  onToggleMenu: () => void
+  progress: SharedValue<number>
+}
+
+export default function Header({ onToggleMenu, progress }: Props) {
   const greeting = getGreeting()
   const { name, avatarUrl, communityName } = useUser()
+
+  const avatarStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: 1 - progress.value * 0.05 },
+    ],
+  }))
 
   return (
     <View style={styles.container}>
@@ -47,11 +56,7 @@ export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
             <Text style={styles.name}>{name}</Text>
           </View>
 
-          <MotiView
-            from={{ scale: 1 }}
-            animate={{ scale: isMenuOpen ? 0.95 : 1 }}
-            transition={{ type: 'timing', duration: 150 }}
-          >
+          <Animated.View style={avatarStyle}>
             <Pressable onPress={onToggleMenu}>
               <View style={styles.avatarWrapper}>
                 <Image
@@ -60,12 +65,9 @@ export default function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
                 />
               </View>
             </Pressable>
-          </MotiView>
+          </Animated.View>
         </View>
       </View>
-
-      {/* Menú lateral */}
-      <UserMenuPanel isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
     </View>
   )
 }

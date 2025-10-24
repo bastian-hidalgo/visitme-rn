@@ -5,7 +5,7 @@ import timezone from 'dayjs/plugin/timezone'
 import utc from 'dayjs/plugin/utc'
 import { Cloud, CloudRain, MoreVertical, Sun, Wind } from 'lucide-react-native'
 import { MotiView } from 'moti'
-import React, { useState } from 'react'
+import React from 'react'
 import { ActionSheetIOS, Alert, Image, Text, TouchableOpacity, View } from 'react-native'
 
 // 📅 Configuración de dayjs
@@ -23,7 +23,6 @@ export interface ReservationCardProps {
 }
 
 export default function ReservationCard({ data, onCancel, onViewReason }: ReservationCardProps) {
-  const [backgroundColor, setBackgroundColor] = useState<string>('rgba(109,40,217,1)')
 
   const dateObj = dayjs.utc(data.date).tz(tz, true)
   const day = dateObj.format('D')
@@ -36,7 +35,7 @@ export default function ReservationCard({ data, onCancel, onViewReason }: Reserv
   const finalWeather: 'sunny' | 'rainy' | 'cloudy' | 'windy' = extendedData.weather || 'sunny'
   const departmentNumber = data.department_number || 'Sin departamento'
 
-  const cardBg = data.status === 'cancelado' ? '#555' : backgroundColor
+  const cardBg = data.status === 'cancelado' ? '#555' : 'rgba(109,40,217,1)'
 
   const weatherIcon = () => {
     switch (finalWeather) {
