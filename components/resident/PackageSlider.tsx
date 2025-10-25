@@ -1,13 +1,19 @@
 import { useResidentContext } from '@/components/contexts/ResidentContext'
 import { Package } from 'lucide-react-native'
 import { MotiView } from 'moti'
-import React, { useRef } from 'react'
-import { Animated, StyleSheet, Text, View } from 'react-native'
+import React from 'react'
+import { StyleSheet, Text, View } from 'react-native'
+import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated'
 import PackageCard from './PackageCard'
 
 export default function PackageSlider() {
   const { packages } = useResidentContext()
-  const scrollX = useRef(new Animated.Value(0)).current
+  const scrollX = useSharedValue(0)
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollX.value = event.contentOffset.x
+    },
+  })
 
   return (
     <MotiView
@@ -29,9 +35,8 @@ export default function PackageSlider() {
         showsHorizontalScrollIndicator={false}
         data={packages}
         keyExtractor={(item) => item.id.toString()}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
-          useNativeDriver: true,
-        })}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
         renderItem={({ item, index }) => (
           <PackageCard parcel={item} index={index} scrollX={scrollX} />
         )}
