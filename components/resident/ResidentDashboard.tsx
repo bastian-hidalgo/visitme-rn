@@ -21,8 +21,6 @@ import PackageSlider from '@/components/resident/PackageSlider'
 import QuickAccess from '@/components/resident/QuickAccess'
 import ReservationsSlider from '@/components/resident/ReservationsSlider'
 import SurveysSlider from '@/components/resident/SurveysSlider'
-import InvitationPanel from '@/components/resident/sidepanels/InvitationPanel'
-import ReservationPanel from '@/components/resident/sidepanels/ReservationPanel'
 import UserMenuPanel from '@/components/resident/sidepanels/UserMenuPanel'
 import getReservationBannerStatus from '@/lib/getReservationsBannerStatus'
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated'
@@ -30,6 +28,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 export default function ResidentDashboard() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const menuProgress = useSharedValue(0)
+  const reservationProgress = useSharedValue(0)
   useEffect(() => {
     menuProgress.value = withTiming(isMenuOpen ? 1 : 0, { duration: 300 })
   }, [isMenuOpen, menuProgress])
@@ -224,13 +223,11 @@ export default function ResidentDashboard() {
             </MotiView>
           </Animated.View>
         </LinearGradient>
-      <InvitationPanel isOpen={isInvitationPanelOpen} onClose={closePanels} />
-      <ReservationPanel isOpen={isReservationPanelOpen} onClose={closePanels} />
-      <UserMenuPanel
-        isOpen={isMenuOpen}
-        onClose={() => setIsMenuOpen(false)}
-        progress={menuProgress}
-      />
+        <UserMenuPanel
+          isOpen={isMenuOpen}
+          onClose={() => setIsMenuOpen(false)}
+          progress={menuProgress}
+        />
     </SafeAreaView>
   )
 }
