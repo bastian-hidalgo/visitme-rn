@@ -1,5 +1,12 @@
 import React, { ReactNode, useCallback, useMemo, useRef, useState } from 'react'
-import { useWindowDimensions, View, StyleSheet, Text, TouchableOpacity } from 'react-native'
+import {
+  useWindowDimensions,
+  View,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  Modal,
+} from 'react-native'
 import { Image } from 'expo-image'
 import Animated, {
   Extrapolation,
@@ -199,10 +206,14 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
 
   return (
     <>
-      <TouchableOpacity activeOpacity={0.92} onPress={handleOpen}>
+      <TouchableOpacity activeOpacity={0.92} onPress={handleOpen} disabled={isExpanded}>
         <View
           ref={cardRef}
-          style={[styles.card, { width: collapsedWidth, height: collapsedHeight }]}
+          style={[
+            styles.card,
+            { width: collapsedWidth, height: collapsedHeight },
+            isExpanded && styles.hiddenCard,
+          ]}
         >
           <Animated.View style={[styles.thumbnailWrapper, collapsedImageParallaxStyle]}>
             <Image source={{ uri: imageUrl }} style={styles.thumbnail} contentFit="cover" />
@@ -227,58 +238,63 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
       </TouchableOpacity>
 
       {isExpanded ? (
-        <Animated.View pointerEvents="auto" style={[StyleSheet.absoluteFillObject, styles.overlay, overlayStyle]}>
-          <GestureDetector gesture={panGesture}>
-            <Animated.View style={[styles.expandedCard, animatedCardStyle]}>
-              <Animated.View style={[styles.expandedImageWrapper, imageAnimatedStyle]}>
-                <Image
-                  source={{ uri: imageUrl }}
-                  style={styles.expandedImage}
-                  contentFit="cover"
+        <Modal visible transparent animationType="none" statusBarTranslucent>
+          <Animated.View
+            pointerEvents="auto"
+            style={[StyleSheet.absoluteFillObject, styles.overlay, overlayStyle]}
+          >
+            <GestureDetector gesture={panGesture}>
+              <Animated.View style={[styles.expandedCard, animatedCardStyle]}>
+                <Animated.View style={[styles.expandedImageWrapper, imageAnimatedStyle]}>
+                  <Image
+                    source={{ uri: imageUrl }}
+                    style={styles.expandedImage}
+                    contentFit="cover"
+                  />
+                </Animated.View>
+                <LinearGradient
+                  colors={["rgba(0,0,0,0.5)", 'transparent']}
+                  start={{ x: 0.5, y: 1 }}
+                  end={{ x: 0.5, y: 0 }}
+                  style={styles.expandedGradient}
                 />
-              </Animated.View>
-              <LinearGradient
-                colors={["rgba(0,0,0,0.5)", 'transparent']}
-                start={{ x: 0.5, y: 1 }}
-                end={{ x: 0.5, y: 0 }}
-                style={styles.expandedGradient}
-              />
 
-              <Animated.View style={[styles.detailContainer, detailAnimatedStyle]}>
-                <View style={styles.headerRow}>
-                  <View>
-                    <Text style={styles.expandedStatus}>{status}</Text>
-                    {apartment ? (
-                      <Text style={styles.expandedApartment}>Departamento {apartment}</Text>
-                    ) : (
-                      <Text style={styles.expandedApartment}>Encomienda</Text>
-                    )}
-                    <Text style={styles.expandedDate}>{date}</Text>
+                <Animated.View style={[styles.detailContainer, detailAnimatedStyle]}>
+                  <View style={styles.headerRow}>
+                    <View>
+                      <Text style={styles.expandedStatus}>{status}</Text>
+                      {apartment ? (
+                        <Text style={styles.expandedApartment}>Departamento {apartment}</Text>
+                      ) : (
+                        <Text style={styles.expandedApartment}>Encomienda</Text>
+                      )}
+                      <Text style={styles.expandedDate}>{date}</Text>
+                    </View>
+                    <TouchableOpacity onPress={closeCard} style={styles.closeButton} activeOpacity={0.8}>
+                      <Text style={styles.closeText}>×</Text>
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity onPress={closeCard} style={styles.closeButton} activeOpacity={0.8}>
-                    <Text style={styles.closeText}>×</Text>
-                  </TouchableOpacity>
-                </View>
 
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Detalles de la encomienda</Text>
-                  <Text style={styles.sectionBody}>
-                    {detailDescription ?? `ID #${id} • Estado ${status.toLowerCase()}${
-                      apartment ? ` • Depto. ${apartment}` : ''
-                    }.`}
-                  </Text>
-                </View>
-
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Firma</Text>
-                  <View style={styles.signaturePlaceholder}>
-                    <Text style={styles.signatureText}>Firma pendiente</Text>
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Detalles de la encomienda</Text>
+                    <Text style={styles.sectionBody}>
+                      {detailDescription ?? `ID #${id} • Estado ${status.toLowerCase()}${
+                        apartment ? ` • Depto. ${apartment}` : ''
+                      }.`}
+                    </Text>
                   </View>
-                </View>
+
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Firma</Text>
+                    <View style={styles.signaturePlaceholder}>
+                      <Text style={styles.signatureText}>Firma pendiente</Text>
+                    </View>
+                  </View>
+                </Animated.View>
               </Animated.View>
-            </Animated.View>
-          </GestureDetector>
-        </Animated.View>
+            </GestureDetector>
+          </Animated.View>
+        </Modal>
       ) : null}
     </>
   )
@@ -443,6 +459,9 @@ const styles = StyleSheet.create({
     color: '#6B4EFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  hiddenCard: {
+    opacity: 0,
   },
 })
 
