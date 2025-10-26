@@ -53,10 +53,12 @@ export default function PackageCard({ parcel, scrollX, index }: PackageCardProps
     ? getUrlImageFromStorage(parcel.signature_url, 'parcel-signatures')
     : undefined
 
+  const arrivalDisplay = receivedAtLabel ?? summaryDate
+
   const detailDescription =
     statusKey === 'picked_up'
-      ? `Retirada el ${pickedUpAtLabel ?? summaryDate}.`
-      : 'Tu encomienda está registrada y puedes retirarla cuando lo necesites.'
+      ? `Llegó el ${arrivalDisplay}${pickedUpAtLabel ? ` y se retiró el ${pickedUpAtLabel}.` : '.'}`
+      : `Llegó el ${arrivalDisplay} y está disponible en conserjería.`
 
   return (
     <PackageExpandableCardComponent

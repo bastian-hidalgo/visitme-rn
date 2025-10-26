@@ -97,6 +97,10 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
   const { width: screenWidth, height: screenHeight } = useWindowDimensions()
   const collapsedWidth = cardWidth ?? SMALL_CARD_WIDTH
   const collapsedHeight = cardHeight ?? SMALL_CARD_HEIGHT
+  const detailPanelBaseHeight = Math.min(screenHeight * 0.48, 440)
+  const detailOverlap = 24
+  const detailPanelHeight = Math.min(screenHeight, detailPanelBaseHeight + detailOverlap)
+  const detailTop = Math.max(0, screenHeight - detailPanelHeight)
 
   const handleOpen = useCallback(() => {
     cardRef.current?.measureInWindow((x, y, width, height) => {
@@ -132,7 +136,7 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
         animation.value = progress
       })
       .onEnd((event) => {
-        const shouldClose = event.translationY > screenHeight * 0.18 || event.velocityY > 800
+        const shouldClose = event.translationY > screenHeight * 0.12 || event.velocityY > 800
         if (shouldClose) {
           animation.value = withTiming(0, CLOSE_CONFIG, (finished) => {
             if (finished) {
@@ -147,6 +151,15 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
 
   const overlayStyle = useAnimatedStyle(() => ({
     opacity: interpolate(animation.value, [0, 1], [0, 1], Extrapolation.CLAMP),
+  }))
+
+  const collapsedCardAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(animation.value, [0, 0.6, 1], [1, 0.1, 0], Extrapolation.CLAMP),
+    transform: [
+      {
+        scale: interpolate(animation.value, [0, 1], [1, 0.94], Extrapolation.CLAMP),
+      },
+    ],
   }))
 
   const animatedCardStyle = useAnimatedStyle(() => {
@@ -196,7 +209,7 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
     opacity: interpolate(animation.value, [0, 1], [0, 1], Extrapolation.CLAMP),
     transform: [
       {
-        translateY: interpolate(animation.value, [0, 1], [16, 0], Extrapolation.CLAMP),
+        translateY: interpolate(animation.value, [0, 1], [24, 0], Extrapolation.CLAMP),
       },
     ],
   }))
@@ -220,12 +233,13 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
   return (
     <>
       <TouchableOpacity activeOpacity={0.92} onPress={handleOpen} disabled={isExpanded}>
-        <View
+        <Animated.View
           ref={cardRef}
+          pointerEvents={isExpanded ? 'none' : 'auto'}
           style={[
             styles.card,
             { width: collapsedWidth, height: collapsedHeight },
-            isExpanded && styles.hiddenCard,
+            collapsedCardAnimatedStyle,
           ]}
         >
           <Animated.View style={[styles.thumbnailWrapper, collapsedImageParallaxStyle]}>
@@ -247,7 +261,7 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
             ) : null}
             <Text style={styles.dateText}>{date}</Text>
           </View>
-        </View>
+        </Animated.View>
       </TouchableOpacity>
 
       {isExpanded ? (
@@ -272,87 +286,108 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
                   style={styles.expandedGradient}
                 />
 
-                <Animated.View style={[styles.detailContainer, detailAnimatedStyle]}>
-                  <View style={styles.headerRow}>
-                    <View>
-                      <Text style={styles.expandedStatus}>{status}</Text>
-                      {apartment ? (
-                        <Text style={styles.expandedApartment}>Departamento {apartment}</Text>
+                <Animated.View
+                  style={[
+                    styles.detailContainer,
+                    detailAnimatedStyle,
+                    {
+                      top: detailTop,
+                      height: detailPanelHeight,
+                    },
+                  ]}
+                >
+                  <Animated.ScrollView
+                    bounces={false}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.detailScrollContent}
+                  >
+                    <View style={styles.dragIndicatorContainer}>
+                      <View style={styles.dragIndicator} />
+                    </View>
+                    <View style={styles.headerRow}>
+                      <View>
+                        <Text style={styles.expandedStatus}>{status}</Text>
+                        {apartment ? (
+                          <Text style={styles.expandedApartment}>Departamento {apartment}</Text>
+                        ) : (
+                          <Text style={styles.expandedApartment}>Encomienda</Text>
+                        )}
+                        <Text style={styles.expandedDate}>{date}</Text>
+                      </View>
+                      <TouchableOpacity onPress={closeCard} style={styles.closeButton} activeOpacity={0.8}>
+                        <Text style={styles.closeText}>×</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.section}>
+                      <Text style={styles.sectionBody}>
+                        {detailDescription ??
+                          (status === 'Retirada'
+                            ? 'Esta encomienda ya fue retirada de conserjería.'
+                            : 'Tu encomienda está disponible para retiro en conserjería.')}
+                      </Text>
+                    </View>
+
+                    <View style={styles.section}>
+                      <Text style={styles.sectionTitle}>Movimientos</Text>
+                      <View style={styles.timeline}>
+                        <View style={styles.timelineRow}>
+                          <View style={styles.timelineDot} />
+                          <View style={styles.timelineContent}>
+                            <Text style={styles.timelineLabel}>Llegó a conserjería</Text>
+                            <Text style={styles.timelineValue}>{receivedAtLabel ?? 'Sin registro'}</Text>
+                            {receivedRelativeLabel ? (
+                              <Text style={styles.timelineHint}>{receivedRelativeLabel}</Text>
+                            ) : null}
+                          </View>
+                        </View>
+
+                        <View style={styles.timelineRow}>
+                          <View
+                            style={[
+                              styles.timelineDot,
+                              signatureCompleted || pickedUpAtLabel
+                                ? styles.timelineDotCompleted
+                                : styles.timelineDotPending,
+                            ]}
+                          />
+                          <View style={styles.timelineContent}>
+                            <Text style={styles.timelineLabel}>
+                              {pickedUpAtLabel ? 'Retirada por el residente' : 'Pendiente de retiro'}
+                            </Text>
+                            <Text style={styles.timelineValue}>
+                              {pickedUpAtLabel ?? 'Aún disponible en conserjería'}
+                            </Text>
+                            {pickedUpRelativeLabel ? (
+                              <Text style={styles.timelineHint}>{pickedUpRelativeLabel}</Text>
+                            ) : null}
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+
+                    <View style={styles.section}>
+                      <Text style={styles.sectionTitle}>Firma</Text>
+                      {signatureCompleted ? (
+                        <View style={styles.signatureContainer}>
+                          {signatureImageUrl ? (
+                            <Image
+                              source={{ uri: signatureImageUrl }}
+                              style={styles.signatureImage}
+                              contentFit="contain"
+                            />
+                          ) : (
+                            <Text style={styles.signatureConfirmedText}>Firma confirmada</Text>
+                          )}
+                          <Text style={styles.signatureCaption}>Firma registrada al retirar</Text>
+                        </View>
                       ) : (
-                        <Text style={styles.expandedApartment}>Encomienda</Text>
+                        <View style={styles.signaturePlaceholder}>
+                          <Text style={styles.signatureText}>Se solicitará al retirar</Text>
+                        </View>
                       )}
-                      <Text style={styles.expandedDate}>{date}</Text>
                     </View>
-                    <TouchableOpacity onPress={closeCard} style={styles.closeButton} activeOpacity={0.8}>
-                      <Text style={styles.closeText}>×</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Detalles de la encomienda</Text>
-                    <Text style={styles.sectionBody}>
-                      {detailDescription ??
-                        (status === 'Retirada'
-                          ? 'Esta encomienda ya fue retirada de conserjería.'
-                          : 'Tu encomienda está disponible para retiro en conserjería.')}
-                    </Text>
-                  </View>
-
-                  <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Movimientos</Text>
-                    <View style={styles.timeline}>
-                      <View style={styles.timelineRow}>
-                        <View style={styles.timelineDot} />
-                        <View style={styles.timelineContent}>
-                          <Text style={styles.timelineLabel}>Llegó a conserjería</Text>
-                          <Text style={styles.timelineValue}>{receivedAtLabel ?? 'Sin registro'}</Text>
-                          {receivedRelativeLabel ? (
-                            <Text style={styles.timelineHint}>{receivedRelativeLabel}</Text>
-                          ) : null}
-                        </View>
-                      </View>
-
-                      <View style={styles.timelineRow}>
-                        <View
-                          style={[
-                            styles.timelineDot,
-                            signatureCompleted || pickedUpAtLabel
-                              ? styles.timelineDotCompleted
-                              : styles.timelineDotPending,
-                          ]}
-                        />
-                        <View style={styles.timelineContent}>
-                          <Text style={styles.timelineLabel}>
-                            {pickedUpAtLabel ? 'Retirada por el residente' : 'Pendiente de retiro'}
-                          </Text>
-                          <Text style={styles.timelineValue}>
-                            {pickedUpAtLabel ?? 'Aún disponible en conserjería'}
-                          </Text>
-                          {pickedUpRelativeLabel ? (
-                            <Text style={styles.timelineHint}>{pickedUpRelativeLabel}</Text>
-                          ) : null}
-                        </View>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Firma</Text>
-                    {signatureCompleted && signatureImageUrl ? (
-                      <View style={styles.signatureContainer}>
-                        <Image
-                          source={{ uri: signatureImageUrl }}
-                          style={styles.signatureImage}
-                          contentFit="contain"
-                        />
-                        <Text style={styles.signatureCaption}>Firma registrada al retirar</Text>
-                      </View>
-                    ) : (
-                      <View style={styles.signaturePlaceholder}>
-                        <Text style={styles.signatureText}>Se solicitará al retirar</Text>
-                      </View>
-                    )}
-                  </View>
+                  </Animated.ScrollView>
                 </Animated.View>
               </Animated.View>
             </GestureDetector>
@@ -449,17 +484,28 @@ const styles = StyleSheet.create({
   },
   detailContainer: {
     position: 'absolute',
-    top: '60%',
     left: 0,
     right: 0,
-    bottom: 0,
     backgroundColor: '#fff',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 32,
     paddingBottom: 32,
+  },
+  detailScrollContent: {
     gap: 20,
+    paddingBottom: 48,
+  },
+  dragIndicatorContainer: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  dragIndicator: {
+    width: 60,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: 'rgba(31, 41, 55, 0.16)',
   },
   headerRow: {
     flexDirection: 'row',
@@ -574,13 +620,15 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 120,
   },
+  signatureConfirmedText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#047857',
+  },
   signatureCaption: {
     fontSize: 12,
     color: '#047857',
     fontWeight: '600',
-  },
-  hiddenCard: {
-    opacity: 0,
   },
 })
 
