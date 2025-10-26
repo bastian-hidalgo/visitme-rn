@@ -15,7 +15,8 @@ import Animated, {
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
+  withTiming,
+  Easing,
 } from 'react-native-reanimated'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -28,6 +29,12 @@ export type PackageExpandableCardProps = {
   status: PackageStatusLabel
   apartment?: string
   date: string
+  receivedAtLabel?: string
+  receivedRelativeLabel?: string
+  pickedUpAtLabel?: string | null
+  pickedUpRelativeLabel?: string | null
+  signatureImageUrl?: string | null
+  signatureCompleted?: boolean
   onClose?: () => void
   statusIcon?: ReactNode
   statusBadgeColor?: string
@@ -39,14 +46,14 @@ export type PackageExpandableCardProps = {
   cardHeight?: number
 }
 
-const SPRING_OPEN_CONFIG = {
-  damping: 12,
-  stiffness: 120,
+const OPEN_CONFIG = {
+  duration: 360,
+  easing: Easing.inOut(Easing.cubic),
 }
 
-const SPRING_CLOSE_CONFIG = {
-  damping: 14,
-  stiffness: 180,
+const CLOSE_CONFIG = {
+  duration: 240,
+  easing: Easing.inOut(Easing.cubic),
 }
 
 const clamp = (value: number, lowerBound: number, upperBound: number) => {
@@ -64,6 +71,12 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
   status,
   apartment,
   date,
+  receivedAtLabel,
+  receivedRelativeLabel,
+  pickedUpAtLabel,
+  pickedUpRelativeLabel,
+  signatureImageUrl,
+  signatureCompleted,
   onClose,
   statusIcon,
   statusBadgeColor,
@@ -93,7 +106,7 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
       originHeight.value = height
       animation.value = 0
       setIsExpanded(true)
-      animation.value = withSpring(1, SPRING_OPEN_CONFIG)
+      animation.value = withTiming(1, OPEN_CONFIG)
     })
   }, [animation, originHeight, originWidth, originX, originY])
 
@@ -105,7 +118,7 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
   }, [onClose])
 
   const closeCard = useCallback(() => {
-    animation.value = withSpring(0, SPRING_CLOSE_CONFIG, (finished) => {
+    animation.value = withTiming(0, CLOSE_CONFIG, (finished) => {
       if (finished) {
         runOnJS(finishClosing)()
       }
@@ -121,13 +134,13 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
       .onEnd((event) => {
         const shouldClose = event.translationY > screenHeight * 0.18 || event.velocityY > 800
         if (shouldClose) {
-          animation.value = withSpring(0, SPRING_CLOSE_CONFIG, (finished) => {
+          animation.value = withTiming(0, CLOSE_CONFIG, (finished) => {
             if (finished) {
               runOnJS(finishClosing)()
             }
           })
         } else {
-          animation.value = withSpring(1, SPRING_OPEN_CONFIG)
+          animation.value = withTiming(1, OPEN_CONFIG)
         }
       })
   }, [animation, finishClosing, screenHeight])
@@ -278,17 +291,67 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
                   <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Detalles de la encomienda</Text>
                     <Text style={styles.sectionBody}>
-                      {detailDescription ?? `ID #${id} • Estado ${status.toLowerCase()}${
-                        apartment ? ` • Depto. ${apartment}` : ''
-                      }.`}
+                      {detailDescription ??
+                        (status === 'Retirada'
+                          ? 'Esta encomienda ya fue retirada de conserjería.'
+                          : 'Tu encomienda está disponible para retiro en conserjería.')}
                     </Text>
                   </View>
 
                   <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Firma</Text>
-                    <View style={styles.signaturePlaceholder}>
-                      <Text style={styles.signatureText}>Firma pendiente</Text>
+                    <Text style={styles.sectionTitle}>Movimientos</Text>
+                    <View style={styles.timeline}>
+                      <View style={styles.timelineRow}>
+                        <View style={styles.timelineDot} />
+                        <View style={styles.timelineContent}>
+                          <Text style={styles.timelineLabel}>Llegó a conserjería</Text>
+                          <Text style={styles.timelineValue}>{receivedAtLabel ?? 'Sin registro'}</Text>
+                          {receivedRelativeLabel ? (
+                            <Text style={styles.timelineHint}>{receivedRelativeLabel}</Text>
+                          ) : null}
+                        </View>
+                      </View>
+
+                      <View style={styles.timelineRow}>
+                        <View
+                          style={[
+                            styles.timelineDot,
+                            signatureCompleted || pickedUpAtLabel
+                              ? styles.timelineDotCompleted
+                              : styles.timelineDotPending,
+                          ]}
+                        />
+                        <View style={styles.timelineContent}>
+                          <Text style={styles.timelineLabel}>
+                            {pickedUpAtLabel ? 'Retirada por el residente' : 'Pendiente de retiro'}
+                          </Text>
+                          <Text style={styles.timelineValue}>
+                            {pickedUpAtLabel ?? 'Aún disponible en conserjería'}
+                          </Text>
+                          {pickedUpRelativeLabel ? (
+                            <Text style={styles.timelineHint}>{pickedUpRelativeLabel}</Text>
+                          ) : null}
+                        </View>
+                      </View>
                     </View>
+                  </View>
+
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Firma</Text>
+                    {signatureCompleted && signatureImageUrl ? (
+                      <View style={styles.signatureContainer}>
+                        <Image
+                          source={{ uri: signatureImageUrl }}
+                          style={styles.signatureImage}
+                          contentFit="contain"
+                        />
+                        <Text style={styles.signatureCaption}>Firma registrada al retirar</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.signaturePlaceholder}>
+                        <Text style={styles.signatureText}>Se solicitará al retirar</Text>
+                      </View>
+                    )}
                   </View>
                 </Animated.View>
               </Animated.View>
@@ -360,7 +423,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   overlay: {
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(0,0,0,0.35)',
     justifyContent: 'flex-start',
     zIndex: 20,
   },
@@ -445,6 +508,44 @@ const styles = StyleSheet.create({
     color: '#4B5563',
     lineHeight: 20,
   },
+  timeline: {
+    gap: 20,
+  },
+  timelineRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
+  },
+  timelineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginTop: 4,
+    backgroundColor: '#6B4EFF',
+  },
+  timelineDotCompleted: {
+    backgroundColor: '#10b981',
+  },
+  timelineDotPending: {
+    backgroundColor: '#f59e0b',
+  },
+  timelineContent: {
+    flex: 1,
+    gap: 2,
+  },
+  timelineLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  timelineValue: {
+    fontSize: 14,
+    color: '#374151',
+  },
+  timelineHint: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
   signaturePlaceholder: {
     height: 120,
     borderRadius: 16,
@@ -458,6 +559,24 @@ const styles = StyleSheet.create({
   signatureText: {
     color: '#6B4EFF',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  signatureContainer: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    backgroundColor: 'rgba(16, 185, 129, 0.05)',
+    padding: 16,
+    alignItems: 'center',
+    gap: 12,
+  },
+  signatureImage: {
+    width: '100%',
+    height: 120,
+  },
+  signatureCaption: {
+    fontSize: 12,
+    color: '#047857',
     fontWeight: '600',
   },
   hiddenCard: {
