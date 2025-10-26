@@ -1,10 +1,10 @@
-import { type ReactNode } from 'react'
-import getUrlImageFromStorage from '@/lib/getUrlImageFromStorage'
-import { format, fromNow } from '@/lib/time'
 import PackageExpandableCardComponent, {
   type PackageStatusLabel,
 } from '@/components/resident/PackageExpandableCard'
+import getUrlImageFromStorage from '@/lib/getUrlImageFromStorage'
+import { format, fromNow } from '@/lib/time'
 import { PackageCheck, PackageSearch, PackageX } from 'lucide-react-native'
+import { type ReactNode } from 'react'
 import type { SharedValue } from 'react-native-reanimated'
 
 const CARD_WIDTH = 150
@@ -50,7 +50,7 @@ export default function PackageCard({ parcel, scrollX, index }: PackageCardProps
   const summaryPrefix = statusKey === 'picked_up' ? 'Retirada' : 'Recibida'
   const signatureCompleted = Boolean(parcel.signature_url)
   const signatureImageUrl = signatureCompleted
-    ? getUrlImageFromStorage(parcel.signature_url, 'parcel-signatures')
+    ? getUrlImageFromStorage(parcel.signature_url, 'parcel-photos')
     : undefined
 
   const arrivalDisplay = receivedAtLabel ?? summaryDate
