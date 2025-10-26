@@ -65,6 +65,8 @@ const SMALL_CARD_WIDTH = 150
 const SMALL_CARD_HEIGHT = 180
 const SMALL_CARD_RADIUS = 20
 
+let isAnyCardExpanded = false
+
 export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
   id,
   imageUrl,
@@ -102,8 +104,23 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
   const detailPanelHeight = Math.min(screenHeight, detailPanelBaseHeight + detailOverlap)
   const detailTop = Math.max(0, screenHeight - detailPanelHeight)
 
+  const releaseGlobalExpansionLock = useCallback(() => {
+    isAnyCardExpanded = false
+  }, [])
+
   const handleOpen = useCallback(() => {
-    cardRef.current?.measureInWindow((x, y, width, height) => {
+    if (isAnyCardExpanded) {
+      return
+    }
+
+    const card = cardRef.current
+    if (!card) {
+      return
+    }
+
+    isAnyCardExpanded = true
+
+    card.measureInWindow((x, y, width, height) => {
       originX.value = x
       originY.value = y
       originWidth.value = width
@@ -116,10 +133,11 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
 
   const finishClosing = useCallback(() => {
     setIsExpanded(false)
+    releaseGlobalExpansionLock()
     if (onClose) {
       onClose()
     }
-  }, [onClose])
+  }, [onClose, releaseGlobalExpansionLock])
 
   const closeCard = useCallback(() => {
     animation.value = withTiming(0, CLOSE_CONFIG, (finished) => {
@@ -128,6 +146,14 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
       }
     })
   }, [animation, finishClosing])
+
+  React.useEffect(() => {
+    return () => {
+      if (isExpanded) {
+        releaseGlobalExpansionLock()
+      }
+    }
+  }, [isExpanded, releaseGlobalExpansionLock])
 
   const panGesture = useMemo(() => {
     return Gesture.Pan()
