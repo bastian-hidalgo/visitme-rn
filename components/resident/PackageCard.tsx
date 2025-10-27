@@ -2,7 +2,7 @@ import PackageExpandableCardComponent, {
   type PackageStatusLabel,
 } from '@/components/resident/PackageExpandableCard'
 import getUrlImageFromStorage from '@/lib/getUrlImageFromStorage'
-import { format, fromNow } from '@/lib/time'
+import { fromServer } from '@/lib/time'
 import { PackageCheck, PackageSearch, PackageX } from 'lucide-react-native'
 import { type ReactNode } from 'react'
 import type { SharedValue } from 'react-native-reanimated'
@@ -38,27 +38,21 @@ export default function PackageCard({ parcel, scrollX, index }: PackageCardProps
 
   const departmentNumber = (parcel as any)?.department?.number
 
-  const receivedAtLabel = parcel.created_at ? format(parcel.created_at, "DD MMM YYYY • HH:mm") : undefined
-  const receivedRelativeLabel = parcel.created_at ? fromNow(parcel.created_at) : undefined
-  const pickedUpAtLabel = parcel.picked_up_at
-    ? format(parcel.picked_up_at, "DD MMM YYYY • HH:mm")
-    : null
-  const pickedUpRelativeLabel = parcel.picked_up_at ? fromNow(parcel.picked_up_at) : null
-  const summaryBaseDate =
-    statusKey === 'picked_up' && parcel.picked_up_at ? parcel.picked_up_at : parcel.created_at
-  const summaryDate = summaryBaseDate ? format(summaryBaseDate, 'DD MMM • HH:mm') : 'Sin fecha'
+  const receivedAt = parcel.created_at ? fromServer(parcel.created_at) : null
+  const pickedUpAt = parcel.picked_up_at ? fromServer(parcel.picked_up_at) : null
+
+  const receivedAtLabel = receivedAt ? receivedAt.format('DD MMM YYYY • HH:mm') : undefined
+  const receivedRelativeLabel = receivedAt ? receivedAt.fromNow() : undefined
+  const pickedUpAtLabel = pickedUpAt ? pickedUpAt.format('DD MMM YYYY • HH:mm') : null
+  const pickedUpRelativeLabel = pickedUpAt ? pickedUpAt.fromNow() : null
+
+  const summaryBaseDate = statusKey === 'picked_up' && pickedUpAt ? pickedUpAt : receivedAt
+  const summaryDate = summaryBaseDate ? summaryBaseDate.format('DD MMM • HH:mm') : 'Sin fecha'
   const summaryPrefix = statusKey === 'picked_up' ? 'Retirada' : 'Recibida'
   const signatureCompleted = Boolean(parcel.signature_url)
   const signatureImageUrl = signatureCompleted
     ? getUrlImageFromStorage(parcel.signature_url, 'parcel-photos')
     : undefined
-
-  const arrivalDisplay = receivedAtLabel ?? summaryDate
-
-  const detailDescription =
-    statusKey === 'picked_up'
-      ? `Llegó el ${arrivalDisplay}${pickedUpAtLabel ? ` y se retiró el ${pickedUpAtLabel}.` : '.'}`
-      : `Llegó el ${arrivalDisplay} y está disponible en conserjería.`
 
   return (
     <PackageExpandableCardComponent
@@ -69,7 +63,6 @@ export default function PackageCard({ parcel, scrollX, index }: PackageCardProps
       statusBadgeColor={statusConfig.badge}
       apartment={departmentNumber ? String(departmentNumber) : undefined}
       date={`${summaryPrefix} • ${summaryDate}`}
-      detailDescription={detailDescription}
       receivedAtLabel={receivedAtLabel}
       receivedRelativeLabel={receivedRelativeLabel}
       pickedUpAtLabel={pickedUpAtLabel}

@@ -92,6 +92,7 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
   const [isExpanded, setIsExpanded] = useState(false)
   const cardRef = useRef<View>(null)
   const animation = useSharedValue(0)
+  const detailDrag = useSharedValue(0)
   const originX = useSharedValue(0)
   const originY = useSharedValue(0)
   const originWidth = useSharedValue(0)
@@ -103,6 +104,8 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
   const detailOverlap = 24
   const detailPanelHeight = Math.min(screenHeight, detailPanelBaseHeight + detailOverlap)
   const detailTop = Math.max(0, screenHeight - detailPanelHeight)
+  const detailDragLimit = Math.max(Math.min(screenHeight * 0.28, 160), 1)
+  const closeRange = Math.max(screenHeight - detailDragLimit, 1)
   const imageSource = useMemo<ImageSource>(() => ({ uri: imageUrl }), [imageUrl])
 
   const releaseGlobalExpansionLock = useCallback(() => {
@@ -127,26 +130,29 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
       originWidth.value = width
       originHeight.value = height
       animation.value = 0
+      detailDrag.value = 0
       setIsExpanded(true)
       animation.value = withTiming(1, OPEN_CONFIG)
     })
-  }, [animation, originHeight, originWidth, originX, originY])
+  }, [animation, detailDrag, originHeight, originWidth, originX, originY])
 
   const finishClosing = useCallback(() => {
     setIsExpanded(false)
+    detailDrag.value = 0
     releaseGlobalExpansionLock()
     if (onClose) {
       onClose()
     }
-  }, [onClose, releaseGlobalExpansionLock])
+  }, [detailDrag, onClose, releaseGlobalExpansionLock])
 
   const closeCard = useCallback(() => {
+    detailDrag.value = withTiming(0, CLOSE_CONFIG)
     animation.value = withTiming(0, CLOSE_CONFIG, (finished) => {
       if (finished) {
         runOnJS(finishClosing)()
       }
     })
-  }, [animation, finishClosing])
+  }, [animation, detailDrag, finishClosing])
 
   React.useEffect(() => {
     return () => {
@@ -159,22 +165,40 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
   const panGesture = useMemo(() => {
     return Gesture.Pan()
       .onUpdate((event) => {
-        const progress = clamp(1 - event.translationY / screenHeight, 0, 1)
+        const translation = Math.max(event.translationY, 0)
+
+        if (translation <= detailDragLimit) {
+          detailDrag.value = translation
+          animation.value = 1
+          return
+        }
+
+        detailDrag.value = detailDragLimit
+        const extra = translation - detailDragLimit
+        const progress = clamp(1 - extra / closeRange, 0, 1)
         animation.value = progress
       })
       .onEnd((event) => {
-        const shouldClose = event.translationY > screenHeight * 0.12 || event.velocityY > 800
+        const translation = Math.max(event.translationY, 0)
+        const extra = Math.max(translation - detailDragLimit, 0)
+        const shouldClose =
+          extra > detailPanelHeight * 0.18 ||
+          translation > screenHeight * 0.2 ||
+          event.velocityY > 900
+
         if (shouldClose) {
+          detailDrag.value = withTiming(0, CLOSE_CONFIG)
           animation.value = withTiming(0, CLOSE_CONFIG, (finished) => {
             if (finished) {
               runOnJS(finishClosing)()
             }
           })
         } else {
+          detailDrag.value = withTiming(0, OPEN_CONFIG)
           animation.value = withTiming(1, OPEN_CONFIG)
         }
       })
-  }, [animation, finishClosing, screenHeight])
+  }, [animation, closeRange, detailDrag, detailDragLimit, detailPanelHeight, finishClosing, screenHeight])
 
   const overlayStyle = useAnimatedStyle(() => ({
     opacity: interpolate(animation.value, [0, 1], [0, 1], Extrapolation.CLAMP),
@@ -205,13 +229,18 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
     }
   })
 
-  const imageAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        scale: interpolate(animation.value, [0, 1], [1, 1.05], Extrapolation.CLAMP),
-      },
-    ],
-  }))
+  const imageAnimatedStyle = useAnimatedStyle(() => {
+    const slideProgress = detailDragLimit === 0 ? 0 : Math.min(detailDrag.value / detailDragLimit, 1)
+    const baseScale = interpolate(animation.value, [0, 1], [1, 1.05], Extrapolation.CLAMP)
+    const translateY = -detailDrag.value * 0.35
+
+    return {
+      transform: [
+        { translateY },
+        { scale: baseScale + slideProgress * 0.12 },
+      ],
+    }
+  })
 
   const collapsedImageParallaxStyle = useAnimatedStyle(() => {
     if (!scrollX || index === undefined) {
@@ -239,6 +268,10 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
         translateY: interpolate(animation.value, [0, 1], [24, 0], Extrapolation.CLAMP),
       },
     ],
+  }))
+
+  const detailDragAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: detailDrag.value }],
   }))
 
   const statusBadgeColors = useMemo(() => {
@@ -313,7 +346,7 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
                   />
                 </Animated.View>
                 <LinearGradient
-                  colors={["rgba(0,0,0,0.5)", 'transparent']}
+                  colors={['rgba(0,0,0,0.5)', 'transparent']}
                   start={{ x: 0.5, y: 1 }}
                   end={{ x: 0.5, y: 0 }}
                   style={styles.expandedGradient}
@@ -323,6 +356,7 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
                   style={[
                     styles.detailContainer,
                     detailAnimatedStyle,
+                    detailDragAnimatedStyle,
                     {
                       top: detailTop,
                       height: detailPanelHeight,
