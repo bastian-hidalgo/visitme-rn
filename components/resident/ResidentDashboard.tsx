@@ -22,6 +22,7 @@ import PackageSlider from '@/components/resident/PackageSlider'
 import QuickAccess from '@/components/resident/QuickAccess'
 import ReservationsSlider from '@/components/resident/ReservationsSlider'
 import SurveysSlider from '@/components/resident/SurveysSlider'
+import ReservationPanel from '@/components/resident/sidepanels/ReservationPanel'
 import UserMenuPanel from '@/components/resident/sidepanels/UserMenuPanel'
 import getReservationBannerStatus from '@/lib/getReservationsBannerStatus'
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated'
@@ -45,7 +46,7 @@ export default function ResidentDashboard() {
       shadowOpacity: progress ? 0.3 : 0,
     }
   })
-  const { reservations, isInvitationPanelOpen, isReservationPanelOpen, closePanels } =
+  const { reservations, isReservationPanelOpen, closeReservationPanel } =
     useResidentContext()
 
   const handleCancelReservation = (id: string) => {
@@ -76,6 +77,10 @@ export default function ResidentDashboard() {
 
   const scrollViewRef = useRef<ScrollView>(null)
   const insets = useSafeAreaInsets()
+
+  useEffect(() => {
+    reservationProgress.value = withTiming(isReservationPanelOpen ? 1 : 0, { duration: 300 })
+  }, [isReservationPanelOpen, reservationProgress])
   const [sectionPositions, setSectionPositions] = useState<Record<string, number>>({})
 
   const registerSection = (sectionId: string) => ({ nativeEvent }: LayoutChangeEvent) => {
@@ -229,6 +234,11 @@ export default function ResidentDashboard() {
           isOpen={isMenuOpen}
           onClose={() => setIsMenuOpen(false)}
           progress={menuProgress}
+        />
+        <ReservationPanel
+          isOpen={isReservationPanelOpen}
+          onClose={closeReservationPanel}
+          progress={reservationProgress}
         />
     </SafeAreaView>
   )

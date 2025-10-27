@@ -7,4 +7,21 @@ module.exports = defineConfig([
   {
     ignores: ['dist/*'],
   },
+  {
+    settings: {
+      'import/resolver': {
+        node: {
+          extensions: ['.js', '.jsx', '.ts', '.tsx', '.cjs', '.mjs'],
+        },
+      },
+    },
+    rules: {
+      'import/no-unresolved': [
+        'error',
+        {
+          ignore: ['@gorhom/bottom-sheet'],
+        },
+      ],
+    },
+  },
 ]);

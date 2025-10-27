@@ -42,6 +42,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   const openFeedbackPanel = () => setFeedbackPanelOpen(true)
   const openInvitationPanel = () => setInvitationPanelOpen(true)
   const openReservationPanel = () => setReservationPanelOpen(true)
+  const closeReservationPanel = useCallback(() => setReservationPanelOpen(false), [])
   const openPackagesPanel = () => setPackagesPanelOpen(true)
   const openAlertPanel = () => setAlertPanelOpen(true)
   const closeAlertPanel = useCallback(() => {
@@ -315,6 +316,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         openPackagesPanel,
         openReservationPanel,
         closeAlertPanel,
+        closeReservationPanel,
 
         // 🔹 Cierre general
         closePanels,
