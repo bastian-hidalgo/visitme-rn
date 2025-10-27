@@ -213,7 +213,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
         const end = start.add(30, 'day')
 
         const { data, error } = await supabase
-          .from('common_space_reservations')
+          .from('common_space_reservations_with_user')
           .select('date, block, status')
           .eq('common_space_id', spaceId)
           .eq('community_id', communityId)
@@ -225,7 +225,10 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
 
         const reservations = (data || [])
           .filter((item): item is ReservationRecord => Boolean(item.date && item.block))
-          .map((item) => ({ date: item.date, block: item.block as 'morning' | 'afternoon' }))
+          .map((item) => ({
+            date: dayjs(item.date).format('YYYY-MM-DD'),
+            block: item.block as 'morning' | 'afternoon',
+          }))
 
         const grouped = reservations.reduce<Record<string, { amTaken: boolean; pmTaken: boolean }>>((acc, current) => {
           const existing = acc[current.date] || { amTaken: false, pmTaken: false }
@@ -279,6 +282,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
             .from('common_spaces')
             .select('id, name, description, event_price, image_url, time_block_hours, status')
             .eq('community_id', communityId)
+            .eq('status', 'activo')
             .order('name', { ascending: true }),
         ])
 
@@ -298,7 +302,6 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
           .map(({ id, label }) => ({ id, label }))
 
         const spaceOptions = (spacesResponse.data || [])
-          .filter((space) => space.status !== 'inactivo')
           .map((space) => ({
             id: space.id,
             name: space.name,
