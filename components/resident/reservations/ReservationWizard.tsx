@@ -29,7 +29,7 @@ const SPACE_CARD_GAP = 16
 const SPACE_CARD_SNAP_INTERVAL = SPACE_CARD_WIDTH + SPACE_CARD_GAP
 const SPACE_CARD_SIDE_PADDING = Math.max(20, (WINDOW_WIDTH - SPACE_CARD_WIDTH) / 2)
 
-type StepId = 'department' | 'space' | 'availability' | 'schedule'
+type StepId = 'space' | 'department' | 'availability' | 'schedule'
 
 type DepartmentOption = {
   id: string
@@ -84,14 +84,14 @@ const BLOCKS = [
 
 const STEP_DEFINITIONS = [
   {
-    id: 'department' as const,
-    title: 'Departamento',
-    description: '¿Desde qué departamento harás la reserva?',
-  },
-  {
     id: 'space' as const,
     title: 'Espacio',
-    description: 'Elige el espacio común disponible en tu comunidad.',
+    description: 'Elige el espacio común con el que iniciarás la reserva.',
+  },
+  {
+    id: 'department' as const,
+    title: 'Departamento',
+    description: 'Define a qué departamento quedará asociada la reserva.',
   },
   {
     id: 'availability' as const,
@@ -141,7 +141,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
   const [success, setSuccess] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  const stepper = useStepperize<StepId>({ steps: STEP_DEFINITIONS, initialStep: 'department' })
+  const stepper = useStepperize<StepId>({ steps: STEP_DEFINITIONS, initialStep: 'space' })
 
   const carouselRef = useRef<FlatList<CommonSpace>>(null)
 
@@ -153,7 +153,6 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
     () => spaces.find((item) => item.id === selectedSpaceId) ?? null,
     [selectedSpaceId, spaces],
   )
-  const currentSpace = spaces[spaceIndex] ?? null
   const selectedDayInfo = useMemo(
     () => availability.find((day) => day.iso === selectedDate) ?? null,
     [availability, selectedDate],
@@ -161,8 +160,8 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
 
   const completedSteps = useMemo(() => {
     const done = new Set<StepId>()
-    if (selectedDepartment) done.add('department')
     if (selectedSpace) done.add('space')
+    if (selectedDepartment) done.add('department')
     if (selectedDate) done.add('availability')
     if (selectedBlock) done.add('schedule')
     return done
@@ -170,8 +169,8 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
 
   const stepSummaries = useMemo(
     () => ({
-      department: selectedDepartment?.label ?? null,
       space: selectedSpace?.name ?? null,
+      department: selectedDepartment?.label ?? null,
       availability: selectedDate ? formatLongDate(selectedDate) : null,
       schedule:
         selectedBlock && selectedDayInfo
@@ -193,16 +192,6 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
     },
     [completedSteps, stepper.activeIndex, stepper.order],
   )
-
-  const resetAfterDepartmentChange = useCallback(() => {
-    setSpaceIndex(0)
-    setSelectedSpaceId(null)
-    setAvailability([])
-    setAvailabilityError(null)
-    setSelectedDate(null)
-    setSelectedBlock(null)
-    carouselRef.current?.scrollToIndex({ index: 0, animated: false })
-  }, [])
 
   const resetAfterSpaceChange = useCallback(() => {
     setAvailability([])
@@ -325,11 +314,6 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
         setSelectedSpaceId((prev) =>
           prev && spaceOptions.some((space) => space.id === prev) ? prev : null,
         )
-
-        if (departmentOptions.length === 1) {
-          setSelectedDepartmentId(departmentOptions[0].id)
-          stepper.goTo('space')
-        }
       } catch (error) {
         if (!cancelled) {
           console.error('Error al cargar datos iniciales', error)
@@ -345,7 +329,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
     return () => {
       cancelled = true
     }
-  }, [communityId, stepper, userId])
+  }, [communityId, userId])
 
   useEffect(() => {
     if (!selectedSpaceId) return
@@ -353,11 +337,29 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
     loadAvailability(selectedSpaceId)
   }, [loadAvailability, resetAfterSpaceChange, selectedSpaceId])
 
+  useEffect(() => {
+    if (
+      departments.length === 1 &&
+      selectedSpaceId &&
+      !selectedDepartmentId &&
+      departments[0]
+    ) {
+      setSelectedDepartmentId(departments[0].id)
+      setSelectedDate(null)
+      setSelectedBlock(null)
+      if (stepper.activeStep === 'department') {
+        stepper.goTo('availability')
+      }
+    }
+  }, [departments, selectedDepartmentId, selectedSpaceId, stepper])
+
   const handleSelectDepartment = (departmentId: string) => {
-    if (selectedDepartmentId === departmentId) return
-    setSelectedDepartmentId(departmentId)
-    resetAfterDepartmentChange()
-    stepper.goTo('space')
+    if (selectedDepartmentId !== departmentId) {
+      setSelectedDepartmentId(departmentId)
+      setSelectedDate(null)
+      setSelectedBlock(null)
+    }
+    stepper.goTo('availability')
   }
 
   const handleMomentumScrollEnd = useCallback(
@@ -372,35 +374,26 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
 
   const handleSelectSpace = useCallback(
     (space: CommonSpace, index: number) => {
-      setSelectedSpaceId(space.id)
+      if (selectedSpaceId !== space.id) {
+        setSelectedSpaceId(space.id)
+      }
       if (spaceIndex !== index) {
         setSpaceIndex(index)
         carouselRef.current?.scrollToIndex({ index, animated: true })
       }
+      stepper.goTo('department')
     },
-    [carouselRef, spaceIndex],
+    [carouselRef, selectedSpaceId, spaceIndex, stepper],
   )
 
   const handleSelectDot = useCallback(
     (index: number) => {
       if (index < 0 || index >= spaces.length) return
-      setSpaceIndex(index)
-      carouselRef.current?.scrollToIndex({ index, animated: true })
+      const target = spaces[index]
+      handleSelectSpace(target, index)
     },
-    [carouselRef, spaces.length],
+    [handleSelectSpace, spaces],
   )
-
-  const handleProceedToAvailability = useCallback(() => {
-    const spaceToUse = selectedSpace ?? currentSpace
-    if (!spaceToUse) {
-      Toast.show({ type: 'info', text1: 'Selecciona un espacio primero' })
-      return
-    }
-    if (selectedSpaceId !== spaceToUse.id) {
-      setSelectedSpaceId(spaceToUse.id)
-    }
-    stepper.goTo('availability')
-  }, [currentSpace, selectedSpace, selectedSpaceId, stepper])
 
   const handleSelectDay = (day: DayAvailability) => {
     if (day.status === 'full') {
@@ -518,107 +511,113 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        <View style={styles.header}>
+        <View style={styles.headerRow}>
           <Pressable onPress={handleExit} style={styles.backButton} accessibilityRole="button">
-            <ChevronLeft size={20} color="#e0e7ff" />
+            <ChevronLeft size={20} color="#6d28d9" />
             <Text style={styles.backButtonLabel}>Salir</Text>
           </Pressable>
+        </View>
+
+        <View style={styles.headerCopy}>
           <Text style={styles.headerTitle}>Nueva reserva</Text>
           <Text style={styles.headerSubtitle}>
             Sigue los pasos y agenda tu espacio común con una experiencia guiada.
           </Text>
         </View>
 
-        <View style={styles.timeline}>
-          {STEP_DEFINITIONS.map((step, index) => {
-            const status = stepper.getStatus(step.id, completedSteps)
-            const canNavigate = canNavigateToStep(step.id)
-            const summary = stepSummaries[step.id]
-            const connectorActive = status !== 'pending'
-            return (
-              <Pressable
-                key={step.id}
-                onPress={() => (canNavigate ? stepper.goTo(step.id) : null)}
-                style={styles.timelineRow}
-                disabled={!canNavigate}
-              >
-                <View style={styles.timelineMarkerWrapper}>
-                  <View
-                    style={[
-                      styles.timelineMarker,
-                      status === 'complete' && styles.timelineMarkerComplete,
-                      status === 'active' && styles.timelineMarkerActive,
-                    ]}
+        <View style={styles.stepperWrapper}>
+          <View style={styles.stepperTrackRow}>
+            {STEP_DEFINITIONS.map((step, index) => {
+              const status = stepper.getStatus(step.id, completedSteps)
+              const canNavigate = canNavigateToStep(step.id)
+              const isComplete = status === 'complete'
+              const isActive = status === 'active'
+              const trackActive = stepper.activeIndex > index
+              return (
+                <React.Fragment key={`${step.id}-track`}>
+                  <Pressable
+                    onPress={() => (canNavigate ? stepper.goTo(step.id) : null)}
+                    disabled={!canNavigate}
+                    style={styles.stepperCircleButton}
+                    accessibilityRole="button"
                   >
-                    {status === 'complete' ? <Check size={14} color="#0f172a" /> : <Text style={styles.timelineIndex}>{index + 1}</Text>}
-                  </View>
-                  {index < STEP_DEFINITIONS.length - 1 && (
                     <View
                       style={[
-                        styles.timelineConnector,
-                        connectorActive && styles.timelineConnectorActive,
+                        styles.stepperCircle,
+                        isActive && styles.stepperCircleActive,
+                        isComplete && styles.stepperCircleComplete,
+                      ]}
+                    >
+                      {isComplete ? (
+                        <Check size={14} color="#1e1b4b" />
+                      ) : (
+                        <Text style={styles.stepperIndex}>{index + 1}</Text>
+                      )}
+                    </View>
+                  </Pressable>
+                  {index < STEP_DEFINITIONS.length - 1 ? (
+                    <View
+                      style={[
+                        styles.stepperTrack,
+                        trackActive && styles.stepperTrackActive,
                       ]}
                     />
-                  )}
-                </View>
-                <View style={styles.timelineInfo}>
+                  ) : null}
+                </React.Fragment>
+              )
+            })}
+          </View>
+
+          <View style={styles.stepperLabelsRow}>
+            {STEP_DEFINITIONS.map((step) => {
+              const status = stepper.getStatus(step.id, completedSteps)
+              const canNavigate = canNavigateToStep(step.id)
+              const summary = stepSummaries[step.id]
+              const isActive = status === 'active'
+              const isComplete = status === 'complete'
+              return (
+                <Pressable
+                  key={`${step.id}-label`}
+                  onPress={() => (canNavigate ? stepper.goTo(step.id) : null)}
+                  disabled={!canNavigate}
+                  style={styles.stepperLabelGroup}
+                  accessibilityRole="button"
+                >
                   <Text
                     style={[
-                      styles.timelineTitle,
-                      status === 'active' && styles.timelineTitleActive,
+                      styles.stepperLabel,
+                      (isActive || isComplete) && styles.stepperLabelActive,
                     ]}
+                    numberOfLines={1}
                   >
                     {step.title}
                   </Text>
-                  <Text style={styles.timelineDescription}>{step.description}</Text>
-                  {summary ? <Text style={styles.timelineSummary}>{summary}</Text> : null}
-                </View>
-              </Pressable>
-            )
-          })}
+                  {summary ? (
+                    <Text style={styles.stepperSummary} numberOfLines={2}>
+                      {summary}
+                    </Text>
+                  ) : (
+                    <Text style={styles.stepperDescription} numberOfLines={2}>
+                      {step.description}
+                    </Text>
+                  )}
+                </Pressable>
+              )
+            })}
+          </View>
         </View>
 
-        <View style={styles.contentCard}>
-          {stepper.activeStep === 'department' && (
+        {stepper.activeStep === 'space' && (
             <MotiView
-              key="department"
+              key="space"
+              style={styles.stepCard}
               from={{ opacity: 0, translateY: 20 }}
               animate={{ opacity: 1, translateY: 0 }}
               transition={{ duration: 300 }}
             >
-              <Text style={styles.sectionTitle}>Selecciona tu departamento</Text>
-              <Text style={styles.sectionSubtitle}>
-                Tus reservas quedarán asociadas al departamento que elijas.
-              </Text>
-              <View style={styles.departmentGrid}>
-                {departments.map((department) => {
-                  const isActive = selectedDepartment?.id === department.id
-                  return (
-                    <Pressable
-                      key={department.id}
-                      onPress={() => handleSelectDepartment(department.id)}
-                      style={[styles.departmentChip, isActive && styles.departmentChipActive]}
-                    >
-                      <Text style={[styles.departmentLabel, isActive && styles.departmentLabelActive]}>
-                        {department.label}
-                      </Text>
-                    </Pressable>
-                  )
-                })}
-              </View>
-            </MotiView>
-          )}
-
-          {stepper.activeStep === 'space' && (
-            <MotiView
-              key="space"
-              from={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 300 }}
-            >
               <Text style={styles.sectionTitle}>Elige el espacio común</Text>
               <Text style={styles.sectionSubtitle}>
-                Desliza para explorar los espacios y toca una tarjeta para seleccionarla.
+                Desliza las tarjetas y toca una opción para continuar.
               </Text>
               <FlatList
                 ref={carouselRef}
@@ -629,6 +628,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
                 decelerationRate="fast"
                 snapToAlignment="start"
                 snapToInterval={SPACE_CARD_SNAP_INTERVAL}
+                pagingEnabled
                 contentContainerStyle={styles.carouselContent}
                 style={styles.carouselList}
                 onMomentumScrollEnd={handleMomentumScrollEnd}
@@ -639,7 +639,6 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
                   index,
                 })}
                 renderItem={({ item, index }) => {
-                  const isFocused = index === spaceIndex
                   const isSelected = selectedSpaceId === item.id
                   return (
                     <Pressable
@@ -647,17 +646,17 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
                       style={[
                         styles.spaceSlide,
                         { width: SPACE_CARD_WIDTH },
-                        isFocused && styles.spaceSlideFocused,
                         isSelected && styles.spaceSlideSelected,
                       ]}
                       accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
                     >
                       <Image
                         source={{ uri: item.image_url || PLACEHOLDER_IMAGE }}
                         style={styles.spaceImage}
                       />
                       <LinearGradient
-                        colors={['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.55)']}
+                        colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.7)']}
                         style={styles.spaceOverlay}
                       />
                       <View style={styles.spaceContent}>
@@ -669,14 +668,16 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
                             </Text>
                           ) : null}
                         </View>
-                        <View style={styles.spaceMetaRow}>
-                          <View style={styles.metaItem}>
-                            <Users size={16} color="#6d28d9" />
-                            <Text style={styles.metaText}>{item.time_block_hours} h por bloque</Text>
+                        <View style={styles.spaceChipRow}>
+                          <View style={styles.spaceChip}>
+                            <Clock size={14} color="#ede9fe" />
+                            <Text style={styles.spaceChipText}>
+                              {item.time_block_hours} h por bloque
+                            </Text>
                           </View>
-                          <View style={styles.metaItem}>
-                            <Timer size={16} color="#6d28d9" />
-                            <Text style={styles.metaText}>
+                          <View style={styles.spaceChip}>
+                            <Timer size={14} color="#ede9fe" />
+                            <Text style={styles.spaceChipText}>
                               {item.event_price
                                 ? `$${Math.round(item.event_price).toLocaleString('es-CL')}`
                                 : 'Sin costo adicional'}
@@ -708,62 +709,92 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
                         isChosen && styles.carouselDotSelected,
                       ]}
                       accessibilityRole="button"
+                      accessibilityState={{ selected: isChosen }}
                     />
                   )
                 })}
               </View>
-              <Pressable
-                style={[styles.primaryButton, !currentSpace && styles.primaryButtonDisabled]}
-                onPress={handleProceedToAvailability}
-                disabled={!currentSpace}
-              >
-                <Text style={styles.primaryButtonLabel}>Revisar disponibilidad</Text>
-              </Pressable>
             </MotiView>
-          )}
+        )}
 
-          {stepper.activeStep === 'availability' && (
-            <MotiView
-              key="availability"
-              from={{ opacity: 0, translateY: 16 }}
-              animate={{ opacity: 1, translateY: 0 }}
-              transition={{ duration: 300 }}
-            >
-              <Text style={styles.sectionTitle}>Revisa la disponibilidad</Text>
-              <Text style={styles.sectionSubtitle}>
-                Selecciona un día para ver los bloques disponibles.
-              </Text>
-              {availabilityLoading ? (
-                <View style={styles.availabilityLoading}>
-                  <ActivityIndicator color="#7C3AED" />
-                  <Text style={styles.loadingText}>Obteniendo disponibilidad…</Text>
-                </View>
-              ) : availabilityError ? (
-                <View style={styles.availabilityError}>
-                  <Text style={styles.availabilityErrorText}>{availabilityError}</Text>
-                </View>
-              ) : (
-                <FlatList
-                  data={availability}
-                  keyExtractor={(item) => item.iso}
-                  numColumns={2}
-                  columnWrapperStyle={{ gap: 12 }}
-                  contentContainerStyle={{ gap: 12, paddingVertical: 8 }}
-                  scrollEnabled={false}
-                  renderItem={({ item }) => {
-                    const isSelected = selectedDate === item.iso
-                    const colors = STATUS_COLORS[item.status]
-                    return (
-                      <Pressable
-                        onPress={() => handleSelectDay(item)}
-                        style={[styles.dayCard, isSelected && styles.dayCardSelected]}
-                      >
-                        <Text style={[styles.dayWeekday, isSelected && styles.dayWeekdaySelected]}>
-                          {item.weekday}
-                        </Text>
-                        <Text style={[styles.dayLabel, isSelected && styles.dayLabelSelected]}>
-                          {item.label}
-                        </Text>
+        {stepper.activeStep === 'department' && (
+          <MotiView
+            key="department"
+            style={styles.stepCard}
+            from={{ opacity: 0, translateY: 16 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ duration: 300 }}
+          >
+            <Text style={styles.sectionTitle}>Selecciona tu departamento</Text>
+            <Text style={styles.sectionSubtitle}>
+              Tus reservas quedarán asociadas al departamento que elijas.
+            </Text>
+            <View style={styles.departmentGrid}>
+              {departments.map((department) => {
+                const isActive = selectedDepartment?.id === department.id
+                return (
+                  <Pressable
+                    key={department.id}
+                    onPress={() => handleSelectDepartment(department.id)}
+                    style={[styles.departmentChip, isActive && styles.departmentChipActive]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isActive }}
+                  >
+                    <Text style={[styles.departmentLabel, isActive && styles.departmentLabelActive]}>
+                      {department.label}
+                    </Text>
+                  </Pressable>
+                )
+              })}
+            </View>
+          </MotiView>
+        )}
+
+        {stepper.activeStep === 'availability' && (
+          <MotiView
+            key="availability"
+            style={styles.stepCard}
+            from={{ opacity: 0, translateY: 16 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ duration: 300 }}
+          >
+            <Text style={styles.sectionTitle}>Revisa la disponibilidad</Text>
+            <Text style={styles.sectionSubtitle}>
+              Selecciona un día para ver los bloques disponibles.
+            </Text>
+            {availabilityLoading ? (
+              <View style={styles.availabilityLoading}>
+                <ActivityIndicator color="#7C3AED" />
+                <Text style={styles.loadingText}>Obteniendo disponibilidad…</Text>
+              </View>
+            ) : availabilityError ? (
+              <View style={styles.availabilityError}>
+                <Text style={styles.availabilityErrorText}>{availabilityError}</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={availability}
+                keyExtractor={(item) => item.iso}
+                numColumns={2}
+                columnWrapperStyle={{ gap: 12 }}
+                contentContainerStyle={{ gap: 12, paddingVertical: 8 }}
+                scrollEnabled={false}
+                renderItem={({ item }) => {
+                  const isSelected = selectedDate === item.iso
+                  const colors = STATUS_COLORS[item.status]
+                  return (
+                    <Pressable
+                      onPress={() => handleSelectDay(item)}
+                      style={[styles.dayCard, isSelected && styles.dayCardSelected]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
+                    >
+                      <Text style={[styles.dayWeekday, isSelected && styles.dayWeekdaySelected]}>
+                        {item.weekday}
+                      </Text>
+                      <Text style={[styles.dayLabel, isSelected && styles.dayLabelSelected]}>
+                        {item.label}
+                      </Text>
                         <View style={[styles.dayStatusBadge, { backgroundColor: colors.background }]}>
                           <Text style={[styles.dayStatusText, { color: colors.text }]}>{colors.label}</Text>
                         </View>
@@ -783,9 +814,10 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
             </MotiView>
           )}
 
-          {stepper.activeStep === 'schedule' && (
+        {stepper.activeStep === 'schedule' && (
             <MotiView
               key="schedule"
+              style={styles.stepCard}
               from={{ opacity: 0, translateY: 16 }}
               animate={{ opacity: 1, translateY: 0 }}
               transition={{ duration: 300 }}
@@ -853,6 +885,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
                 ]}
                 onPress={handleConfirmReservation}
                 disabled={!selectedBlock || submitting}
+                accessibilityRole="button"
               >
                 {submitting ? (
                   <ActivityIndicator color="#fff" />
@@ -861,8 +894,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
                 )}
               </Pressable>
             </MotiView>
-          )}
-        </View>
+        )}
       </ScrollView>
     </View>
   )
@@ -882,14 +914,18 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 24,
   },
+  headerRow: {
+    paddingTop: 16,
+    paddingBottom: 6,
+  },
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 999,
-    backgroundColor: '#ede9fe',
+    backgroundColor: '#f3e8ff',
     gap: 6,
   },
   backButtonLabel: {
@@ -897,92 +933,104 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 13,
   },
+  headerCopy: {
+    gap: 6,
+    paddingBottom: 12,
+    marginTop: 4,
+  },
   headerTitle: {
-    marginTop: 20,
     fontSize: 28,
     fontWeight: '700',
     color: '#1f2937',
   },
   headerSubtitle: {
-    marginTop: 8,
     color: '#4b5563',
     fontSize: 14,
     lineHeight: 20,
   },
-  timeline: {
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#e0e7ff',
-    backgroundColor: '#f9f5ff',
-    paddingVertical: 16,
-    paddingHorizontal: 18,
+  stepperWrapper: {
+    marginTop: 12,
     marginBottom: 24,
+    borderRadius: 24,
+    backgroundColor: '#f5f3ff',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    shadowColor: 'rgba(99, 102, 241, 0.14)',
+    shadowOpacity: 1,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 6,
   },
-  timelineRow: {
+  stepperTrackRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 16,
-    paddingVertical: 10,
-  },
-  timelineMarkerWrapper: {
     alignItems: 'center',
   },
-  timelineMarker: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+  stepperCircleButton: {
+    padding: 4,
+  },
+  stepperCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#e9d5ff',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  timelineMarkerActive: {
-    backgroundColor: '#6d28d9',
-  },
-  timelineMarkerComplete: {
+  stepperCircleActive: {
     backgroundColor: '#7c3aed',
+    transform: [{ scale: 1.05 }],
   },
-  timelineIndex: {
-    color: '#4b5563',
+  stepperCircleComplete: {
+    backgroundColor: '#c4b5fd',
+  },
+  stepperIndex: {
+    color: '#312e81',
     fontWeight: '700',
     fontSize: 14,
   },
-  timelineConnector: {
-    width: 2,
+  stepperTrack: {
     flex: 1,
-    backgroundColor: '#e9d5ff',
-    marginTop: 6,
+    height: 2,
+    borderRadius: 999,
+    backgroundColor: '#e0e7ff',
+    marginHorizontal: 8,
   },
-  timelineConnectorActive: {
-    backgroundColor: '#6d28d9',
+  stepperTrackActive: {
+    backgroundColor: '#7c3aed',
   },
-  timelineInfo: {
+  stepperLabelsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 18,
+  },
+  stepperLabelGroup: {
     flex: 1,
+    alignItems: 'flex-start',
+    gap: 4,
   },
-  timelineTitle: {
-    color: '#1f2937',
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  timelineTitleActive: {
-    color: '#6d28d9',
-  },
-  timelineDescription: {
-    color: '#6b7280',
-    marginTop: 4,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  timelineSummary: {
-    marginTop: 6,
-    color: '#312e81',
+  stepperLabel: {
+    color: '#4338ca',
     fontWeight: '600',
     fontSize: 13,
   },
-  contentCard: {
+  stepperLabelActive: {
+    color: '#6d28d9',
+  },
+  stepperSummary: {
+    color: '#312e81',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  stepperDescription: {
+    color: '#6b7280',
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  stepCard: {
     borderRadius: 24,
     padding: 24,
     backgroundColor: '#ffffff',
-    shadowColor: 'rgba(79, 70, 229, 0.16)',
+    shadowColor: 'rgba(124, 58, 237, 0.12)',
     shadowOpacity: 1,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 12 },
@@ -1032,20 +1080,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACE_CARD_SIDE_PADDING,
   },
   spaceSlide: {
-    height: 260,
+    height: 320,
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#e0e7ff',
-    backgroundColor: '#eef2ff',
-  },
-  spaceSlideFocused: {
-    shadowColor: 'rgba(109, 40, 217, 0.25)',
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 1,
-    shadowRadius: 28,
-    elevation: 12,
-    transform: [{ scale: 1.02 }],
+    backgroundColor: '#1f2937',
   },
   spaceSlideSelected: {
     borderColor: '#6d28d9',
@@ -1067,11 +1107,12 @@ const styles = StyleSheet.create({
   },
   spaceContent: {
     flex: 1,
-    padding: 20,
-    justifyContent: 'space-between',
+    padding: 24,
+    justifyContent: 'flex-end',
+    gap: 16,
   },
   spaceHeader: {
-    gap: 8,
+    gap: 6,
   },
   spaceName: {
     fontSize: 22,
@@ -1083,18 +1124,21 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: 'rgba(255,255,255,0.85)',
   },
-  spaceMetaRow: {
+  spaceChipRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 18,
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  metaItem: {
+  spaceChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.18)',
   },
-  metaText: {
+  spaceChipText: {
     color: '#f8fafc',
     fontWeight: '600',
     fontSize: 12,
