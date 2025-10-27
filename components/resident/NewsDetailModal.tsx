@@ -45,7 +45,11 @@ export default function NewsDetailModal() {
   const panResponder = useMemo(
     () =>
       PanResponder.create({
+        onStartShouldSetPanResponderCapture: (_, gestureState) =>
+          gestureState.dy > 6 && Math.abs(gestureState.dx) < 24,
         onMoveShouldSetPanResponder: (_, gestureState) =>
+          gestureState.dy > 12 && Math.abs(gestureState.dx) < 24,
+        onMoveShouldSetPanResponderCapture: (_, gestureState) =>
           gestureState.dy > 12 && Math.abs(gestureState.dx) < 24,
         onPanResponderRelease: (_, gestureState) => {
           if (gestureState.dy > 96 || gestureState.vy > 1.25) {
