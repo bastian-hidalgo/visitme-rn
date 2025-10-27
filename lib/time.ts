@@ -5,33 +5,62 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import timezone from 'dayjs/plugin/timezone'
 import utc from 'dayjs/plugin/utc'
 
-// 🔧 Plugins
 dayjsLib.extend(utc)
 dayjsLib.extend(timezone)
 dayjsLib.extend(localizedFormat)
 dayjsLib.extend(relativeTime)
 dayjsLib.locale('es')
 
-// 🔹 Variables (usa EXPO_PUBLIC_ en vez de NEXT_PUBLIC_)
 const TZ = process.env.EXPO_PUBLIC_TIME_ZONE || 'America/Santiago'
 const DATETIME_FORMAT = process.env.EXPO_PUBLIC_DATETIME_FORMAT || 'YYYY-MM-DD HH:mm'
 const DATE_FORMAT = process.env.EXPO_PUBLIC_DATE_FORMAT || 'YYYY-MM-DD'
 const TIME_FORMAT = process.env.EXPO_PUBLIC_TIME_FORMAT || 'HH:mm'
 
-// 🔹 Wrappers
-export const dayjs = (value?: ConfigType): Dayjs => dayjsLib(value).tz(TZ)
-export const now = (): Dayjs => dayjs()
-export const fromServer = (value: ConfigType): Dayjs => dayjsLib.utc(value).tz(TZ)
+// Detección básica de RN / web
+const isReactNative = typeof navigator !== 'undefined' && navigator.product === 'ReactNative'
+
+export const dayjs = (value?: ConfigType): Dayjs => dayjsLib(value)
+export const now = (): Dayjs => dayjsLib()
 
 /**
- * Algunas tablas (por ejemplo, reservas) almacenan fechas sin información de hora.
- * Al convertir desde UTC se debe mantener la fecha original para evitar que se
- * "corra" un día al ajustar la zona horaria.
+ * Corrige la conversión UTC → local para RN.
+ * En RN, .utc().tz() no aplica bien el offset, por eso usamos parse directo.
  */
-export const fromServerDate = (value: ConfigType): Dayjs => dayjsLib.utc(value).tz(TZ, true)
+export const fromServer = (value: ConfigType): Dayjs => {
+  if (!value) return dayjsLib()
 
-export const format = (value: ConfigType, fmt: string = DATETIME_FORMAT): string =>
-  fromServer(value).format(fmt)
+  const str = String(value)
+  const hasZ = str.endsWith('Z') || str.includes('+00:00')
+
+  let converted: Dayjs
+
+  if (isReactNative) {
+    // ✅ React Native: parse directo, luego forzamos tz sin cambiar hora
+    converted = hasZ
+      ? dayjsLib(str).tz(TZ, true)
+      : dayjsLib(str).tz(TZ, true)
+  } else {
+    // ✅ Web / Node: método clásico UTC→TZ
+    converted = hasZ
+      ? dayjsLib.utc(str).tz(TZ)
+      : dayjsLib(str).tz(TZ, true)
+  } 
+
+  return converted
+}
+
+export const fromServerDate = (value: ConfigType): Dayjs =>
+  dayjsLib.utc(value).tz(TZ, true)
+
+export const format = (value: ConfigType, fmt: string = DATETIME_FORMAT): string => {
+  const base =
+    typeof value === 'object' && value !== null && (value as any).isDayjs
+      ? (value as Dayjs)
+      : fromServer(value)
+
+  const result = base.format(fmt)
+  return result
+}
 
 export const formatDate = (value: ConfigType): string => format(value, DATE_FORMAT)
 export const formatTime = (value: ConfigType): string => format(value, TIME_FORMAT)

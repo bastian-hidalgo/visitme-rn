@@ -1,25 +1,25 @@
+import { Image, type ImageSource } from 'expo-image'
+import { LinearGradient } from 'expo-linear-gradient'
 import React, { ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 import {
-  useWindowDimensions,
-  View,
+  Modal,
   StyleSheet,
   Text,
   TouchableOpacity,
-  Modal,
+  useWindowDimensions,
+  View,
 } from 'react-native'
-import { Image, type ImageSource } from 'expo-image'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, {
+  Easing,
   Extrapolation,
   interpolate,
-  type SharedValue,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
-  Easing,
+  type SharedValue,
 } from 'react-native-reanimated'
-import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import { LinearGradient } from 'expo-linear-gradient'
 
 export type PackageStatusLabel = 'Recibida' | 'Retirada' | 'Esperando' | 'Anulada'
 
