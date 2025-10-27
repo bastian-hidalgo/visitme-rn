@@ -24,10 +24,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Toast from 'react-native-toast-message'
 
 const WINDOW_WIDTH = Dimensions.get('window').width
-const SPACE_CARD_WIDTH = Math.min(WINDOW_WIDTH - 64, 360)
+const SCREEN_HORIZONTAL_PADDING = 20
+const STEP_CARD_WIDTH = WINDOW_WIDTH - SCREEN_HORIZONTAL_PADDING * 2
+const SPACE_CARD_SIDE_PADDING = 4
+const SPACE_CARD_WIDTH = STEP_CARD_WIDTH - SPACE_CARD_SIDE_PADDING * 2
 const SPACE_CARD_GAP = 16
 const SPACE_CARD_SNAP_INTERVAL = SPACE_CARD_WIDTH + SPACE_CARD_GAP
-const SPACE_CARD_SIDE_PADDING = Math.max(20, (WINDOW_WIDTH - SPACE_CARD_WIDTH) / 2)
 
 type StepId = 'space' | 'department' | 'availability' | 'schedule'
 
@@ -610,92 +612,95 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
         {stepper.activeStep === 'space' && (
             <MotiView
               key="space"
-              style={styles.stepCard}
+              style={[styles.stepCard, styles.spaceStepCard]}
               from={{ opacity: 0, translateY: 20 }}
               animate={{ opacity: 1, translateY: 0 }}
               transition={{ duration: 300 }}
             >
-              <Text style={styles.sectionTitle}>Elige el espacio común</Text>
-              <Text style={styles.sectionSubtitle}>
-                Desliza las tarjetas y toca una opción para continuar.
-              </Text>
-              <FlatList
-                ref={carouselRef}
-                horizontal
-                data={spaces}
-                keyExtractor={(item) => item.id}
-                showsHorizontalScrollIndicator={false}
-                decelerationRate="fast"
-                snapToAlignment="start"
-                snapToInterval={SPACE_CARD_SNAP_INTERVAL}
-                pagingEnabled
+              <View style={[styles.spaceStepHeader, styles.spaceStepHeaderText]}>
+                <Text style={styles.sectionTitle}>Elige el espacio común</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Desliza las tarjetas y toca una opción para continuar.
+                </Text>
+              </View>
+              <View style={styles.spaceListWrapper}>
+                <FlatList
+                  ref={carouselRef}
+                  horizontal
+                  data={spaces}
+                  keyExtractor={(item) => item.id}
+                  showsHorizontalScrollIndicator={false}
+                  decelerationRate="fast"
+                  snapToAlignment="start"
+                  snapToInterval={SPACE_CARD_SNAP_INTERVAL}
                 contentContainerStyle={styles.carouselContent}
-                style={styles.carouselList}
-                onMomentumScrollEnd={handleMomentumScrollEnd}
-                ItemSeparatorComponent={() => <View style={{ width: SPACE_CARD_GAP }} />}
-                getItemLayout={(_, index) => ({
-                  length: SPACE_CARD_SNAP_INTERVAL,
-                  offset: SPACE_CARD_SNAP_INTERVAL * index,
-                  index,
-                })}
-                renderItem={({ item, index }) => {
-                  const isSelected = selectedSpaceId === item.id
-                  return (
-                    <Pressable
-                      onPress={() => handleSelectSpace(item, index)}
-                      style={[
-                        styles.spaceSlide,
-                        { width: SPACE_CARD_WIDTH },
-                        isSelected && styles.spaceSlideSelected,
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: isSelected }}
-                    >
-                      <Image
-                        source={{ uri: item.image_url || PLACEHOLDER_IMAGE }}
-                        style={styles.spaceImage}
-                      />
-                      <LinearGradient
-                        colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.7)']}
-                        style={styles.spaceOverlay}
-                      />
-                      <View style={styles.spaceContent}>
-                        <View style={styles.spaceHeader}>
-                          <Text style={styles.spaceName}>{item.name}</Text>
-                          {item.description ? (
-                            <Text style={styles.spaceDescription} numberOfLines={3}>
-                              {item.description}
-                            </Text>
-                          ) : null}
-                        </View>
-                        <View style={styles.spaceChipRow}>
-                          <View style={styles.spaceChip}>
-                            <Clock size={14} color="#ede9fe" />
-                            <Text style={styles.spaceChipText}>
-                              {item.time_block_hours} h por bloque
-                            </Text>
+                  style={styles.carouselList}
+                  onMomentumScrollEnd={handleMomentumScrollEnd}
+                  ItemSeparatorComponent={() => <View style={{ width: SPACE_CARD_GAP }} />}
+                  getItemLayout={(_, index) => ({
+                    length: SPACE_CARD_SNAP_INTERVAL,
+                    offset: SPACE_CARD_SNAP_INTERVAL * index,
+                    index,
+                  })}
+                  renderItem={({ item, index }) => {
+                    const isSelected = selectedSpaceId === item.id
+                    return (
+                      <Pressable
+                        onPress={() => handleSelectSpace(item, index)}
+                        style={[
+                          styles.spaceSlide,
+                          { width: SPACE_CARD_WIDTH },
+                          isSelected && styles.spaceSlideSelected,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected }}
+                      >
+                        <Image
+                          source={{ uri: item.image_url || PLACEHOLDER_IMAGE }}
+                          style={styles.spaceImage}
+                        />
+                        <LinearGradient
+                          colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.7)']}
+                          style={styles.spaceOverlay}
+                        />
+                        <View style={styles.spaceContent}>
+                          <View style={styles.spaceHeader}>
+                            <Text style={styles.spaceName}>{item.name}</Text>
+                            {item.description ? (
+                              <Text style={styles.spaceDescription} numberOfLines={3}>
+                                {item.description}
+                              </Text>
+                            ) : null}
                           </View>
-                          <View style={styles.spaceChip}>
-                            <Timer size={14} color="#ede9fe" />
-                            <Text style={styles.spaceChipText}>
-                              {item.event_price
-                                ? `$${Math.round(item.event_price).toLocaleString('es-CL')}`
-                                : 'Sin costo adicional'}
-                            </Text>
+                          <View style={styles.spaceChipRow}>
+                            <View style={styles.spaceChip}>
+                              <Clock size={14} color="#ede9fe" />
+                              <Text style={styles.spaceChipText}>
+                                {item.time_block_hours} h por bloque
+                              </Text>
+                            </View>
+                            <View style={styles.spaceChip}>
+                              <Timer size={14} color="#ede9fe" />
+                              <Text style={styles.spaceChipText}>
+                                {item.event_price
+                                  ? `$${Math.round(item.event_price).toLocaleString('es-CL')}`
+                                  : 'Sin costo adicional'}
+                              </Text>
+                            </View>
                           </View>
                         </View>
-                      </View>
-                      {isSelected ? (
-                        <View style={styles.spaceSelectedBadge}>
-                          <Check size={14} color="#fff" />
-                          <Text style={styles.spaceSelectedBadgeLabel}>Seleccionado</Text>
-                        </View>
-                      ) : null}
-                    </Pressable>
-                  )
-                }}
-              />
-              <View style={styles.carouselDots}>
+                        {isSelected ? (
+                          <View style={styles.spaceSelectedBadge}>
+                            <Check size={14} color="#fff" />
+                            <Text style={styles.spaceSelectedBadgeLabel}>Seleccionado</Text>
+                          </View>
+                        ) : null}
+                      </Pressable>
+                    )
+                  }}
+                />
+              </View>
+              <View style={[styles.carouselDots, styles.spaceStepHeader]}>
                 {spaces.map((space, index) => {
                   const isActive = index === spaceIndex
                   const isChosen = selectedSpaceId === space.id
@@ -1037,6 +1042,20 @@ const styles = StyleSheet.create({
     elevation: 8,
     marginBottom: 24,
   },
+  spaceStepCard: {
+    paddingHorizontal: 0,
+    paddingTop: 24,
+    paddingBottom: 32,
+  },
+  spaceStepHeader: {
+    paddingHorizontal: 24,
+  },
+  spaceStepHeaderText: {
+    gap: 6,
+  },
+  spaceListWrapper: {
+    marginTop: 24,
+  },
   sectionTitle: {
     fontSize: 22,
     fontWeight: '700',
@@ -1074,13 +1093,13 @@ const styles = StyleSheet.create({
     color: '#5b21b6',
   },
   carouselList: {
-    marginTop: 18,
+    marginTop: 0,
   },
   carouselContent: {
     paddingHorizontal: SPACE_CARD_SIDE_PADDING,
   },
   spaceSlide: {
-    height: 320,
+    height: 360,
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
