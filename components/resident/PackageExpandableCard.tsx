@@ -1,25 +1,9 @@
-import { Image, type ImageSource } from 'expo-image'
+// components/resident/PackageExpandableCard.tsx
+import { BottomSheetBackdrop, BottomSheetModal, BottomSheetScrollView, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet'
+import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
-import React, { ReactNode, useCallback, useMemo, useRef, useState } from 'react'
-import {
-  Modal,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
-} from 'react-native'
-import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import Animated, {
-  Easing,
-  Extrapolation,
-  interpolate,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-  type SharedValue,
-} from 'react-native-reanimated'
+import React, { ReactNode, useCallback, useMemo, useRef } from 'react'
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 
 export type PackageStatusLabel = 'Recibida' | 'Retirada' | 'Esperando' | 'Anulada'
 
@@ -40,34 +24,13 @@ export type PackageExpandableCardProps = {
   statusBadgeColor?: string
   statusTextColor?: string
   detailDescription?: string
-  scrollX?: SharedValue<number>
+  scrollX?: any
   index?: number
   cardWidth?: number
   cardHeight?: number
 }
 
-const OPEN_CONFIG = {
-  duration: 360,
-  easing: Easing.inOut(Easing.cubic),
-}
-
-const CLOSE_CONFIG = {
-  duration: 240,
-  easing: Easing.inOut(Easing.cubic),
-}
-
-const clamp = (value: number, lowerBound: number, upperBound: number) => {
-  'worklet'
-  return Math.min(Math.max(value, lowerBound), upperBound)
-}
-
-const SMALL_CARD_WIDTH = 150
-const SMALL_CARD_HEIGHT = 180
-const SMALL_CARD_RADIUS = 20
-
-let isAnyCardExpanded = false
-
-export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
+export default function PackageExpandableCard({
   id,
   imageUrl,
   status,
@@ -84,195 +47,33 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
   statusBadgeColor,
   statusTextColor,
   detailDescription,
-  scrollX,
-  index,
-  cardWidth,
-  cardHeight,
-}) => {
-  const [isExpanded, setIsExpanded] = useState(false)
-  const cardRef = useRef<View>(null)
-  const animation = useSharedValue(0)
-  const detailDrag = useSharedValue(0)
-  const originX = useSharedValue(0)
-  const originY = useSharedValue(0)
-  const originWidth = useSharedValue(0)
-  const originHeight = useSharedValue(0)
-  const { width: screenWidth, height: screenHeight } = useWindowDimensions()
-  const collapsedWidth = cardWidth ?? SMALL_CARD_WIDTH
-  const collapsedHeight = cardHeight ?? SMALL_CARD_HEIGHT
-  const detailPanelBaseHeight = Math.min(screenHeight * 0.48, 440)
-  const detailOverlap = 24
-  const detailPanelHeight = Math.min(screenHeight, detailPanelBaseHeight + detailOverlap)
-  const detailTop = Math.max(0, screenHeight - detailPanelHeight)
-  const detailDragLimit = Math.max(Math.min(screenHeight * 0.28, 160), 1)
-  const closeRange = Math.max(screenHeight - detailDragLimit, 1)
-  const imageSource = useMemo<ImageSource>(() => ({ uri: imageUrl }), [imageUrl])
+}: PackageExpandableCardProps) {
+  const bottomSheetRef = useRef<BottomSheetModal>(null)
+  const [isOpen, setIsOpen] = React.useState(false)
 
-  const releaseGlobalExpansionLock = useCallback(() => {
-    isAnyCardExpanded = false
+  const openSheet = useCallback(() => {
+    setIsOpen(true)
+    bottomSheetRef.current?.present()
   }, [])
 
-  const handleOpen = useCallback(() => {
-    if (isAnyCardExpanded) {
-      return
-    }
+  const closeSheet = useCallback(() => {
+    bottomSheetRef.current?.dismiss()
+    setIsOpen(false)
+    onClose?.()
+  }, [onClose])
 
-    const card = cardRef.current
-    if (!card) {
-      return
-    }
-
-    isAnyCardExpanded = true
-
-    card.measureInWindow((x, y, width, height) => {
-      originX.value = x
-      originY.value = y
-      originWidth.value = width
-      originHeight.value = height
-      animation.value = 0
-      detailDrag.value = 0
-      setIsExpanded(true)
-      animation.value = withTiming(1, OPEN_CONFIG)
-    })
-  }, [animation, detailDrag, originHeight, originWidth, originX, originY])
-
-  const finishClosing = useCallback(() => {
-    setIsExpanded(false)
-    detailDrag.value = 0
-    releaseGlobalExpansionLock()
-    if (onClose) {
-      onClose()
-    }
-  }, [detailDrag, onClose, releaseGlobalExpansionLock])
-
-  const closeCard = useCallback(() => {
-    detailDrag.value = withTiming(0, CLOSE_CONFIG)
-    animation.value = withTiming(0, CLOSE_CONFIG, (finished) => {
-      if (finished) {
-        runOnJS(finishClosing)()
-      }
-    })
-  }, [animation, detailDrag, finishClosing])
-
-  React.useEffect(() => {
-    return () => {
-      if (isExpanded) {
-        releaseGlobalExpansionLock()
-      }
-    }
-  }, [isExpanded, releaseGlobalExpansionLock])
-
-  const panGesture = useMemo(() => {
-    return Gesture.Pan()
-      .onUpdate((event) => {
-        const translation = Math.max(event.translationY, 0)
-
-        if (translation <= detailDragLimit) {
-          detailDrag.value = translation
-          animation.value = 1
-          return
-        }
-
-        detailDrag.value = detailDragLimit
-        const extra = translation - detailDragLimit
-        const progress = clamp(1 - extra / closeRange, 0, 1)
-        animation.value = progress
-      })
-      .onEnd((event) => {
-        const translation = Math.max(event.translationY, 0)
-        const extra = Math.max(translation - detailDragLimit, 0)
-        const shouldClose =
-          extra > detailPanelHeight * 0.18 ||
-          translation > screenHeight * 0.2 ||
-          event.velocityY > 900
-
-        if (shouldClose) {
-          detailDrag.value = withTiming(0, CLOSE_CONFIG)
-          animation.value = withTiming(0, CLOSE_CONFIG, (finished) => {
-            if (finished) {
-              runOnJS(finishClosing)()
-            }
-          })
-        } else {
-          detailDrag.value = withTiming(0, OPEN_CONFIG)
-          animation.value = withTiming(1, OPEN_CONFIG)
-        }
-      })
-  }, [animation, closeRange, detailDrag, detailDragLimit, detailPanelHeight, finishClosing, screenHeight])
-
-  const overlayStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(animation.value, [0, 1], [0, 1], Extrapolation.CLAMP),
-  }))
-
-  const collapsedCardAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(animation.value, [0, 0.6, 1], [1, 0.1, 0], Extrapolation.CLAMP),
-    transform: [
-      {
-        scale: interpolate(animation.value, [0, 1], [1, 0.94], Extrapolation.CLAMP),
-      },
-    ],
-  }))
-
-  const animatedCardStyle = useAnimatedStyle(() => {
-    const top = interpolate(animation.value, [0, 1], [originY.value, 0], Extrapolation.CLAMP)
-    const left = interpolate(animation.value, [0, 1], [originX.value, 0], Extrapolation.CLAMP)
-    const width = interpolate(animation.value, [0, 1], [originWidth.value, screenWidth], Extrapolation.CLAMP)
-    const height = interpolate(animation.value, [0, 1], [originHeight.value, screenHeight], Extrapolation.CLAMP)
-    const borderRadius = interpolate(animation.value, [0, 1], [SMALL_CARD_RADIUS, 0], Extrapolation.CLAMP)
-
-    return {
-      top,
-      left,
-      width,
-      height,
-      borderRadius,
-    }
-  })
-
-  const imageAnimatedStyle = useAnimatedStyle(() => {
-    const slideProgress = detailDragLimit === 0 ? 0 : Math.min(detailDrag.value / detailDragLimit, 1)
-    const baseScale = interpolate(animation.value, [0, 1], [1, 1.05], Extrapolation.CLAMP)
-    const translateY = -detailDrag.value * 0.35
-
-    return {
-      transform: [
-        { translateY },
-        { scale: baseScale + slideProgress * 0.12 },
-      ],
-    }
-  })
-
-  const collapsedImageParallaxStyle = useAnimatedStyle(() => {
-    if (!scrollX || index === undefined) {
-      return { transform: [{ translateX: 0 }] }
-    }
-
-    const translate = interpolate(
-      scrollX.value,
-      [(index - 1) * collapsedWidth, index * collapsedWidth, (index + 1) * collapsedWidth],
-      [-15, 0, 15],
-      Extrapolation.CLAMP,
-    )
-
-    const collapseFactor = 1 - animation.value
-
-    return {
-      transform: [{ translateX: translate * collapseFactor }],
-    }
-  }, [collapsedWidth, index, scrollX])
-
-  const detailAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(animation.value, [0, 1], [0, 1], Extrapolation.CLAMP),
-    transform: [
-      {
-        translateY: interpolate(animation.value, [0, 1], [24, 0], Extrapolation.CLAMP),
-      },
-    ],
-  }))
-
-  const detailDragAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: detailDrag.value }],
-  }))
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        appearsOnIndex={0}
+        disappearsOnIndex={-1}
+        opacity={0.6}
+        style={{ backgroundColor: 'rgba(15,23,42,0.65)' }}
+      />
+    ),
+    []
+  )
 
   const statusBadgeColors = useMemo(() => {
     const palette: Record<PackageStatusLabel, { backgroundColor: string; text: string }> = {
@@ -281,9 +82,7 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
       Esperando: { backgroundColor: '#f59e0b', text: '#fff' },
       Anulada: { backgroundColor: '#6b7280', text: '#fff' },
     }
-
     const baseColors = palette[status] ?? { backgroundColor: '#6B4EFF', text: '#fff' }
-
     return {
       backgroundColor: statusBadgeColor ?? baseColors.backgroundColor,
       text: statusTextColor ?? baseColors.text,
@@ -292,185 +91,113 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
 
   return (
     <>
-      <TouchableOpacity activeOpacity={0.92} onPress={handleOpen} disabled={isExpanded}>
-        <Animated.View
-          ref={cardRef}
-          pointerEvents={isExpanded ? 'none' : 'auto'}
-          style={[
-            styles.card,
-            { width: collapsedWidth, height: collapsedHeight },
-            collapsedCardAnimatedStyle,
-          ]}
-        >
-          <Animated.View style={[styles.thumbnailWrapper, collapsedImageParallaxStyle]}>
-            <Image
-              source={imageSource}
-              recyclingKey={`package-${id}-collapsed`}
-              style={styles.thumbnail}
-              contentFit="cover"
-            />
-          </Animated.View>
-          <LinearGradient
-            colors={['rgba(0,0,0,0.7)', 'rgba(0,0,0,0.0)']}
-            start={{ x: 0.5, y: 1 }}
-            end={{ x: 0.5, y: 0 }}
-            style={styles.thumbnailGradient}
-          />
+      <TouchableOpacity activeOpacity={0.9} onPress={openSheet}>
+        <View style={[styles.card]}>
+          <Image source={{ uri: imageUrl }} style={styles.image} contentFit="cover" />
+          <LinearGradient colors={['rgba(0,0,0,0.6)', 'transparent']} style={styles.overlay} />
           <View style={styles.cardContent}>
             <View style={[styles.statusBadge, { backgroundColor: statusBadgeColors.backgroundColor }]}>
               {statusIcon ? <View style={styles.statusIcon}>{statusIcon}</View> : null}
               <Text style={[styles.statusText, { color: statusBadgeColors.text }]}>{status}</Text>
             </View>
-            {apartment ? (
-              <Text style={styles.apartmentText}>Depto. {apartment}</Text>
-            ) : null}
+            {apartment ? <Text style={styles.apartmentText}>Depto. {apartment}</Text> : null}
             <Text style={styles.dateText}>{date}</Text>
           </View>
-        </Animated.View>
+        </View>
       </TouchableOpacity>
 
-      {isExpanded ? (
-        <Modal visible transparent animationType="none" statusBarTranslucent>
-          <Animated.View
-            pointerEvents="auto"
-            style={[StyleSheet.absoluteFillObject, styles.overlay, overlayStyle]}
-          >
-            <GestureDetector gesture={panGesture}>
-              <Animated.View style={[styles.expandedCard, animatedCardStyle]}>
-                <Animated.View style={[styles.expandedImageWrapper, imageAnimatedStyle]}>
-                  <Image
-                    source={imageSource}
-                    recyclingKey={`package-${id}-expanded`}
-                    style={styles.expandedImage}
-                    contentFit="cover"
-                  />
-                </Animated.View>
-                <LinearGradient
-                  colors={['rgba(0,0,0,0.5)', 'transparent']}
-                  start={{ x: 0.5, y: 1 }}
-                  end={{ x: 0.5, y: 0 }}
-                  style={styles.expandedGradient}
-                />
+      <BottomSheetModal
+        ref={bottomSheetRef}
+        index={0}
+        snapPoints={['90%']}
+        enablePanDownToClose
+        backdropComponent={renderBackdrop}
+        backgroundStyle={styles.sheetBackground}
+        handleIndicatorStyle={styles.handleIndicator}
+        onDismiss={closeSheet}
+        animateOnMount
+        stackBehavior="push"
+      >
+        <BottomSheetScrollView style={styles.sheetBody} showsVerticalScrollIndicator={false}>
+          <Image source={{ uri: imageUrl }} style={styles.sheetImage} contentFit="cover" />
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>{status}</Text>
+            {apartment ? (
+              <Text style={styles.sheetSubTitle}>Departamento {apartment}</Text>
+            ) : (
+              <Text style={styles.sheetSubTitle}>Encomienda</Text>
+            )}
+            <Text style={styles.sheetDate}>{date}</Text>
+          </View>
 
-                <Animated.View
+          <View style={styles.section}>
+            <Text style={styles.sectionBody}>
+              {detailDescription ??
+                (status === 'Retirada'
+                  ? 'Esta encomienda ya fue retirada de conserjería.'
+                  : 'Tu encomienda está disponible para retiro en conserjería.')}
+            </Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Movimientos</Text>
+            <View style={styles.timeline}>
+              <View style={styles.timelineRow}>
+                <View style={styles.timelineDot} />
+                <View style={styles.timelineContent}>
+                  <Text style={styles.timelineLabel}>Llegó a conserjería</Text>
+                  <Text style={styles.timelineValue}>{receivedAtLabel ?? 'Sin registro'}</Text>
+                  {receivedRelativeLabel ? <Text style={styles.timelineHint}>{receivedRelativeLabel}</Text> : null}
+                </View>
+              </View>
+              <View style={styles.timelineRow}>
+                <View
                   style={[
-                    styles.detailContainer,
-                    detailAnimatedStyle,
-                    detailDragAnimatedStyle,
-                    {
-                      top: detailTop,
-                      height: detailPanelHeight,
-                    },
+                    styles.timelineDot,
+                    signatureCompleted || pickedUpAtLabel
+                      ? styles.timelineDotCompleted
+                      : styles.timelineDotPending,
                   ]}
-                >
-                  <Animated.ScrollView
-                    bounces={false}
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={styles.detailScrollContent}
-                  >
-                    <View style={styles.dragIndicatorContainer}>
-                      <View style={styles.dragIndicator} />
-                    </View>
-                    <View style={styles.headerRow}>
-                      <View>
-                        <Text style={styles.expandedStatus}>{status}</Text>
-                        {apartment ? (
-                          <Text style={styles.expandedApartment}>Departamento {apartment}</Text>
-                        ) : (
-                          <Text style={styles.expandedApartment}>Encomienda</Text>
-                        )}
-                        <Text style={styles.expandedDate}>{date}</Text>
-                      </View>
-                      <TouchableOpacity onPress={closeCard} style={styles.closeButton} activeOpacity={0.8}>
-                        <Text style={styles.closeText}>×</Text>
-                      </TouchableOpacity>
-                    </View>
+                />
+                <View style={styles.timelineContent}>
+                  <Text style={styles.timelineLabel}>
+                    {pickedUpAtLabel ? 'Retirada por el residente' : 'Pendiente de retiro'}
+                  </Text>
+                  <Text style={styles.timelineValue}>{pickedUpAtLabel ?? 'Aún disponible en conserjería'}</Text>
+                  {pickedUpRelativeLabel ? <Text style={styles.timelineHint}>{pickedUpRelativeLabel}</Text> : null}
+                </View>
+              </View>
+            </View>
+          </View>
 
-                    <View style={styles.section}>
-                      <Text style={styles.sectionBody}>
-                        {detailDescription ??
-                          (status === 'Retirada'
-                            ? 'Esta encomienda ya fue retirada de conserjería.'
-                            : 'Tu encomienda está disponible para retiro en conserjería.')}
-                      </Text>
-                    </View>
-
-                    <View style={styles.section}>
-                      <Text style={styles.sectionTitle}>Movimientos</Text>
-                      <View style={styles.timeline}>
-                        <View style={styles.timelineRow}>
-                          <View style={styles.timelineDot} />
-                          <View style={styles.timelineContent}>
-                            <Text style={styles.timelineLabel}>Llegó a conserjería</Text>
-                            <Text style={styles.timelineValue}>{receivedAtLabel ?? 'Sin registro'}</Text>
-                            {receivedRelativeLabel ? (
-                              <Text style={styles.timelineHint}>{receivedRelativeLabel}</Text>
-                            ) : null}
-                          </View>
-                        </View>
-
-                        <View style={styles.timelineRow}>
-                          <View
-                            style={[
-                              styles.timelineDot,
-                              signatureCompleted || pickedUpAtLabel
-                                ? styles.timelineDotCompleted
-                                : styles.timelineDotPending,
-                            ]}
-                          />
-                          <View style={styles.timelineContent}>
-                            <Text style={styles.timelineLabel}>
-                              {pickedUpAtLabel ? 'Retirada por el residente' : 'Pendiente de retiro'}
-                            </Text>
-                            <Text style={styles.timelineValue}>
-                              {pickedUpAtLabel ?? 'Aún disponible en conserjería'}
-                            </Text>
-                            {pickedUpRelativeLabel ? (
-                              <Text style={styles.timelineHint}>{pickedUpRelativeLabel}</Text>
-                            ) : null}
-                          </View>
-                        </View>
-                      </View>
-                    </View>
-
-                    <View style={styles.section}>
-                      <Text style={styles.sectionTitle}>Firma</Text>
-                      {signatureCompleted ? (
-                        <View style={styles.signatureContainer}>
-                          {signatureImageUrl ? (
-                            <Image
-                              source={{ uri: signatureImageUrl }}
-                              recyclingKey={`package-${id}-signature`}
-                              style={styles.signatureImage}
-                              contentFit="contain"
-                            />
-                          ) : (
-                            <Text style={styles.signatureConfirmedText}>Firma confirmada</Text>
-                          )}
-                          <Text style={styles.signatureCaption}>Firma registrada al retirar</Text>
-                        </View>
-                      ) : (
-                        <View style={styles.signaturePlaceholder}>
-                          <Text style={styles.signatureText}>Se solicitará al retirar</Text>
-                        </View>
-                      )}
-                    </View>
-                  </Animated.ScrollView>
-                </Animated.View>
-              </Animated.View>
-            </GestureDetector>
-          </Animated.View>
-        </Modal>
-      ) : null}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Firma</Text>
+            {signatureCompleted ? (
+              <View style={styles.signatureContainer}>
+                {signatureImageUrl ? (
+                  <Image source={{ uri: signatureImageUrl }} style={styles.signatureImage} contentFit="contain" />
+                ) : (
+                  <Text style={styles.signatureConfirmedText}>Firma confirmada</Text>
+                )}
+                <Text style={styles.signatureCaption}>Firma registrada al retirar</Text>
+              </View>
+            ) : (
+              <View style={styles.signaturePlaceholder}>
+                <Text style={styles.signatureText}>Se solicitará al retirar</Text>
+              </View>
+            )}
+          </View>
+        </BottomSheetScrollView>
+      </BottomSheetModal>
     </>
   )
 }
 
 const styles = StyleSheet.create({
   card: {
-    height: SMALL_CARD_HEIGHT,
-    width: SMALL_CARD_WIDTH,
-    borderRadius: SMALL_CARD_RADIUS,
+    width: 150,
+    height: 180,
+    borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#fff',
     marginVertical: 8,
@@ -481,15 +208,12 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
   },
-  thumbnailWrapper: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  thumbnail: {
+  image: {
     ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
   },
-  thumbnailGradient: {
+  overlay: {
     ...StyleSheet.absoluteFillObject,
   },
   cardContent: {
@@ -525,92 +249,47 @@ const styles = StyleSheet.create({
     color: '#f3f4f6',
     fontSize: 11,
   },
-  overlay: {
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'flex-start',
-    zIndex: 20,
-  },
-  expandedCard: {
-    position: 'absolute',
-    overflow: 'hidden',
-    backgroundColor: '#fff',
-  },
-  expandedImageWrapper: {
-    height: '60%',
-    width: '100%',
-  },
-  expandedImage: {
-    width: '100%',
-    height: '100%',
-  },
-  expandedGradient: {
-    position: 'absolute',
-    bottom: '40%',
-    left: 0,
-    right: 0,
-    height: 180,
-  },
-  detailContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    backgroundColor: '#fff',
+  sheetBackground: {
+    backgroundColor: '#f9fafb',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 32,
   },
-  detailScrollContent: {
-    gap: 20,
-    paddingBottom: 48,
+  handleIndicator: {
+    backgroundColor: '#cbd5e1',
+    width: 40,
   },
-  dragIndicatorContainer: {
-    alignItems: 'center',
+  sheetBody: {
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+  },
+  sheetImage: {
+    width: '100%',
+    height: 220,
+    borderRadius: 12,
     marginBottom: 12,
   },
-  dragIndicator: {
-    width: 60,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: 'rgba(31, 41, 55, 0.16)',
+  sheetHeader: {
+    marginBottom: 16,
   },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  expandedStatus: {
+  sheetTitle: {
     color: '#6B4EFF',
     fontSize: 18,
     fontWeight: '700',
   },
-  expandedApartment: {
+  sheetSubTitle: {
     marginTop: 4,
     fontSize: 20,
     fontWeight: '700',
     color: '#1F2937',
   },
-  expandedDate: {
+  sheetDate: {
     marginTop: 4,
     fontSize: 14,
     color: '#6B7280',
   },
-  closeButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(108, 82, 255, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  closeText: {
-    fontSize: 28,
-    color: '#6B4EFF',
-    marginTop: -4,
-  },
   section: {
     gap: 8,
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 16,
@@ -699,5 +378,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 })
-
-export default PackageExpandableCard
