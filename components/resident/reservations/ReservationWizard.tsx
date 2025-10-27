@@ -8,25 +8,26 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { MotiView } from 'moti'
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   Image,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native'
-import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  MapPin,
-  Timer,
-  Users,
-} from 'lucide-react-native'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { Check, ChevronLeft, Clock, MapPin, Timer, Users } from 'lucide-react-native'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Toast from 'react-native-toast-message'
+
+const WINDOW_WIDTH = Dimensions.get('window').width
+const SPACE_CARD_WIDTH = Math.min(WINDOW_WIDTH - 64, 360)
+const SPACE_CARD_GAP = 16
+const SPACE_CARD_SNAP_INTERVAL = SPACE_CARD_WIDTH + SPACE_CARD_GAP
+const SPACE_CARD_SIDE_PADDING = Math.max(20, (WINDOW_WIDTH - SPACE_CARD_WIDTH) / 2)
 
 type StepId = 'department' | 'space' | 'availability' | 'schedule'
 
@@ -70,14 +71,14 @@ const BLOCKS = [
     title: 'Bloque AM',
     range: '08:00 - 14:00',
     description: 'Ideal para actividades familiares o reuniones matutinas.',
-    gradient: ['#7c3aed', '#6366f1'],
+    gradient: ['#6d28d9', '#7c3aed'],
   },
   {
     id: 'afternoon' as const,
     title: 'Bloque PM',
     range: '15:00 - 21:00',
     description: 'Perfecto para celebraciones y encuentros al atardecer.',
-    gradient: ['#f59e0b', '#f97316'],
+    gradient: ['#4338ca', '#6366f1'],
   },
 ]
 
@@ -105,9 +106,9 @@ const STEP_DEFINITIONS = [
 ]
 
 const STATUS_COLORS: Record<DayAvailability['status'], { background: string; text: string; label: string }> = {
-  available: { background: 'rgba(16,185,129,0.16)', text: '#047857', label: 'Disponible' },
-  partial: { background: 'rgba(251,191,36,0.18)', text: '#b45309', label: 'Parcial' },
-  full: { background: 'rgba(248,113,113,0.18)', text: '#b91c1c', label: 'Sin cupos' },
+  available: { background: '#ede9fe', text: '#5b21b6', label: 'Disponible' },
+  partial: { background: '#fef3c7', text: '#92400e', label: 'Parcial' },
+  full: { background: '#fee2e2', text: '#b91c1c', label: 'Sin cupos' },
 }
 
 const PLACEHOLDER_IMAGE =
@@ -130,6 +131,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
   const [departments, setDepartments] = useState<DepartmentOption[]>([])
   const [spaces, setSpaces] = useState<CommonSpace[]>([])
   const [spaceIndex, setSpaceIndex] = useState(0)
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null)
   const [availability, setAvailability] = useState<DayAvailability[]>([])
   const [availabilityLoading, setAvailabilityLoading] = useState(false)
   const [availabilityError, setAvailabilityError] = useState<string | null>(null)
@@ -141,11 +143,17 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
 
   const stepper = useStepperize<StepId>({ steps: STEP_DEFINITIONS, initialStep: 'department' })
 
+  const carouselRef = useRef<FlatList<CommonSpace>>(null)
+
   const selectedDepartment = useMemo(
     () => departments.find((item) => item.id === selectedDepartmentId) ?? null,
     [departments, selectedDepartmentId],
   )
-  const selectedSpace = spaces[spaceIndex] ?? null
+  const selectedSpace = useMemo(
+    () => spaces.find((item) => item.id === selectedSpaceId) ?? null,
+    [selectedSpaceId, spaces],
+  )
+  const currentSpace = spaces[spaceIndex] ?? null
   const selectedDayInfo = useMemo(
     () => availability.find((day) => day.iso === selectedDate) ?? null,
     [availability, selectedDate],
@@ -160,12 +168,20 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
     return done
   }, [selectedBlock, selectedDate, selectedDepartment, selectedSpace])
 
-  const stepSummaries = useMemo(() => ({
-    department: selectedDepartment?.label ?? null,
-    space: selectedSpace?.name ?? null,
-    availability: selectedDate ? formatLongDate(selectedDate) : null,
-    schedule: selectedBlock ? `${getBlockLabel(selectedBlock)} · ${selectedDayInfo ? formatLongDate(selectedDayInfo.iso) : ''}` : null,
-  }), [selectedBlock, selectedDate, selectedDayInfo, selectedDepartment?.label, selectedSpace?.name])
+  const stepSummaries = useMemo(
+    () => ({
+      department: selectedDepartment?.label ?? null,
+      space: selectedSpace?.name ?? null,
+      availability: selectedDate ? formatLongDate(selectedDate) : null,
+      schedule:
+        selectedBlock && selectedDayInfo
+          ? `${getBlockLabel(selectedBlock)} · ${formatLongDate(selectedDayInfo.iso)}`
+          : selectedBlock
+            ? getBlockLabel(selectedBlock)
+            : null,
+    }),
+    [selectedBlock, selectedDate, selectedDayInfo, selectedDepartment?.label, selectedSpace?.name],
+  )
 
   const canNavigateToStep = useCallback(
     (target: StepId) => {
@@ -180,10 +196,12 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
 
   const resetAfterDepartmentChange = useCallback(() => {
     setSpaceIndex(0)
+    setSelectedSpaceId(null)
     setAvailability([])
     setAvailabilityError(null)
     setSelectedDate(null)
     setSelectedBlock(null)
+    carouselRef.current?.scrollToIndex({ index: 0, animated: false })
   }, [])
 
   const resetAfterSpaceChange = useCallback(() => {
@@ -242,8 +260,6 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
         })
 
         setAvailability(days)
-        const firstAvailable = days.find((day) => day.status !== 'full')
-        setSelectedDate(firstAvailable ? firstAvailable.iso : null)
       } catch (error) {
         console.error('Error al cargar disponibilidad', error)
         setAvailabilityError('No pudimos obtener la disponibilidad de este espacio')
@@ -305,6 +321,10 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
 
         setDepartments(departmentOptions)
         setSpaces(spaceOptions)
+        setSpaceIndex((current) => Math.min(current, Math.max(spaceOptions.length - 1, 0)))
+        setSelectedSpaceId((prev) =>
+          prev && spaceOptions.some((space) => space.id === prev) ? prev : null,
+        )
 
         if (departmentOptions.length === 1) {
           setSelectedDepartmentId(departmentOptions[0].id)
@@ -328,10 +348,10 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
   }, [communityId, stepper, userId])
 
   useEffect(() => {
-    if (!selectedSpace) return
+    if (!selectedSpaceId) return
     resetAfterSpaceChange()
-    loadAvailability(selectedSpace.id)
-  }, [loadAvailability, resetAfterSpaceChange, selectedSpace])
+    loadAvailability(selectedSpaceId)
+  }, [loadAvailability, resetAfterSpaceChange, selectedSpaceId])
 
   const handleSelectDepartment = (departmentId: string) => {
     if (selectedDepartmentId === departmentId) return
@@ -340,27 +360,54 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
     stepper.goTo('space')
   }
 
-  const handleNavigateSpaces = (direction: 'next' | 'prev') => {
-    if (!spaces.length) return
-    setSelectedBlock(null)
-    setSelectedDate(null)
-    setAvailabilityError(null)
-    setAvailability([])
-    setSpaceIndex((current) => {
-      if (direction === 'next') {
-        return Math.min(current + 1, spaces.length - 1)
+  const handleMomentumScrollEnd = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (!spaces.length) return
+      const offset = Math.max(0, event.nativeEvent.contentOffset.x)
+      const index = Math.round(offset / SPACE_CARD_SNAP_INTERVAL)
+      setSpaceIndex((current) => (index === current ? current : Math.max(0, Math.min(index, spaces.length - 1))))
+    },
+    [spaces.length],
+  )
+
+  const handleSelectSpace = useCallback(
+    (space: CommonSpace, index: number) => {
+      setSelectedSpaceId(space.id)
+      if (spaceIndex !== index) {
+        setSpaceIndex(index)
+        carouselRef.current?.scrollToIndex({ index, animated: true })
       }
-      return Math.max(current - 1, 0)
-    })
-  }
+    },
+    [carouselRef, spaceIndex],
+  )
 
-  const handleSelectDot = (index: number) => {
-    if (index === spaceIndex) return
-    setSpaceIndex(index)
-  }
+  const handleSelectDot = useCallback(
+    (index: number) => {
+      if (index < 0 || index >= spaces.length) return
+      setSpaceIndex(index)
+      carouselRef.current?.scrollToIndex({ index, animated: true })
+    },
+    [carouselRef, spaces.length],
+  )
 
-  const handleSelectDay = (dayIso: string) => {
-    setSelectedDate(dayIso)
+  const handleProceedToAvailability = useCallback(() => {
+    const spaceToUse = selectedSpace ?? currentSpace
+    if (!spaceToUse) {
+      Toast.show({ type: 'info', text1: 'Selecciona un espacio primero' })
+      return
+    }
+    if (selectedSpaceId !== spaceToUse.id) {
+      setSelectedSpaceId(spaceToUse.id)
+    }
+    stepper.goTo('availability')
+  }, [currentSpace, selectedSpace, selectedSpaceId, stepper])
+
+  const handleSelectDay = (day: DayAvailability) => {
+    if (day.status === 'full') {
+      Toast.show({ type: 'info', text1: 'Este día no tiene horarios disponibles' })
+      return
+    }
+    setSelectedDate(day.iso)
     setSelectedBlock(null)
     stepper.goTo('schedule')
   }
@@ -450,7 +497,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
     const formattedDate = selectedDayInfo ? formatLongDate(selectedDayInfo.iso) : ''
     return (
       <View style={styles.successContainer}>
-        <LinearGradient colors={['#22c55e', '#16a34a']} style={styles.successBadge}>
+        <LinearGradient colors={['#6d28d9', '#7c3aed']} style={styles.successBadge}>
           <Check size={34} color="#fff" />
         </LinearGradient>
         <Text style={styles.successTitle}>¡Reserva confirmada!</Text>
@@ -465,7 +512,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
   }
 
   return (
-    <LinearGradient colors={['#111827', '#1e1b4b']} style={styles.gradientBackground}>
+    <View style={styles.screen}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -562,83 +609,114 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
             </MotiView>
           )}
 
-          {stepper.activeStep === 'space' && selectedSpace && (
+          {stepper.activeStep === 'space' && (
             <MotiView
-              key={selectedSpace.id}
+              key="space"
               from={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 300 }}
             >
               <Text style={styles.sectionTitle}>Elige el espacio común</Text>
               <Text style={styles.sectionSubtitle}>
-                Navega con los controles laterales para conocer los espacios disponibles.
+                Desliza para explorar los espacios y toca una tarjeta para seleccionarla.
               </Text>
-              <View style={styles.carouselWrapper}>
-                <Pressable
-                  onPress={() => handleNavigateSpaces('prev')}
-                  style={[styles.carouselControl, spaceIndex === 0 && styles.carouselControlDisabled]}
-                  disabled={spaceIndex === 0}
-                >
-                  <ChevronLeft size={18} color={spaceIndex === 0 ? '#c7d2fe' : '#4338ca'} />
-                </Pressable>
-                <View style={styles.spaceCard}>
-                  <Image
-                    source={{ uri: selectedSpace.image_url || PLACEHOLDER_IMAGE }}
-                    style={styles.spaceImage}
-                  />
-                  <LinearGradient
-                    colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.75)']}
-                    style={styles.spaceOverlay}
-                  />
-                  <View style={styles.spaceContent}>
-                    <View>
-                      <Text style={styles.spaceName}>{selectedSpace.name}</Text>
-                      {selectedSpace.description ? (
-                        <Text style={styles.spaceDescription} numberOfLines={3}>
-                          {selectedSpace.description}
-                        </Text>
+              <FlatList
+                ref={carouselRef}
+                horizontal
+                data={spaces}
+                keyExtractor={(item) => item.id}
+                showsHorizontalScrollIndicator={false}
+                decelerationRate="fast"
+                snapToAlignment="start"
+                snapToInterval={SPACE_CARD_SNAP_INTERVAL}
+                contentContainerStyle={styles.carouselContent}
+                style={styles.carouselList}
+                onMomentumScrollEnd={handleMomentumScrollEnd}
+                ItemSeparatorComponent={() => <View style={{ width: SPACE_CARD_GAP }} />}
+                getItemLayout={(_, index) => ({
+                  length: SPACE_CARD_SNAP_INTERVAL,
+                  offset: SPACE_CARD_SNAP_INTERVAL * index,
+                  index,
+                })}
+                renderItem={({ item, index }) => {
+                  const isFocused = index === spaceIndex
+                  const isSelected = selectedSpaceId === item.id
+                  return (
+                    <Pressable
+                      onPress={() => handleSelectSpace(item, index)}
+                      style={[
+                        styles.spaceSlide,
+                        { width: SPACE_CARD_WIDTH },
+                        isFocused && styles.spaceSlideFocused,
+                        isSelected && styles.spaceSlideSelected,
+                      ]}
+                      accessibilityRole="button"
+                    >
+                      <Image
+                        source={{ uri: item.image_url || PLACEHOLDER_IMAGE }}
+                        style={styles.spaceImage}
+                      />
+                      <LinearGradient
+                        colors={['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.55)']}
+                        style={styles.spaceOverlay}
+                      />
+                      <View style={styles.spaceContent}>
+                        <View style={styles.spaceHeader}>
+                          <Text style={styles.spaceName}>{item.name}</Text>
+                          {item.description ? (
+                            <Text style={styles.spaceDescription} numberOfLines={3}>
+                              {item.description}
+                            </Text>
+                          ) : null}
+                        </View>
+                        <View style={styles.spaceMetaRow}>
+                          <View style={styles.metaItem}>
+                            <Users size={16} color="#6d28d9" />
+                            <Text style={styles.metaText}>{item.time_block_hours} h por bloque</Text>
+                          </View>
+                          <View style={styles.metaItem}>
+                            <Timer size={16} color="#6d28d9" />
+                            <Text style={styles.metaText}>
+                              {item.event_price
+                                ? `$${Math.round(item.event_price).toLocaleString('es-CL')}`
+                                : 'Sin costo adicional'}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                      {isSelected ? (
+                        <View style={styles.spaceSelectedBadge}>
+                          <Check size={14} color="#fff" />
+                          <Text style={styles.spaceSelectedBadgeLabel}>Seleccionado</Text>
+                        </View>
                       ) : null}
-                    </View>
-                    <View style={styles.spaceMetaRow}>
-                      <View style={styles.metaItem}>
-                        <Users size={16} color="#c7d2fe" />
-                        <Text style={styles.metaText}>{selectedSpace.time_block_hours} h por bloque</Text>
-                      </View>
-                      <View style={styles.metaItem}>
-                        <Timer size={16} color="#c7d2fe" />
-                        <Text style={styles.metaText}>
-                          {selectedSpace.event_price
-                            ? `$${Math.round(selectedSpace.event_price).toLocaleString('es-CL')}`
-                            : 'Sin costo adicional'}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-                <Pressable
-                  onPress={() => handleNavigateSpaces('next')}
-                  style={[
-                    styles.carouselControl,
-                    spaceIndex === spaces.length - 1 && styles.carouselControlDisabled,
-                  ]}
-                  disabled={spaceIndex === spaces.length - 1}
-                >
-                  <ChevronRight
-                    size={18}
-                    color={spaceIndex === spaces.length - 1 ? '#c7d2fe' : '#4338ca'}
-                  />
-                </Pressable>
-              </View>
+                    </Pressable>
+                  )
+                }}
+              />
               <View style={styles.carouselDots}>
-                {spaces.map((space, index) => (
-                  <Pressable
-                    key={space.id}
-                    onPress={() => handleSelectDot(index)}
-                    style={[styles.carouselDot, index === spaceIndex && styles.carouselDotActive]}
-                  />
-                ))}
+                {spaces.map((space, index) => {
+                  const isActive = index === spaceIndex
+                  const isChosen = selectedSpaceId === space.id
+                  return (
+                    <Pressable
+                      key={space.id}
+                      onPress={() => handleSelectDot(index)}
+                      style={[
+                        styles.carouselDot,
+                        isActive && styles.carouselDotActive,
+                        isChosen && styles.carouselDotSelected,
+                      ]}
+                      accessibilityRole="button"
+                    />
+                  )
+                })}
               </View>
-              <Pressable style={styles.primaryButton} onPress={() => stepper.goTo('availability')}>
+              <Pressable
+                style={[styles.primaryButton, !currentSpace && styles.primaryButtonDisabled]}
+                onPress={handleProceedToAvailability}
+                disabled={!currentSpace}
+              >
                 <Text style={styles.primaryButtonLabel}>Revisar disponibilidad</Text>
               </Pressable>
             </MotiView>
@@ -677,7 +755,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
                     const colors = STATUS_COLORS[item.status]
                     return (
                       <Pressable
-                        onPress={() => handleSelectDay(item.iso)}
+                        onPress={() => handleSelectDay(item)}
                         style={[styles.dayCard, isSelected && styles.dayCardSelected]}
                       >
                         <Text style={[styles.dayWeekday, isSelected && styles.dayWeekdaySelected]}>
@@ -786,61 +864,64 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
           )}
         </View>
       </ScrollView>
-    </LinearGradient>
+    </View>
   )
 }
 
+
 const styles = StyleSheet.create({
-  gradientBackground: {
+  screen: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 24,
+    backgroundColor: '#ffffff',
   },
   scrollContent: {
-    paddingBottom: 80,
+    paddingHorizontal: 20,
+    paddingBottom: 96,
   },
   header: {
-    paddingTop: 12,
+    paddingTop: 16,
     paddingBottom: 24,
   },
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    gap: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(99,102,241,0.16)',
+    backgroundColor: '#ede9fe',
+    gap: 6,
   },
   backButtonLabel: {
-    color: '#ede9fe',
+    color: '#6d28d9',
     fontWeight: '600',
     fontSize: 13,
   },
   headerTitle: {
-    marginTop: 18,
+    marginTop: 20,
     fontSize: 28,
     fontWeight: '700',
-    color: '#f8fafc',
+    color: '#1f2937',
   },
   headerSubtitle: {
     marginTop: 8,
-    color: 'rgba(226,232,240,0.85)',
+    color: '#4b5563',
     fontSize: 14,
     lineHeight: 20,
   },
   timeline: {
     borderRadius: 20,
-    backgroundColor: 'rgba(30,41,59,0.55)',
+    borderWidth: 1,
+    borderColor: '#e0e7ff',
+    backgroundColor: '#f9f5ff',
     paddingVertical: 16,
     paddingHorizontal: 18,
-    marginBottom: 22,
+    marginBottom: 24,
   },
   timelineRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 14,
+    gap: 16,
     paddingVertical: 10,
   },
   timelineMarkerWrapper: {
@@ -850,66 +931,68 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: 'rgba(148,163,184,0.25)',
+    backgroundColor: '#e9d5ff',
     justifyContent: 'center',
     alignItems: 'center',
   },
   timelineMarkerActive: {
-    backgroundColor: '#a855f7',
+    backgroundColor: '#6d28d9',
   },
   timelineMarkerComplete: {
-    backgroundColor: '#c7d2fe',
+    backgroundColor: '#7c3aed',
   },
   timelineIndex: {
-    color: '#e2e8f0',
+    color: '#4b5563',
     fontWeight: '700',
     fontSize: 14,
   },
   timelineConnector: {
     width: 2,
     flex: 1,
-    backgroundColor: 'rgba(148,163,184,0.25)',
+    backgroundColor: '#e9d5ff',
     marginTop: 6,
   },
   timelineConnectorActive: {
-    backgroundColor: '#a855f7',
+    backgroundColor: '#6d28d9',
   },
   timelineInfo: {
     flex: 1,
   },
   timelineTitle: {
-    color: '#e2e8f0',
+    color: '#1f2937',
     fontWeight: '700',
     fontSize: 16,
   },
   timelineTitleActive: {
-    color: '#fef3c7',
+    color: '#6d28d9',
   },
   timelineDescription: {
-    color: 'rgba(226,232,240,0.7)',
+    color: '#6b7280',
     marginTop: 4,
     fontSize: 13,
+    lineHeight: 18,
   },
   timelineSummary: {
     marginTop: 6,
-    color: '#f8fafc',
+    color: '#312e81',
     fontWeight: '600',
     fontSize: 13,
   },
   contentCard: {
-    borderRadius: 28,
-    padding: 22,
-    backgroundColor: '#f8fafc',
-    shadowColor: 'rgba(15, 23, 42, 0.4)',
-    shadowOpacity: 0.2,
+    borderRadius: 24,
+    padding: 24,
+    backgroundColor: '#ffffff',
+    shadowColor: 'rgba(79, 70, 229, 0.16)',
+    shadowOpacity: 1,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 12 },
-    elevation: 6,
+    elevation: 8,
+    marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#111827',
+    color: '#1f2937',
   },
   sectionSubtitle: {
     marginTop: 6,
@@ -927,41 +1010,50 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 14,
-    backgroundColor: '#ede9fe',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
   },
   departmentChipActive: {
-    backgroundColor: '#4f46e5',
+    borderColor: '#6d28d9',
+    backgroundColor: '#ede9fe',
   },
   departmentLabel: {
     fontWeight: '600',
-    color: '#4338ca',
+    color: '#374151',
   },
   departmentLabelActive: {
-    color: '#f8fafc',
+    color: '#5b21b6',
   },
-  carouselWrapper: {
+  carouselList: {
     marginTop: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
   },
-  carouselControl: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    justifyContent: 'center',
-    alignItems: 'center',
+  carouselContent: {
+    paddingHorizontal: SPACE_CARD_SIDE_PADDING,
+  },
+  spaceSlide: {
+    height: 260,
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e0e7ff',
     backgroundColor: '#eef2ff',
   },
-  carouselControlDisabled: {
-    backgroundColor: '#e2e8f0',
+  spaceSlideFocused: {
+    shadowColor: 'rgba(109, 40, 217, 0.25)',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 1,
+    shadowRadius: 28,
+    elevation: 12,
+    transform: [{ scale: 1.02 }],
   },
-  spaceCard: {
-    flex: 1,
-    height: 260,
-    borderRadius: 26,
-    overflow: 'hidden',
-    backgroundColor: '#0f172a',
+  spaceSlideSelected: {
+    borderColor: '#6d28d9',
+    shadowColor: 'rgba(109, 40, 217, 0.35)',
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 1,
+    shadowRadius: 32,
+    elevation: 14,
   },
   spaceImage: {
     position: 'absolute',
@@ -978,21 +1070,24 @@ const styles = StyleSheet.create({
     padding: 20,
     justifyContent: 'space-between',
   },
+  spaceHeader: {
+    gap: 8,
+  },
   spaceName: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#f8fafc',
+    color: '#ffffff',
   },
   spaceDescription: {
-    marginTop: 6,
     fontSize: 13,
-    color: 'rgba(226,232,240,0.85)',
     lineHeight: 18,
+    color: 'rgba(255,255,255,0.85)',
   },
   spaceMetaRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 18,
   },
   metaItem: {
     flexDirection: 'row',
@@ -1000,7 +1095,24 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   metaText: {
-    color: '#e0e7ff',
+    color: '#f8fafc',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  spaceSelectedBadge: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(109,40,217,0.92)',
+  },
+  spaceSelectedBadgeLabel: {
+    color: '#ffffff',
     fontWeight: '600',
     fontSize: 12,
   },
@@ -1008,76 +1120,89 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 16,
+    gap: 10,
+    marginTop: 18,
     marginBottom: 12,
   },
   carouselDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#e2e8f0',
-    opacity: 0.5,
+    backgroundColor: '#d1d5db',
   },
   carouselDotActive: {
-    opacity: 1,
-    backgroundColor: '#4f46e5',
+    backgroundColor: '#7c3aed',
+  },
+  carouselDotSelected: {
+    backgroundColor: '#5b21b6',
+    transform: [{ scale: 1.2 }],
   },
   availabilityLoading: {
+    marginTop: 24,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 32,
     gap: 12,
   },
   availabilityError: {
-    marginTop: 16,
-    padding: 18,
-    borderRadius: 18,
-    backgroundColor: 'rgba(248,113,113,0.12)',
+    marginTop: 24,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    backgroundColor: '#fef2f2',
   },
   availabilityErrorText: {
     color: '#b91c1c',
     textAlign: 'center',
-    fontWeight: '600',
+    fontSize: 14,
+    lineHeight: 20,
   },
   dayCard: {
     flex: 1,
-    borderRadius: 18,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    backgroundColor: '#eef2ff',
+    paddingVertical: 16,
+    borderRadius: 16,
+    backgroundColor: '#f9fafb',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    alignItems: 'center',
+    gap: 6,
   },
   dayCardSelected: {
-    backgroundColor: '#4f46e5',
+    borderColor: '#6d28d9',
+    backgroundColor: '#f5f3ff',
+    shadowColor: 'rgba(93, 63, 211, 0.2)',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 1,
+    shadowRadius: 24,
+    elevation: 6,
   },
   dayWeekday: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#4338ca',
+    fontWeight: '600',
+    color: '#6b7280',
     textTransform: 'uppercase',
   },
   dayWeekdaySelected: {
-    color: '#ede9fe',
+    color: '#5b21b6',
   },
   dayLabel: {
-    marginTop: 6,
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#312e81',
+    color: '#1f2937',
   },
   dayLabelSelected: {
-    color: '#ede9fe',
+    color: '#5b21b6',
   },
   dayStatusBadge: {
-    marginTop: 14,
-    borderRadius: 999,
-    paddingVertical: 6,
+    marginTop: 6,
     paddingHorizontal: 10,
-    alignSelf: 'flex-start',
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#e0e7ff',
   },
   dayStatusText: {
     fontSize: 12,
     fontWeight: '600',
+    color: '#4338ca',
   },
   legendRow: {
     flexDirection: 'row',
@@ -1104,14 +1229,12 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   blockCard: {
-    borderRadius: 22,
+    borderRadius: 20,
     overflow: 'hidden',
-    opacity: 0.9,
   },
   blockCardSelected: {
     borderWidth: 3,
-    borderColor: '#facc15',
-    opacity: 1,
+    borderColor: '#fcd34d',
   },
   blockCardDisabled: {
     opacity: 0.45,
@@ -1133,10 +1256,10 @@ const styles = StyleSheet.create({
   blockTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#f8fafc',
+    color: '#ffffff',
   },
   blockDescription: {
-    color: 'rgba(241,245,249,0.85)',
+    color: 'rgba(255,255,255,0.85)',
     fontSize: 13,
     lineHeight: 18,
   },
@@ -1148,7 +1271,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: 'rgba(15,23,42,0.3)',
+    backgroundColor: 'rgba(15,23,42,0.35)',
     color: '#f8fafc',
     fontWeight: '600',
     fontSize: 12,
@@ -1157,12 +1280,14 @@ const styles = StyleSheet.create({
     marginTop: 20,
     padding: 18,
     borderRadius: 18,
-    backgroundColor: '#eef2ff',
+    backgroundColor: '#f9f5ff',
+    borderWidth: 1,
+    borderColor: '#e0e7ff',
     gap: 12,
   },
   summaryTitle: {
     fontWeight: '700',
-    color: '#1f2937',
+    color: '#312e81',
     fontSize: 16,
   },
   summaryRow: {
@@ -1177,13 +1302,13 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     marginTop: 24,
-    backgroundColor: '#4338ca',
+    backgroundColor: '#6d28d9',
     paddingVertical: 15,
-    borderRadius: 18,
+    borderRadius: 16,
     alignItems: 'center',
   },
   primaryButtonDisabled: {
-    backgroundColor: '#c7d2fe',
+    backgroundColor: '#c4b5fd',
   },
   primaryButtonLabel: {
     color: '#f8fafc',
@@ -1194,22 +1319,53 @@ const styles = StyleSheet.create({
     marginTop: 24,
     paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#cbd5f5',
+    borderColor: '#e5e7eb',
+    alignItems: 'center',
   },
   secondaryButtonLabel: {
-    color: '#1f2937',
+    color: '#4b5563',
     fontWeight: '600',
+    fontSize: 14,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#6b7280',
+    fontSize: 14,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    backgroundColor: '#ffffff',
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1f2937',
     textAlign: 'center',
+  },
+  emptySubtitle: {
+    marginTop: 8,
+    color: '#6b7280',
+    textAlign: 'center',
+    fontSize: 14,
+    lineHeight: 20,
   },
   successContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#ffffff',
     paddingHorizontal: 32,
-    gap: 20,
-    backgroundColor: '#0f172a',
   },
   successBadge: {
     width: 80,
@@ -1217,48 +1373,20 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 24,
   },
   successTitle: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '700',
-    color: '#f8fafc',
+    color: '#1f2937',
     textAlign: 'center',
   },
   successMessage: {
-    color: 'rgba(226,232,240,0.85)',
-    textAlign: 'center',
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    gap: 20,
-    backgroundColor: '#0f172a',
-  },
-  emptyTitle: {
-    color: '#f8fafc',
-    fontSize: 24,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  emptySubtitle: {
-    color: 'rgba(226,232,240,0.75)',
+    marginTop: 12,
+    color: '#4b5563',
     textAlign: 'center',
     fontSize: 15,
     lineHeight: 22,
   },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 14,
-    backgroundColor: '#0f172a',
-  },
-  loadingText: {
-    color: '#e2e8f0',
-    fontSize: 14,
-  },
 })
+

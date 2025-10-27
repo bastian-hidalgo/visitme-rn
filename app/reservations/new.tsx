@@ -60,7 +60,7 @@ export default function NewReservationPage() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#ffffff',
   },
   loadingContainer: {
     flex: 1,
