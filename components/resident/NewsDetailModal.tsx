@@ -3,9 +3,10 @@ import { format, fromNow } from '@/lib/time'
 import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
 import { MotiView } from 'moti'
-import React, { useMemo } from 'react'
+import React, { useCallback, useMemo } from 'react'
 import {
   Modal,
+  PanResponder,
   ScrollView,
   StyleSheet,
   Text,
@@ -37,9 +38,23 @@ export default function NewsDetailModal() {
 
   const isVisible = Boolean(isAlertPanelOpen && alertDetail)
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     closeAlertPanel()
-  }
+  }, [closeAlertPanel])
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          gestureState.dy > 12 && Math.abs(gestureState.dx) < 24,
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dy > 96 || gestureState.vy > 1.25) {
+            handleClose()
+          }
+        },
+      }),
+    [handleClose],
+  )
 
   const type = alertDetail?.type ?? 'comunicado'
   const Icon = ICONS[type as keyof typeof ICONS] ?? Newspaper
@@ -58,6 +73,7 @@ export default function NewsDetailModal() {
       <View style={styles.overlay}>
         <TouchableOpacity style={styles.dismissArea} activeOpacity={1} onPress={handleClose} />
         <MotiView
+          {...panResponder.panHandlers}
           from={{ opacity: 0, translateY: 24 }}
           animate={{ opacity: 1, translateY: 0 }}
           transition={{ type: 'timing', duration: 250 }}
