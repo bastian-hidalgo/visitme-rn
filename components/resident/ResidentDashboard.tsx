@@ -17,6 +17,7 @@ import Header from '@/components/resident/Header'
 import HeroBanner from '@/components/resident/HeroBanner'
 import InvitationsSlider from '@/components/resident/InvitationsSlider'
 import NewsSlider from '@/components/resident/NewsSlider'
+import NewsDetailModal from '@/components/resident/NewsDetailModal'
 import PackageSlider from '@/components/resident/PackageSlider'
 import QuickAccess from '@/components/resident/QuickAccess'
 import ReservationsSlider from '@/components/resident/ReservationsSlider'
@@ -222,6 +223,7 @@ export default function ResidentDashboard() {
               </View>
             </MotiView>
           </Animated.View>
+          <NewsDetailModal />
         </LinearGradient>
         <UserMenuPanel
           isOpen={isMenuOpen}

@@ -44,16 +44,20 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   const openReservationPanel = () => setReservationPanelOpen(true)
   const openPackagesPanel = () => setPackagesPanelOpen(true)
   const openAlertPanel = () => setAlertPanelOpen(true)
+  const closeAlertPanel = useCallback(() => {
+    setAlertPanelOpen(false)
+    setAlertDetailState(null)
+  }, [])
 
   // 🔹 Cerrar todos los paneles
-  const closePanels = () => {
+  const closePanels = useCallback(() => {
     setSurveyPanelOpen(false)
     setFeedbackPanelOpen(false)
     setInvitationPanelOpen(false)
     setReservationPanelOpen(false)
     setPackagesPanelOpen(false)
-    setAlertPanelOpen(false)
-  }
+    closeAlertPanel()
+  }, [closeAlertPanel])
 
   // 🔹 Estado combinado
   const isAnyPanelOpen =
@@ -310,6 +314,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         openAlertPanel,
         openPackagesPanel,
         openReservationPanel,
+        closeAlertPanel,
 
         // 🔹 Cierre general
         closePanels,
