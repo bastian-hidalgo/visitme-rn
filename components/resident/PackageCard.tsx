@@ -1,6 +1,5 @@
-import PackageExpandableCardComponent, {
-  type PackageStatusLabel,
-} from '@/components/resident/PackageExpandableCard'
+// components/resident/PackageCard.tsx
+import PackageExpandableCardComponent, { type PackageStatusLabel } from '@/components/resident/PackageExpandableCard'
 import getUrlImageFromStorage from '@/lib/getUrlImageFromStorage'
 import { format, fromNow } from '@/lib/time'
 import { PackageCheck, PackageSearch, PackageX } from 'lucide-react-native'
@@ -29,26 +28,19 @@ const STATUS_CONFIG: Record<
 export default function PackageCard({ parcel, scrollX, index }: PackageCardProps) {
   const statusKey = (parcel.status ?? 'received') as keyof typeof STATUS_CONFIG
   const statusConfig = STATUS_CONFIG[statusKey] ?? STATUS_CONFIG.received
-
   const fallbackImage = 'https://www.visitme.cl/img/placeholder-package.webp'
   const resolvedPhoto =
     parcel.photo_url
       ? getUrlImageFromStorage(parcel.photo_url, 'parcel-photos') || fallbackImage
       : fallbackImage
-
   const departmentNumber = parcel?.department?.number
-
-  // 🔹 Fechas
   const receivedAtLabel = format(parcel.created_at, 'DD MMM YYYY • HH:mm')
   const receivedRelativeLabel = parcel.created_at ? fromNow(parcel.created_at) : undefined
   const pickedUpAtLabel = parcel.picked_up_at ? format(parcel.picked_up_at, 'DD MMM YYYY • HH:mm') : undefined
   const pickedUpRelativeLabel = parcel.picked_up_at ? fromNow(parcel.picked_up_at) : undefined
-
-  // 🔹 Fecha resumida
   const summaryBaseDate = parcel.picked_up_at || parcel.created_at
   const summaryDate = summaryBaseDate ? format(summaryBaseDate, 'DD MMM • HH:mm') : 'Sin fecha'
   const summaryPrefix = statusKey === 'picked_up' ? 'Retirada' : 'Recibida'
-
   const signatureCompleted = Boolean(parcel.signature_url)
   const signatureImageUrl = signatureCompleted
     ? getUrlImageFromStorage(parcel.signature_url, 'parcel-photos')
