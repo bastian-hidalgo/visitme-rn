@@ -19,7 +19,7 @@ module.exports = defineConfig([
       'import/no-unresolved': [
         'error',
         {
-          ignore: ['@gorhom/bottom-sheet'],
+          ignore: ['@gorhom/bottom-sheet', 'expo-av'],
         },
       ],
     },
