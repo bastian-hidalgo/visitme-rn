@@ -1,4 +1,4 @@
-import ResidentDashboard from '@/components/resident/ResidentDashboard'
+import ReservationWizard from '@/components/resident/reservations/ReservationWizard'
 import { SKIP_COMMUNITY_AUTO_REDIRECT_KEY } from '@/constants/storageKeys'
 import { useSupabaseAuth } from '@/providers/supabase-auth-provider'
 import { useUser } from '@/providers/user-provider'
@@ -6,9 +6,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import React, { useEffect, useState } from 'react'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import Toast from 'react-native-toast-message'
 
-export default function ResidentPage() {
+export default function NewReservationPage() {
   const { session, isLoading: authLoading } = useSupabaseAuth()
   const { id, communitySlug: userCommunitySlug, loading: userLoading } = useUser()
   const router = useRouter()
@@ -28,7 +29,7 @@ export default function ResidentPage() {
       const selected =
         (await AsyncStorage.getItem('selected_community')) || userCommunitySlug
 
-      if (!selected || selected !== routeCommunitySlug) {
+      if (!selected || (routeCommunitySlug && selected !== routeCommunitySlug)) {
         await AsyncStorage.setItem(SKIP_COMMUNITY_AUTO_REDIRECT_KEY, 'true')
         router.replace('../choose-community')
         return
@@ -49,14 +50,18 @@ export default function ResidentPage() {
   }
 
   return (
-    <>
-      <ResidentDashboard />
+    <SafeAreaView style={styles.safeArea}>
+      <ReservationWizard onExit={() => router.back()} />
       <Toast />
-    </>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',

@@ -46,7 +46,7 @@ export default function BaseSidePanel({
     }
     const sub = BackHandler.addEventListener('hardwareBackPress', handleBack)
     return () => sub.remove()
-  }, [isOpen, onClose])
+  }, [isOpen, onClose, progress])
 
   const closeWithAnim = () => {
     progress.value = withTiming(0, { duration: 250 }, () => runOnJS(onClose)())

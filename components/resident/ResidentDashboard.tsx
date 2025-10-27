@@ -29,7 +29,6 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 export default function ResidentDashboard() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const menuProgress = useSharedValue(0)
-  const reservationProgress = useSharedValue(0)
   useEffect(() => {
     menuProgress.value = withTiming(isMenuOpen ? 1 : 0, { duration: 300 })
   }, [isMenuOpen, menuProgress])
@@ -45,8 +44,7 @@ export default function ResidentDashboard() {
       shadowOpacity: progress ? 0.3 : 0,
     }
   })
-  const { reservations, isInvitationPanelOpen, isReservationPanelOpen, closePanels } =
-    useResidentContext()
+  const { reservations } = useResidentContext()
 
   const handleCancelReservation = (id: string) => {
     Alert.alert(
@@ -76,6 +74,7 @@ export default function ResidentDashboard() {
 
   const scrollViewRef = useRef<ScrollView>(null)
   const insets = useSafeAreaInsets()
+
   const [sectionPositions, setSectionPositions] = useState<Record<string, number>>({})
 
   const registerSection = (sectionId: string) => ({ nativeEvent }: LayoutChangeEvent) => {

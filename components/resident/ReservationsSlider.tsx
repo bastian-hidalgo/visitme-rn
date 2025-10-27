@@ -1,8 +1,10 @@
 import { useResidentContext } from '@/components/contexts/ResidentContext'
 import { useWeatherForReservations } from '@/lib/useWeatherForReservations'
+import { useUser } from '@/providers/user-provider'
+import { useRouter } from 'expo-router'
 import { CalendarDays } from 'lucide-react-native'
 import { MotiView } from 'moti'
-import React from 'react'
+import React, { useCallback } from 'react'
 import {
   Dimensions,
   FlatList,
@@ -23,7 +25,16 @@ interface Props {
 }
 
 export default function ReservationsSlider({ onCancel, onViewReason }: Props) {
-  const { reservations, openReservationPanel } = useResidentContext()
+  const { reservations } = useResidentContext()
+  const { communitySlug } = useUser()
+  const router = useRouter()
+  const handleNavigateToWizard = useCallback(() => {
+    if (communitySlug) {
+      router.push({ pathname: '/reservations/new', params: { community: communitySlug } })
+    } else {
+      router.push('/reservations/new')
+    }
+  }, [communitySlug, router])
   const reservationsWithWeather = useWeatherForReservations(reservations)
 
   return (
@@ -39,7 +50,7 @@ export default function ReservationsSlider({ onCancel, onViewReason }: Props) {
 
         <TouchableOpacity
           activeOpacity={0.9}
-          onPress={openReservationPanel}
+          onPress={handleNavigateToWizard}
           style={styles.ctaButton}
         >
           <CalendarDays size={18} color="#fff" />
@@ -57,7 +68,7 @@ export default function ReservationsSlider({ onCancel, onViewReason }: Props) {
           item.id === 'new' ? (
             <View style={{ width: width * 0.7, marginRight: 16 }}>
               <EmptyActionCard
-                onCreate={openReservationPanel}
+                onCreate={handleNavigateToWizard}
                 width="w-full"
                 height="h-[220px]"
               >

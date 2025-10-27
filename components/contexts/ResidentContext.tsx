@@ -26,7 +26,6 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   const [isSurveyPanelOpen, setSurveyPanelOpen] = useState(false)
   const [isFeedbackPanelOpen, setFeedbackPanelOpen] = useState(false)
   const [isInvitationPanelOpen, setInvitationPanelOpen] = useState(false)
-  const [isReservationPanelOpen, setReservationPanelOpen] = useState(false)
   const [isPackagesPanelOpen, setPackagesPanelOpen] = useState(false)
   const [isAlertPanelOpen, setAlertPanelOpen] = useState(false)
 
@@ -41,7 +40,6 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   const openSurveyPanel = () => setSurveyPanelOpen(true)
   const openFeedbackPanel = () => setFeedbackPanelOpen(true)
   const openInvitationPanel = () => setInvitationPanelOpen(true)
-  const openReservationPanel = () => setReservationPanelOpen(true)
   const openPackagesPanel = () => setPackagesPanelOpen(true)
   const openAlertPanel = () => setAlertPanelOpen(true)
   const closeAlertPanel = useCallback(() => {
@@ -54,7 +52,6 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
     setSurveyPanelOpen(false)
     setFeedbackPanelOpen(false)
     setInvitationPanelOpen(false)
-    setReservationPanelOpen(false)
     setPackagesPanelOpen(false)
     closeAlertPanel()
   }, [closeAlertPanel])
@@ -64,7 +61,6 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
     isSurveyPanelOpen ||
     isFeedbackPanelOpen ||
     isInvitationPanelOpen ||
-    isReservationPanelOpen ||
     isPackagesPanelOpen ||
     isAlertPanelOpen
 
@@ -288,7 +284,6 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         isSurveyPanelOpen,
         isFeedbackPanelOpen,
         isInvitationPanelOpen,
-        isReservationPanelOpen,
         isPackagesPanelOpen,
         isAlertPanelOpen,
         isAnyPanelOpen,
@@ -313,7 +308,6 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         openInvitationPanel,
         openAlertPanel,
         openPackagesPanel,
-        openReservationPanel,
         closeAlertPanel,
 
         // 🔹 Cierre general
