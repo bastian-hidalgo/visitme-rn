@@ -146,6 +146,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
   const stepper = useStepperize<StepId>({ steps: STEP_DEFINITIONS, initialStep: 'space' })
 
   const carouselRef = useRef<FlatList<CommonSpace>>(null)
+  const notificationSoundRef = useRef<any>(null)
 
   const selectedDepartment = useMemo(
     () => departments.find((item) => item.id === selectedDepartmentId) ?? null,
@@ -200,6 +201,52 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
     setAvailabilityError(null)
     setSelectedDate(null)
     setSelectedBlock(null)
+  }, [])
+
+  const loadNotificationSound = useCallback(async () => {
+    try {
+      const { Audio } = await import('expo-av')
+      const result = await Audio.Sound.createAsync(
+        require('../../../assets/sounds/notification.mp3'),
+        { shouldPlay: false },
+      )
+
+      return result.sound
+    } catch (error) {
+      console.warn('No se pudo cargar el sonido de notificación', error)
+      return null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!success || notificationSoundRef.current) return
+
+    let isSubscribed = true
+
+    const prepareSound = async () => {
+      const sound = await loadNotificationSound()
+      if (!sound) return
+      if (isSubscribed) {
+        notificationSoundRef.current = sound
+      } else {
+        await sound.unloadAsync()
+      }
+    }
+
+    prepareSound()
+
+    return () => {
+      isSubscribed = false
+    }
+  }, [loadNotificationSound, success])
+
+  useEffect(() => {
+    return () => {
+      if (notificationSoundRef.current) {
+        notificationSoundRef.current.unloadAsync().catch(() => null)
+        notificationSoundRef.current = null
+      }
+    }
   }, [])
 
   const loadAvailability = useCallback(
@@ -463,9 +510,33 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
     }
   }
 
-  const handleExit = () => {
-    if (onExit) onExit()
-  }
+  const playNotificationSound = useCallback(async () => {
+    try {
+      if (!notificationSoundRef.current) {
+        const sound = await loadNotificationSound()
+        if (!sound) return
+        notificationSoundRef.current = sound
+      }
+
+      if (notificationSoundRef.current.replayAsync) {
+        await notificationSoundRef.current.replayAsync()
+      } else {
+        await notificationSoundRef.current.setPositionAsync(0)
+        await notificationSoundRef.current.playAsync()
+      }
+    } catch (error) {
+      console.warn('No se pudo reproducir el sonido de notificación', error)
+    }
+  }, [loadNotificationSound])
+
+  const handleExit = useCallback(() => {
+    onExit?.()
+  }, [onExit])
+
+  const handleSuccessContinue = useCallback(async () => {
+    await playNotificationSound()
+    handleExit()
+  }, [handleExit, playNotificationSound])
 
   if (loading) {
     return (
@@ -502,7 +573,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
         <Text style={styles.successMessage}>
           Tu reserva de {selectedSpace?.name} quedó agendada para {formattedDate} en el {blockLabel}.
         </Text>
-        <Pressable style={styles.primaryButton} onPress={handleExit}>
+        <Pressable style={styles.primaryButton} onPress={handleSuccessContinue} accessibilityRole="button">
           <Text style={styles.primaryButtonLabel}>Ver mis reservas</Text>
         </Pressable>
       </View>
@@ -1369,7 +1440,8 @@ const styles = StyleSheet.create({
   primaryButton: {
     marginTop: 24,
     backgroundColor: '#6d28d9',
-    paddingVertical: 15,
+    paddingVertical: 18,
+    paddingHorizontal: 32,
     borderRadius: 16,
     alignItems: 'center',
   },
