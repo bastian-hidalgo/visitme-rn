@@ -282,7 +282,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
             .from('common_spaces')
             .select('id, name, description, event_price, image_url, time_block_hours, status')
             .eq('community_id', communityId)
-            .eq('status', 'activo')
+            .in('status', ['activo', 'habilitado'])
             .order('name', { ascending: true }),
         ])
 
