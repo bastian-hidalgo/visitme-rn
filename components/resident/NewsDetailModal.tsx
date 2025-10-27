@@ -1,19 +1,21 @@
 import { useResidentContext } from '@/components/contexts/ResidentContext'
 import { format, fromNow } from '@/lib/time'
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  type BottomSheetBackdropProps,
+} from '@gorhom/bottom-sheet'
 import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
-import { MotiView } from 'moti'
-import React, { useCallback, useMemo } from 'react'
+import { AlertTriangle, Flame, Newspaper, Tag, X } from 'lucide-react-native'
+import React, { useCallback, useEffect, useRef } from 'react'
 import {
-  Modal,
-  PanResponder,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native'
-import { AlertTriangle, Flame, Newspaper, Tag, X } from 'lucide-react-native'
 
 const ICONS = {
   comunicado: Newspaper,
@@ -30,162 +32,145 @@ const HEADER_COLORS: Record<string, { background: string; accent: string }> = {
 const FALLBACK_IMAGE = 'https://www.visitme.cl/img/placeholder-news.webp'
 
 export default function NewsDetailModal() {
-  const {
-    alertDetail,
-    isAlertPanelOpen,
-    closeAlertPanel,
-  } = useResidentContext()
-
-  const isVisible = Boolean(isAlertPanelOpen && alertDetail)
-
-  const handleClose = useCallback(() => {
-    closeAlertPanel()
-  }, [closeAlertPanel])
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponderCapture: (_, gestureState) =>
-          gestureState.dy > 6 && Math.abs(gestureState.dx) < 24,
-        onMoveShouldSetPanResponder: (_, gestureState) =>
-          gestureState.dy > 12 && Math.abs(gestureState.dx) < 24,
-        onMoveShouldSetPanResponderCapture: (_, gestureState) =>
-          gestureState.dy > 12 && Math.abs(gestureState.dx) < 24,
-        onPanResponderRelease: (_, gestureState) => {
-          if (gestureState.dy > 96 || gestureState.vy > 1.25) {
-            handleClose()
-          }
-        },
-      }),
-    [handleClose],
-  )
+  const { alertDetail, isAlertPanelOpen, closeAlertPanel } = useResidentContext()
+  const bottomSheetRef = useRef<BottomSheetModal>(null)
 
   const type = alertDetail?.type ?? 'comunicado'
   const Icon = ICONS[type as keyof typeof ICONS] ?? Newspaper
   const palette = HEADER_COLORS[type] ?? HEADER_COLORS.comunicado
-  const createdAtLabel = useMemo(
-    () => (alertDetail ? format(alertDetail.created_at, 'DD MMM YYYY • HH:mm') : ''),
-    [alertDetail],
-  )
-  const createdRelative = useMemo(
-    () => (alertDetail ? fromNow(alertDetail.created_at) : ''),
-    [alertDetail],
+  const createdAtLabel = alertDetail ? format(alertDetail.created_at, 'DD MMM YYYY • HH:mm') : ''
+  const createdRelative = alertDetail ? fromNow(alertDetail.created_at) : ''
+
+  useEffect(() => {
+    if (isAlertPanelOpen && alertDetail) {
+      bottomSheetRef.current?.present()
+    } else {
+      bottomSheetRef.current?.dismiss()
+    }
+  }, [isAlertPanelOpen, alertDetail, bottomSheetRef])
+
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        appearsOnIndex={0}
+        disappearsOnIndex={-1}
+        opacity={0.6}
+        style={{ backgroundColor: 'rgba(15,23,42,0.65)' }}
+      />
+    ),
+    []
   )
 
   return (
-    <Modal visible={isVisible} transparent animationType="fade" onRequestClose={handleClose}>
-      <View style={styles.overlay}>
-        <TouchableOpacity style={styles.dismissArea} activeOpacity={1} onPress={handleClose} />
-        <MotiView
-          {...panResponder.panHandlers}
-          from={{ opacity: 0, translateY: 24 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 250 }}
-          style={styles.modal}
-        >
-          <View style={styles.heroContainer}>
-            {alertDetail?.image_url ? (
-              <Image
-                source={{ uri: alertDetail.image_url ?? FALLBACK_IMAGE }}
-                style={styles.heroImage}
-                contentFit="cover"
-              />
-            ) : (
-              <LinearGradient
-                colors={[palette.background, '#1F2937']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.heroImage}
-              />
-            )}
-            <LinearGradient
-              colors={['rgba(17, 24, 39, 0.85)', 'rgba(17, 24, 39, 0.4)', 'transparent']}
-              locations={[0, 0.6, 1]}
-              style={styles.heroOverlay}
+    <BottomSheetModal
+      ref={bottomSheetRef}
+      index={0}
+      snapPoints={['100%']}
+      enablePanDownToClose
+      backdropComponent={renderBackdrop}
+      backgroundStyle={styles.sheetBackground}
+      handleIndicatorStyle={styles.handleIndicator}
+      onDismiss={closeAlertPanel}
+      // extras para suavizar animación
+      animateOnMount={true}
+      stackBehavior="push"
+    >
+      <BottomSheetScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.heroContainer}>
+          {alertDetail?.image_url ? (
+            <Image
+              source={{ uri: alertDetail.image_url ?? FALLBACK_IMAGE }}
+              style={styles.heroImage}
+              contentFit="cover"
             />
-            <View style={styles.heroContent}>
-              <View style={[styles.iconWrapper, { backgroundColor: palette.accent }]}> 
-                <Icon size={22} color="#fff" />
-              </View>
-              <View style={styles.heroText}>
-                <Text style={styles.typeLabel}>{type}</Text>
-                <Text style={styles.title}>{alertDetail?.title ?? 'Aviso importante'}</Text>
-                <Text style={styles.date}>{createdAtLabel}</Text>
-                {createdRelative ? (
-                  <Text style={styles.relative}>{createdRelative}</Text>
-                ) : null}
-              </View>
+          ) : (
+            <LinearGradient
+              colors={[palette.background, '#1F2937']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.heroImage}
+            />
+          )}
+
+          <LinearGradient
+            colors={['rgba(17,24,39,0.85)', 'rgba(17,24,39,0.4)', 'transparent']}
+            locations={[0, 0.6, 1]}
+            style={styles.heroOverlay}
+          />
+
+          <View style={styles.heroContent}>
+            <View style={[styles.iconWrapper, { backgroundColor: palette.accent }]}>
+              <Icon size={22} color="#fff" />
             </View>
-            <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-              <X size={20} color="#fff" />
-            </TouchableOpacity>
+            <View style={styles.heroText}>
+              <Text style={styles.typeLabel}>{type}</Text>
+              <Text style={styles.title}>{alertDetail?.title ?? 'Aviso importante'}</Text>
+              <Text style={styles.date}>{createdAtLabel}</Text>
+              {createdRelative ? <Text style={styles.relative}>{createdRelative}</Text> : null}
+            </View>
           </View>
 
-          <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-            {alertDetail?.tags?.length ? (
-              <View style={styles.tagsContainer}>
-                {alertDetail.tags.map((tag) => (
-                  <View key={tag} style={styles.tagChip}>
-                    <Tag size={14} color={palette.accent} />
-                    <Text style={[styles.tagText, { color: palette.accent }]}>{tag}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
+          <TouchableOpacity style={styles.closeButton} onPress={closeAlertPanel}>
+            <X size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
 
-            {alertDetail?.message ? (
-              <View style={styles.section}>
-                {alertDetail.message
-                  .split('\n')
-                  .filter((paragraph) => paragraph.trim().length)
-                  .map((paragraph, index) => (
-                    <Text key={index.toString()} style={styles.paragraph}>
-                      {paragraph.trim()}
-                    </Text>
-                  ))}
-              </View>
-            ) : (
-              <View style={styles.section}>
-                <Text style={styles.paragraph}>
-                  Mantente atento a las próximas actualizaciones de tu comunidad.
-                </Text>
-              </View>
-            )}
-          </ScrollView>
-        </MotiView>
-      </View>
-    </Modal>
+        <View style={styles.body}>
+          {alertDetail?.tags?.length ? (
+            <View style={styles.tagsContainer}>
+              {alertDetail.tags.map((tag: string) => (
+                <View key={tag} style={styles.tagChip}>
+                  <Tag size={14} color={palette.accent} />
+                  <Text style={[styles.tagText, { color: palette.accent }]}>{tag}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {alertDetail?.message ? (
+            <View style={styles.section}>
+              {alertDetail.message
+                .split('\n')
+                .filter((p: string) => p.trim().length)
+                .map((p: string, i: number) => (
+                  <Text key={i} style={styles.paragraph}>
+                    {p.trim()}
+                  </Text>
+                ))}
+            </View>
+          ) : (
+            <View style={styles.section}>
+              <Text style={styles.paragraph}>
+                Mantente atento a las próximas actualizaciones de tu comunidad.
+              </Text>
+            </View>
+          )}
+        </View>
+      </BottomSheetScrollView>
+    </BottomSheetModal>
   )
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
-    justifyContent: 'flex-end',
-  },
-  dismissArea: {
-    flex: 1,
-  },
-  modal: {
+  sheetBackground: {
     backgroundColor: '#f9fafb',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    overflow: 'hidden',
-    maxHeight: '88%',
   },
-  heroContainer: {
-    position: 'relative',
-    height: 220,
+  handleIndicator: {
+    backgroundColor: '#cbd5e1',
+    width: 40,
   },
-  heroImage: {
-    ...StyleSheet.absoluteFillObject,
-    width: '100%',
-    height: '100%',
+  container: {
+    flex: 1,
   },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-  },
+  heroContainer: { position: 'relative', height: 220 },
+  heroImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
+  heroOverlay: { ...StyleSheet.absoluteFillObject },
   heroContent: {
     position: 'absolute',
     bottom: 24,
@@ -202,9 +187,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  heroText: {
-    flex: 1,
-  },
+  heroText: { flex: 1 },
   typeLabel: {
     textTransform: 'uppercase',
     fontSize: 12,
@@ -212,21 +195,9 @@ const styles = StyleSheet.create({
     color: '#e5e7eb',
     marginBottom: 4,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 6,
-  },
-  date: {
-    fontSize: 13,
-    color: '#f3f4f6',
-  },
-  relative: {
-    marginTop: 2,
-    fontSize: 12,
-    color: '#cbd5f5',
-  },
+  title: { fontSize: 20, fontWeight: '700', color: '#fff', marginBottom: 6 },
+  date: { fontSize: 13, color: '#f3f4f6' },
+  relative: { marginTop: 2, fontSize: 12, color: '#cbd5f5' },
   closeButton: {
     position: 'absolute',
     top: 18,
@@ -236,12 +207,9 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    backgroundColor: 'rgba(15,23,42,0.55)',
   },
-  body: {
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-  },
+  body: { paddingHorizontal: 20, paddingVertical: 24 },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -257,16 +225,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     gap: 6,
   },
-  tagText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  section: {
-    gap: 12,
-  },
-  paragraph: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: '#1f2937',
-  },
+  tagText: { fontSize: 12, fontWeight: '600' },
+  section: { gap: 12 },
+  paragraph: { fontSize: 15, lineHeight: 22, color: '#1f2937' },
 })
