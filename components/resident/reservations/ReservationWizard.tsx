@@ -2,6 +2,7 @@ import { useResidentContext } from '@/components/contexts/ResidentContext'
 import { useStepperize } from '@/lib/stepperize'
 import { supabase } from '@/lib/supabase'
 import { useUser } from '@/providers/user-provider'
+import type { Database } from '@/types/supabase'
 import dayjs from 'dayjs'
 import 'dayjs/locale/es'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -47,10 +48,10 @@ type CommonSpace = {
   time_block_hours: number
 }
 
-type ReservationRecord = {
-  date: string
-  block: 'morning' | 'afternoon'
-}
+type ReservationRow = Pick<
+  Database['public']['Views']['common_space_reservations_with_user']['Row'],
+  'date' | 'block' | 'status'
+>
 
 type DayAvailability = {
   iso: string
@@ -218,27 +219,41 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
     }
   }, [])
 
+  const ensureNotificationSound = useCallback(async () => {
+    if (notificationSoundRef.current) return notificationSoundRef.current
+    const sound = await loadNotificationSound()
+    if (sound) {
+      notificationSoundRef.current = sound
+    }
+    return sound
+  }, [loadNotificationSound])
+
   useEffect(() => {
-    if (!success || notificationSoundRef.current) return
+    if (!success) return
 
-    let isSubscribed = true
+    let isActive = true
 
-    const prepareSound = async () => {
-      const sound = await loadNotificationSound()
-      if (!sound) return
-      if (isSubscribed) {
-        notificationSoundRef.current = sound
-      } else {
-        await sound.unloadAsync()
+    const prepareAndPlay = async () => {
+      const sound = await ensureNotificationSound()
+      if (!sound || !isActive) return
+      try {
+        if (sound.replayAsync) {
+          await sound.replayAsync()
+        } else {
+          await sound.setPositionAsync(0)
+          await sound.playAsync()
+        }
+      } catch (error) {
+        console.warn('No se pudo reproducir el sonido de notificación', error)
       }
     }
 
-    prepareSound()
+    prepareAndPlay()
 
     return () => {
-      isSubscribed = false
+      isActive = false
     }
-  }, [loadNotificationSound, success])
+  }, [ensureNotificationSound, success])
 
   useEffect(() => {
     return () => {
@@ -270,18 +285,20 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
 
         if (error) throw error
 
-        const reservations = (data || [])
-          .filter((item): item is ReservationRecord => Boolean(item.date && item.block))
-          .map((item) => ({
-            date: dayjs(item.date).format('YYYY-MM-DD'),
-            block: item.block as 'morning' | 'afternoon',
-          }))
+        const grouped = ((data ?? []) as ReservationRow[]).reduce<
+          Record<string, { amTaken: boolean; pmTaken: boolean }>
+        >((acc, item) => {
+          if (!item.date || item.block !== 'morning' && item.block !== 'afternoon') {
+            return acc
+          }
 
-        const grouped = reservations.reduce<Record<string, { amTaken: boolean; pmTaken: boolean }>>((acc, current) => {
-          const existing = acc[current.date] || { amTaken: false, pmTaken: false }
-          if (current.block === 'morning') existing.amTaken = true
-          if (current.block === 'afternoon') existing.pmTaken = true
-          acc[current.date] = existing
+          const dateKey = item.date.length >= 10 ? item.date.slice(0, 10) : item.date
+          const existing = acc[dateKey] || { amTaken: false, pmTaken: false }
+
+          if (item.block === 'morning') existing.amTaken = true
+          if (item.block === 'afternoon') existing.pmTaken = true
+
+          acc[dateKey] = existing
           return acc
         }, {})
 
@@ -512,22 +529,18 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
 
   const playNotificationSound = useCallback(async () => {
     try {
-      if (!notificationSoundRef.current) {
-        const sound = await loadNotificationSound()
-        if (!sound) return
-        notificationSoundRef.current = sound
-      }
-
-      if (notificationSoundRef.current.replayAsync) {
-        await notificationSoundRef.current.replayAsync()
+      const sound = await ensureNotificationSound()
+      if (!sound) return
+      if (sound.replayAsync) {
+        await sound.replayAsync()
       } else {
-        await notificationSoundRef.current.setPositionAsync(0)
-        await notificationSoundRef.current.playAsync()
+        await sound.setPositionAsync(0)
+        await sound.playAsync()
       }
     } catch (error) {
       console.warn('No se pudo reproducir el sonido de notificación', error)
     }
-  }, [loadNotificationSound])
+  }, [ensureNotificationSound])
 
   const handleExit = useCallback(() => {
     onExit?.()
@@ -1363,11 +1376,16 @@ const styles = StyleSheet.create({
   },
   blockGrid: {
     marginTop: 18,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 16,
   },
   blockCard: {
     borderRadius: 20,
     overflow: 'hidden',
+    flexGrow: 1,
+    flexShrink: 0,
+    width: '48%',
   },
   blockCardSelected: {
     borderWidth: 3,
@@ -1379,6 +1397,7 @@ const styles = StyleSheet.create({
   blockGradient: {
     padding: 20,
     gap: 12,
+    minHeight: 170,
   },
   blockHeader: {
     flexDirection: 'row',
