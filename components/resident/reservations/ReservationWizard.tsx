@@ -5,8 +5,7 @@ import { useUser } from '@/providers/user-provider'
 import dayjs from 'dayjs'
 import 'dayjs/locale/es'
 import { LinearGradient } from 'expo-linear-gradient'
-import { Check, ChevronLeft, ChevronRight, Clock, Loader2, MapPin, Users } from 'lucide-react-native'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { MotiView } from 'moti'
 import {
   ActivityIndicator,
   FlatList,
@@ -17,6 +16,16 @@ import {
   Text,
   View,
 } from 'react-native'
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  MapPin,
+  Timer,
+  Users,
+} from 'lucide-react-native'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import Toast from 'react-native-toast-message'
 
 type StepId = 'department' | 'space' | 'availability' | 'schedule'
@@ -49,20 +58,26 @@ type DayAvailability = {
   status: 'available' | 'partial' | 'full'
 }
 
+type ReservationWizardProps = {
+  onExit?: () => void
+}
+
+dayjs.locale('es')
+
 const BLOCKS = [
   {
     id: 'morning' as const,
     title: 'Bloque AM',
     range: '08:00 - 14:00',
     description: 'Ideal para actividades familiares o reuniones matutinas.',
-    gradient: ['rgba(124,58,237,0.9)', 'rgba(59,130,246,0.75)'],
+    gradient: ['#7c3aed', '#6366f1'],
   },
   {
     id: 'afternoon' as const,
     title: 'Bloque PM',
     range: '15:00 - 21:00',
     description: 'Perfecto para celebraciones y encuentros al atardecer.',
-    gradient: ['rgba(251,191,36,0.9)', 'rgba(244,114,182,0.75)'],
+    gradient: ['#f59e0b', '#f97316'],
   },
 ]
 
@@ -70,51 +85,55 @@ const STEP_DEFINITIONS = [
   {
     id: 'department' as const,
     title: 'Departamento',
-    description: 'Selecciona el departamento asociado a la reserva.',
+    description: '¿Desde qué departamento harás la reserva?',
   },
   {
     id: 'space' as const,
-    title: 'Espacio común',
-    description: 'Explora y elige el espacio que deseas reservar.',
+    title: 'Espacio',
+    description: 'Elige el espacio común disponible en tu comunidad.',
   },
   {
     id: 'availability' as const,
     title: 'Disponibilidad',
-    description: 'Revisa los días y bloques disponibles.',
+    description: 'Selecciona el día que prefieras reservar.',
   },
   {
     id: 'schedule' as const,
     title: 'Horario',
-    description: 'Confirma el bloque horario para tu reserva.',
+    description: 'Confirma el bloque horario de tu evento.',
   },
 ]
 
-type ReservationWizardProps = {
-  isOpen: boolean
-  onClose: () => void
-}
-
-dayjs.locale('es')
-
 const STATUS_COLORS: Record<DayAvailability['status'], { background: string; text: string; label: string }> = {
-  available: { background: 'rgba(16,185,129,0.12)', text: '#047857', label: 'Disponible' },
-  partial: { background: 'rgba(251,191,36,0.15)', text: '#b45309', label: 'Parcial' },
-  full: { background: 'rgba(248,113,113,0.15)', text: '#b91c1c', label: 'Sin cupos' },
+  available: { background: 'rgba(16,185,129,0.16)', text: '#047857', label: 'Disponible' },
+  partial: { background: 'rgba(251,191,36,0.18)', text: '#b45309', label: 'Parcial' },
+  full: { background: 'rgba(248,113,113,0.18)', text: '#b91c1c', label: 'Sin cupos' },
 }
 
-export default function ReservationWizard({ isOpen, onClose }: ReservationWizardProps) {
+const PLACEHOLDER_IMAGE =
+  'https://images.unsplash.com/photo-1570129477492-45c003edd2be?auto=format&fit=crop&w=900&q=80'
+
+function formatLongDate(iso: string) {
+  return dayjs(iso).format('dddd D [de] MMMM').replace(/^./, (c) => c.toUpperCase())
+}
+
+function getBlockLabel(block: 'morning' | 'afternoon' | null) {
+  if (!block) return ''
+  return block === 'morning' ? 'Bloque AM' : 'Bloque PM'
+}
+
+export default function ReservationWizard({ onExit }: ReservationWizardProps) {
   const { id: userId, communityId } = useUser()
   const { fetchReservations } = useResidentContext()
 
   const [loading, setLoading] = useState(true)
   const [departments, setDepartments] = useState<DepartmentOption[]>([])
   const [spaces, setSpaces] = useState<CommonSpace[]>([])
+  const [spaceIndex, setSpaceIndex] = useState(0)
   const [availability, setAvailability] = useState<DayAvailability[]>([])
   const [availabilityLoading, setAvailabilityLoading] = useState(false)
   const [availabilityError, setAvailabilityError] = useState<string | null>(null)
-
-  const [selectedDepartment, setSelectedDepartment] = useState<DepartmentOption | null>(null)
-  const [selectedSpace, setSelectedSpace] = useState<CommonSpace | null>(null)
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(null)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [selectedBlock, setSelectedBlock] = useState<'morning' | 'afternoon' | null>(null)
   const [success, setSuccess] = useState(false)
@@ -122,109 +141,33 @@ export default function ReservationWizard({ isOpen, onClose }: ReservationWizard
 
   const stepper = useStepperize<StepId>({ steps: STEP_DEFINITIONS, initialStep: 'department' })
 
+  const selectedDepartment = useMemo(
+    () => departments.find((item) => item.id === selectedDepartmentId) ?? null,
+    [departments, selectedDepartmentId],
+  )
+  const selectedSpace = spaces[spaceIndex] ?? null
+  const selectedDayInfo = useMemo(
+    () => availability.find((day) => day.iso === selectedDate) ?? null,
+    [availability, selectedDate],
+  )
+
   const completedSteps = useMemo(() => {
-    const completed = new Set<StepId>()
-    if (selectedDepartment) completed.add('department')
-    if (selectedSpace) completed.add('space')
-    if (selectedDate) completed.add('availability')
-    if (selectedBlock) completed.add('schedule')
-    return completed
-  }, [selectedDepartment, selectedSpace, selectedDate, selectedBlock])
+    const done = new Set<StepId>()
+    if (selectedDepartment) done.add('department')
+    if (selectedSpace) done.add('space')
+    if (selectedDate) done.add('availability')
+    if (selectedBlock) done.add('schedule')
+    return done
+  }, [selectedBlock, selectedDate, selectedDepartment, selectedSpace])
 
-  const resetWizard = useCallback(() => {
-    setSelectedDepartment(null)
-    setSelectedSpace(null)
-    setSelectedDate(null)
-    setSelectedBlock(null)
-    setAvailability([])
-    setAvailabilityError(null)
-    setSuccess(false)
-    stepper.goTo('department')
-  }, [stepper])
+  const stepSummaries = useMemo(() => ({
+    department: selectedDepartment?.label ?? null,
+    space: selectedSpace?.name ?? null,
+    availability: selectedDate ? formatLongDate(selectedDate) : null,
+    schedule: selectedBlock ? `${getBlockLabel(selectedBlock)} · ${selectedDayInfo ? formatLongDate(selectedDayInfo.iso) : ''}` : null,
+  }), [selectedBlock, selectedDate, selectedDayInfo, selectedDepartment?.label, selectedSpace?.name])
 
-  useEffect(() => {
-    if (!isOpen) {
-      resetWizard()
-      return
-    }
-
-    if (!communityId || !userId) return
-
-    let cancelled = false
-
-    const load = async () => {
-      setLoading(true)
-      setDepartments([])
-      setSpaces([])
-
-      try {
-        const [departmentsResponse, spacesResponse] = await Promise.all([
-          supabase
-            .from('user_departments')
-            .select('department_id, can_reserve, department:department_id(number, reservations_blocked)')
-            .eq('user_id', userId)
-            .eq('community_id', communityId)
-            .eq('active', true),
-          supabase
-            .from('common_spaces')
-            .select('id, name, description, event_price, image_url, time_block_hours, status')
-            .eq('community_id', communityId)
-            .order('name', { ascending: true }),
-        ])
-
-        if (cancelled) return
-
-        if (departmentsResponse.error) throw departmentsResponse.error
-        if (spacesResponse.error) throw spacesResponse.error
-
-        const departmentOptions = (departmentsResponse.data || [])
-          .map((row) => ({
-            id: row.department_id,
-            label: row.department?.number ? `Depto ${row.department.number}` : 'Sin número',
-            canReserve: row.can_reserve !== false,
-            blocked: row.department?.reservations_blocked === true,
-          }))
-          .filter((item) => item.canReserve && !item.blocked)
-          .map(({ id, label }) => ({ id, label }))
-
-        const spaceOptions = (spacesResponse.data || [])
-          .filter((space) => space.status !== 'inactivo')
-          .map((space) => ({
-            id: space.id,
-            name: space.name,
-            description: space.description,
-            event_price: space.event_price,
-            image_url: space.image_url,
-            time_block_hours: space.time_block_hours || 1,
-          }))
-
-        if (cancelled) return
-
-        setDepartments(departmentOptions)
-        setSpaces(spaceOptions)
-
-        if (departmentOptions.length === 1) {
-          setSelectedDepartment(departmentOptions[0])
-          stepper.goTo('space')
-        }
-
-        setLoading(false)
-      } catch (error) {
-        if (cancelled) return
-        console.error('Error al cargar datos iniciales', error)
-        Toast.show({ type: 'error', text1: 'No pudimos cargar los datos iniciales' })
-        setLoading(false)
-      }
-    }
-
-    load()
-
-    return () => {
-      cancelled = true
-    }
-  }, [communityId, isOpen, resetWizard, stepper, userId])
-
-  const canAccessStep = useCallback(
+  const canNavigateToStep = useCallback(
     (target: StepId) => {
       const index = stepper.order.indexOf(target)
       if (index === -1) return false
@@ -234,6 +177,21 @@ export default function ReservationWizard({ isOpen, onClose }: ReservationWizard
     },
     [completedSteps, stepper.activeIndex, stepper.order],
   )
+
+  const resetAfterDepartmentChange = useCallback(() => {
+    setSpaceIndex(0)
+    setAvailability([])
+    setAvailabilityError(null)
+    setSelectedDate(null)
+    setSelectedBlock(null)
+  }, [])
+
+  const resetAfterSpaceChange = useCallback(() => {
+    setAvailability([])
+    setAvailabilityError(null)
+    setSelectedDate(null)
+    setSelectedBlock(null)
+  }, [])
 
   const loadAvailability = useCallback(
     async (spaceId: string) => {
@@ -284,13 +242,8 @@ export default function ReservationWizard({ isOpen, onClose }: ReservationWizard
         })
 
         setAvailability(days)
-
         const firstAvailable = days.find((day) => day.status !== 'full')
-        if (firstAvailable) {
-          setSelectedDate(firstAvailable.iso)
-        } else {
-          setSelectedDate(null)
-        }
+        setSelectedDate(firstAvailable ? firstAvailable.iso : null)
       } catch (error) {
         console.error('Error al cargar disponibilidad', error)
         setAvailabilityError('No pudimos obtener la disponibilidad de este espacio')
@@ -302,28 +255,113 @@ export default function ReservationWizard({ isOpen, onClose }: ReservationWizard
   )
 
   useEffect(() => {
-    if (!selectedSpace) return
-    setSelectedDate(null)
-    setSelectedBlock(null)
-    loadAvailability(selectedSpace.id)
-  }, [loadAvailability, selectedSpace])
+    if (!communityId || !userId) return
+    let cancelled = false
 
-  const handleSelectDepartment = (department: DepartmentOption) => {
-    setSelectedDepartment(department)
+    const loadInitialData = async () => {
+      setLoading(true)
+      try {
+        const [departmentsResponse, spacesResponse] = await Promise.all([
+          supabase
+            .from('user_departments')
+            .select('department_id, can_reserve, department:department_id(number, reservations_blocked)')
+            .eq('user_id', userId)
+            .eq('community_id', communityId)
+            .eq('active', true),
+          supabase
+            .from('common_spaces')
+            .select('id, name, description, event_price, image_url, time_block_hours, status')
+            .eq('community_id', communityId)
+            .order('name', { ascending: true }),
+        ])
+
+        if (cancelled) return
+
+        if (departmentsResponse.error) throw departmentsResponse.error
+        if (spacesResponse.error) throw spacesResponse.error
+
+        const departmentOptions = (departmentsResponse.data || [])
+          .map((row) => ({
+            id: row.department_id,
+            label: row.department?.number ? `Depto ${row.department.number}` : 'Departamento',
+            canReserve: row.can_reserve !== false,
+            blocked: row.department?.reservations_blocked === true,
+          }))
+          .filter((item) => item.canReserve && !item.blocked)
+          .map(({ id, label }) => ({ id, label }))
+
+        const spaceOptions = (spacesResponse.data || [])
+          .filter((space) => space.status !== 'inactivo')
+          .map((space) => ({
+            id: space.id,
+            name: space.name,
+            description: space.description,
+            event_price: space.event_price,
+            image_url: space.image_url,
+            time_block_hours: space.time_block_hours || 1,
+          }))
+
+        if (cancelled) return
+
+        setDepartments(departmentOptions)
+        setSpaces(spaceOptions)
+
+        if (departmentOptions.length === 1) {
+          setSelectedDepartmentId(departmentOptions[0].id)
+          stepper.goTo('space')
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Error al cargar datos iniciales', error)
+          Toast.show({ type: 'error', text1: 'No pudimos cargar los datos iniciales' })
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    loadInitialData()
+
+    return () => {
+      cancelled = true
+    }
+  }, [communityId, stepper, userId])
+
+  useEffect(() => {
+    if (!selectedSpace) return
+    resetAfterSpaceChange()
+    loadAvailability(selectedSpace.id)
+  }, [loadAvailability, resetAfterSpaceChange, selectedSpace])
+
+  const handleSelectDepartment = (departmentId: string) => {
+    if (selectedDepartmentId === departmentId) return
+    setSelectedDepartmentId(departmentId)
+    resetAfterDepartmentChange()
     stepper.goTo('space')
   }
 
-  const handleSelectSpace = (space: CommonSpace) => {
-    setSelectedSpace(space)
+  const handleNavigateSpaces = (direction: 'next' | 'prev') => {
+    if (!spaces.length) return
+    setSelectedBlock(null)
+    setSelectedDate(null)
+    setAvailabilityError(null)
+    setAvailability([])
+    setSpaceIndex((current) => {
+      if (direction === 'next') {
+        return Math.min(current + 1, spaces.length - 1)
+      }
+      return Math.max(current - 1, 0)
+    })
   }
 
-  const handleContinueToAvailability = () => {
-    if (!selectedSpace) return
-    stepper.goTo('availability')
+  const handleSelectDot = (index: number) => {
+    if (index === spaceIndex) return
+    setSpaceIndex(index)
   }
 
   const handleSelectDay = (dayIso: string) => {
     setSelectedDate(dayIso)
+    setSelectedBlock(null)
     stepper.goTo('schedule')
   }
 
@@ -332,9 +370,7 @@ export default function ReservationWizard({ isOpen, onClose }: ReservationWizard
   }
 
   const handleConfirmReservation = async () => {
-    if (!selectedDepartment || !selectedSpace || !selectedDate || !selectedBlock || !communityId || !userId)
-      return
-
+    if (!selectedDepartment || !selectedSpace || !selectedDate || !selectedBlock || !communityId || !userId) return
     setSubmitting(true)
 
     try {
@@ -382,12 +418,9 @@ export default function ReservationWizard({ isOpen, onClose }: ReservationWizard
     }
   }
 
-  const selectedDayInfo = useMemo(() => availability.find((day) => day.iso === selectedDate), [availability, selectedDate])
-  const nextStepId = useMemo(
-    () => stepper.order[Math.min(stepper.activeIndex + 1, stepper.order.length - 1)],
-    [stepper.activeIndex, stepper.order],
-  )
-  const canAdvance = useMemo(() => !stepper.isLast && canAccessStep(nextStepId), [canAccessStep, nextStepId, stepper.isLast])
+  const handleExit = () => {
+    if (onExit) onExit()
+  }
 
   if (loading) {
     return (
@@ -405,82 +438,110 @@ export default function ReservationWizard({ isOpen, onClose }: ReservationWizard
         <Text style={styles.emptySubtitle}>
           Aún no tienes departamentos habilitados o no existen espacios comunes configurados en tu comunidad.
         </Text>
+        <Pressable style={styles.secondaryButton} onPress={handleExit}>
+          <Text style={styles.secondaryButtonLabel}>Volver</Text>
+        </Pressable>
       </View>
     )
   }
 
   if (success) {
-    const blockLabel =
-      selectedBlock === 'morning' ? 'Bloque AM' : selectedBlock === 'afternoon' ? 'Bloque PM' : ''
-    const formattedDate = selectedDayInfo
-      ? dayjs(selectedDayInfo.iso).format('dddd D [de] MMMM').replace(/^./, (c) => c.toUpperCase())
-      : ''
-
+    const blockLabel = getBlockLabel(selectedBlock)
+    const formattedDate = selectedDayInfo ? formatLongDate(selectedDayInfo.iso) : ''
     return (
       <View style={styles.successContainer}>
         <LinearGradient colors={['#22c55e', '#16a34a']} style={styles.successBadge}>
-          <Check size={32} color="#fff" />
+          <Check size={34} color="#fff" />
         </LinearGradient>
         <Text style={styles.successTitle}>¡Reserva confirmada!</Text>
         <Text style={styles.successMessage}>
           Tu reserva de {selectedSpace?.name} quedó agendada para {formattedDate} en el {blockLabel}.
         </Text>
-        <Pressable style={styles.primaryButton} onPress={onClose}>
-          <Text style={styles.primaryButtonLabel}>Volver al inicio</Text>
+        <Pressable style={styles.primaryButton} onPress={handleExit}>
+          <Text style={styles.primaryButtonLabel}>Ver mis reservas</Text>
         </Pressable>
       </View>
     )
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Nueva reserva</Text>
-        <Text style={styles.headerSubtitle}>Sigue los pasos para agendar un espacio común.</Text>
-      </View>
+    <LinearGradient colors={['#111827', '#1e1b4b']} style={styles.gradientBackground}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        <View style={styles.header}>
+          <Pressable onPress={handleExit} style={styles.backButton} accessibilityRole="button">
+            <ChevronLeft size={20} color="#e0e7ff" />
+            <Text style={styles.backButtonLabel}>Salir</Text>
+          </Pressable>
+          <Text style={styles.headerTitle}>Nueva reserva</Text>
+          <Text style={styles.headerSubtitle}>
+            Sigue los pasos y agenda tu espacio común con una experiencia guiada.
+          </Text>
+        </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.stepsContainer}>
+        <View style={styles.timeline}>
           {STEP_DEFINITIONS.map((step, index) => {
             const status = stepper.getStatus(step.id, completedSteps)
-            const canNavigate = canAccessStep(step.id)
-            const isActive = stepper.activeStep === step.id
+            const canNavigate = canNavigateToStep(step.id)
+            const summary = stepSummaries[step.id]
+            const connectorActive = status !== 'pending'
             return (
               <Pressable
                 key={step.id}
                 onPress={() => (canNavigate ? stepper.goTo(step.id) : null)}
-                style={[styles.stepItem, isActive && styles.stepItemActive]}
+                style={styles.timelineRow}
                 disabled={!canNavigate}
               >
-                <View
-                  style={[
-                    styles.stepIndicator,
-                    status === 'complete' && styles.stepIndicatorComplete,
-                    status === 'active' && styles.stepIndicatorActive,
-                  ]}
-                >
-                  {status === 'complete' ? (
-                    <Check size={16} color="#fff" />
-                  ) : (
-                    <Text style={styles.stepIndicatorText}>{index + 1}</Text>
+                <View style={styles.timelineMarkerWrapper}>
+                  <View
+                    style={[
+                      styles.timelineMarker,
+                      status === 'complete' && styles.timelineMarkerComplete,
+                      status === 'active' && styles.timelineMarkerActive,
+                    ]}
+                  >
+                    {status === 'complete' ? <Check size={14} color="#0f172a" /> : <Text style={styles.timelineIndex}>{index + 1}</Text>}
+                  </View>
+                  {index < STEP_DEFINITIONS.length - 1 && (
+                    <View
+                      style={[
+                        styles.timelineConnector,
+                        connectorActive && styles.timelineConnectorActive,
+                      ]}
+                    />
                   )}
                 </View>
-                <View style={styles.stepTextWrapper}>
-                  <Text style={[styles.stepTitle, isActive && styles.stepTitleActive]}>{`${index + 1}. ${step.title}`}</Text>
-                  <Text style={styles.stepDescription}>{step.description}</Text>
+                <View style={styles.timelineInfo}>
+                  <Text
+                    style={[
+                      styles.timelineTitle,
+                      status === 'active' && styles.timelineTitleActive,
+                    ]}
+                  >
+                    {step.title}
+                  </Text>
+                  <Text style={styles.timelineDescription}>{step.description}</Text>
+                  {summary ? <Text style={styles.timelineSummary}>{summary}</Text> : null}
                 </View>
-                {index < STEP_DEFINITIONS.length - 1 && <View style={styles.stepDivider} />}
               </Pressable>
             )
           })}
         </View>
 
-        <View style={styles.stepContentWrapper}>
+        <View style={styles.contentCard}>
           {stepper.activeStep === 'department' && (
-            <View style={styles.card}>
+            <MotiView
+              key="department"
+              from={{ opacity: 0, translateY: 20 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ duration: 300 }}
+            >
               <Text style={styles.sectionTitle}>Selecciona tu departamento</Text>
               <Text style={styles.sectionSubtitle}>
-                Elige desde qué departamento se asociará la reserva.
+                Tus reservas quedarán asociadas al departamento que elijas.
               </Text>
               <View style={styles.departmentGrid}>
                 {departments.map((department) => {
@@ -488,8 +549,8 @@ export default function ReservationWizard({ isOpen, onClose }: ReservationWizard
                   return (
                     <Pressable
                       key={department.id}
-                      onPress={() => handleSelectDepartment(department)}
-                      style={[styles.departmentPill, isActive && styles.departmentPillActive]}
+                      onPress={() => handleSelectDepartment(department.id)}
+                      style={[styles.departmentChip, isActive && styles.departmentChipActive]}
                     >
                       <Text style={[styles.departmentLabel, isActive && styles.departmentLabelActive]}>
                         {department.label}
@@ -498,77 +559,105 @@ export default function ReservationWizard({ isOpen, onClose }: ReservationWizard
                   )
                 })}
               </View>
-            </View>
+            </MotiView>
           )}
 
-          {stepper.activeStep === 'space' && (
-            <View style={styles.card}>
+          {stepper.activeStep === 'space' && selectedSpace && (
+            <MotiView
+              key={selectedSpace.id}
+              from={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 300 }}
+            >
               <Text style={styles.sectionTitle}>Elige el espacio común</Text>
               <Text style={styles.sectionSubtitle}>
-                Desliza para conocer los espacios disponibles y selecciona tu favorito.
+                Navega con los controles laterales para conocer los espacios disponibles.
               </Text>
-              <FlatList
-                data={spaces}
-                keyExtractor={(item) => item.id}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                snapToInterval={260}
-                decelerationRate="fast"
-                contentContainerStyle={{ paddingVertical: 12 }}
-                renderItem={({ item }) => {
-                  const isActive = selectedSpace?.id === item.id
-                  return (
-                    <Pressable
-                      onPress={() => handleSelectSpace(item)}
-                      style={[styles.spaceCard, isActive && styles.spaceCardActive]}
-                    >
-                      <Image
-                        source={{ uri: item.image_url || 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?auto=format&fit=crop&w=800&q=80' }}
-                        style={styles.spaceImage}
-                      />
-                      <View style={styles.spaceContent}>
-                        <Text style={styles.spaceName}>{item.name}</Text>
-                        {item.description ? (
-                          <Text style={styles.spaceDescription} numberOfLines={3}>
-                            {item.description}
-                          </Text>
-                        ) : null}
-                        <View style={styles.spaceMeta}>
-                          <View style={styles.metaRow}>
-                            <Users size={14} color="#7C3AED" />
-                            <Text style={styles.metaText}>{item.time_block_hours} h por bloque</Text>
-                          </View>
-                          {item.event_price ? (
-                            <Text style={styles.metaPrice}>${Math.round(item.event_price).toLocaleString('es-CL')}</Text>
-                          ) : (
-                            <Text style={styles.metaPrice}>Sin costo adicional</Text>
-                          )}
-                        </View>
+              <View style={styles.carouselWrapper}>
+                <Pressable
+                  onPress={() => handleNavigateSpaces('prev')}
+                  style={[styles.carouselControl, spaceIndex === 0 && styles.carouselControlDisabled]}
+                  disabled={spaceIndex === 0}
+                >
+                  <ChevronLeft size={18} color={spaceIndex === 0 ? '#c7d2fe' : '#4338ca'} />
+                </Pressable>
+                <View style={styles.spaceCard}>
+                  <Image
+                    source={{ uri: selectedSpace.image_url || PLACEHOLDER_IMAGE }}
+                    style={styles.spaceImage}
+                  />
+                  <LinearGradient
+                    colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.75)']}
+                    style={styles.spaceOverlay}
+                  />
+                  <View style={styles.spaceContent}>
+                    <View>
+                      <Text style={styles.spaceName}>{selectedSpace.name}</Text>
+                      {selectedSpace.description ? (
+                        <Text style={styles.spaceDescription} numberOfLines={3}>
+                          {selectedSpace.description}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View style={styles.spaceMetaRow}>
+                      <View style={styles.metaItem}>
+                        <Users size={16} color="#c7d2fe" />
+                        <Text style={styles.metaText}>{selectedSpace.time_block_hours} h por bloque</Text>
                       </View>
-                    </Pressable>
-                  )
-                }}
-              />
-              <Pressable
-                style={[styles.primaryButton, !selectedSpace && styles.primaryButtonDisabled]}
-                onPress={handleContinueToAvailability}
-                disabled={!selectedSpace}
-              >
+                      <View style={styles.metaItem}>
+                        <Timer size={16} color="#c7d2fe" />
+                        <Text style={styles.metaText}>
+                          {selectedSpace.event_price
+                            ? `$${Math.round(selectedSpace.event_price).toLocaleString('es-CL')}`
+                            : 'Sin costo adicional'}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+                <Pressable
+                  onPress={() => handleNavigateSpaces('next')}
+                  style={[
+                    styles.carouselControl,
+                    spaceIndex === spaces.length - 1 && styles.carouselControlDisabled,
+                  ]}
+                  disabled={spaceIndex === spaces.length - 1}
+                >
+                  <ChevronRight
+                    size={18}
+                    color={spaceIndex === spaces.length - 1 ? '#c7d2fe' : '#4338ca'}
+                  />
+                </Pressable>
+              </View>
+              <View style={styles.carouselDots}>
+                {spaces.map((space, index) => (
+                  <Pressable
+                    key={space.id}
+                    onPress={() => handleSelectDot(index)}
+                    style={[styles.carouselDot, index === spaceIndex && styles.carouselDotActive]}
+                  />
+                ))}
+              </View>
+              <Pressable style={styles.primaryButton} onPress={() => stepper.goTo('availability')}>
                 <Text style={styles.primaryButtonLabel}>Revisar disponibilidad</Text>
               </Pressable>
-            </View>
+            </MotiView>
           )}
 
           {stepper.activeStep === 'availability' && (
-            <View style={styles.card}>
+            <MotiView
+              key="availability"
+              from={{ opacity: 0, translateY: 16 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ duration: 300 }}
+            >
               <Text style={styles.sectionTitle}>Revisa la disponibilidad</Text>
               <Text style={styles.sectionSubtitle}>
-                Selecciona el día que prefieras para revisar los bloques disponibles.
+                Selecciona un día para ver los bloques disponibles.
               </Text>
-
               {availabilityLoading ? (
                 <View style={styles.availabilityLoading}>
-                  <Loader2 color="#7C3AED" size={24} />
+                  <ActivityIndicator color="#7C3AED" />
                   <Text style={styles.loadingText}>Obteniendo disponibilidad…</Text>
                 </View>
               ) : availabilityError ? (
@@ -576,60 +665,70 @@ export default function ReservationWizard({ isOpen, onClose }: ReservationWizard
                   <Text style={styles.availabilityErrorText}>{availabilityError}</Text>
                 </View>
               ) : (
-                <>
-                  <FlatList
-                    data={availability}
-                    horizontal
-                    keyExtractor={(item) => item.iso}
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ paddingVertical: 12 }}
-                    renderItem={({ item }) => {
-                      const isSelected = selectedDate === item.iso
-                      const colors = STATUS_COLORS[item.status]
-                      return (
-                        <Pressable
-                          onPress={() => handleSelectDay(item.iso)}
-                          style={[styles.dayCard, isSelected && styles.dayCardSelected]}
-                        >
-                          <Text style={[styles.dayWeekday, isSelected && styles.dayWeekdaySelected]}>{
-                            item.weekday
-                          }</Text>
-                          <Text style={[styles.dayLabel, isSelected && styles.dayLabelSelected]}>{item.label}</Text>
-                          <View style={[styles.dayStatusBadge, { backgroundColor: colors.background }]}> 
-                            <Text style={[styles.dayStatusText, { color: colors.text }]}>{colors.label}</Text>
-                          </View>
-                        </Pressable>
-                      )
-                    }}
-                  />
-                  <View style={styles.legendRow}>
-                    {Object.entries(STATUS_COLORS).map(([key, value]) => (
-                      <View key={key} style={styles.legendItem}>
-                        <View style={[styles.legendDot, { backgroundColor: value.text }]} />
-                        <Text style={styles.legendText}>{value.label}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </>
+                <FlatList
+                  data={availability}
+                  keyExtractor={(item) => item.iso}
+                  numColumns={2}
+                  columnWrapperStyle={{ gap: 12 }}
+                  contentContainerStyle={{ gap: 12, paddingVertical: 8 }}
+                  scrollEnabled={false}
+                  renderItem={({ item }) => {
+                    const isSelected = selectedDate === item.iso
+                    const colors = STATUS_COLORS[item.status]
+                    return (
+                      <Pressable
+                        onPress={() => handleSelectDay(item.iso)}
+                        style={[styles.dayCard, isSelected && styles.dayCardSelected]}
+                      >
+                        <Text style={[styles.dayWeekday, isSelected && styles.dayWeekdaySelected]}>
+                          {item.weekday}
+                        </Text>
+                        <Text style={[styles.dayLabel, isSelected && styles.dayLabelSelected]}>
+                          {item.label}
+                        </Text>
+                        <View style={[styles.dayStatusBadge, { backgroundColor: colors.background }]}>
+                          <Text style={[styles.dayStatusText, { color: colors.text }]}>{colors.label}</Text>
+                        </View>
+                      </Pressable>
+                    )
+                  }}
+                />
               )}
-            </View>
+              <View style={styles.legendRow}>
+                {Object.entries(STATUS_COLORS).map(([key, value]) => (
+                  <View key={key} style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: value.text }]} />
+                    <Text style={styles.legendText}>{value.label}</Text>
+                  </View>
+                ))}
+              </View>
+            </MotiView>
           )}
 
           {stepper.activeStep === 'schedule' && (
-            <View style={styles.card}>
+            <MotiView
+              key="schedule"
+              from={{ opacity: 0, translateY: 16 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ duration: 300 }}
+            >
               <Text style={styles.sectionTitle}>Elige el bloque horario</Text>
               <Text style={styles.sectionSubtitle}>
-                Selecciona el bloque que mejor se adapte a tu evento.
+                Confirma el bloque disponible que mejor se adapte a tu evento.
               </Text>
               <View style={styles.blockGrid}>
                 {BLOCKS.map((block) => {
-                  const day = selectedDayInfo
-                  const isTaken = block.id === 'morning' ? day?.amTaken : day?.pmTaken
+                  const info = selectedDayInfo
+                  const isTaken = block.id === 'morning' ? info?.amTaken : info?.pmTaken
                   const isSelected = selectedBlock === block.id
                   return (
                     <Pressable
                       key={block.id}
-                      style={[styles.blockCard, isSelected && styles.blockCardSelected, isTaken && styles.blockCardDisabled]}
+                      style={[
+                        styles.blockCard,
+                        isSelected && styles.blockCardSelected,
+                        isTaken && styles.blockCardDisabled,
+                      ]}
                       onPress={() => (!isTaken ? handleSelectBlock(block.id) : null)}
                       disabled={Boolean(isTaken)}
                     >
@@ -641,9 +740,7 @@ export default function ReservationWizard({ isOpen, onClose }: ReservationWizard
                         <Text style={styles.blockTitle}>{block.title}</Text>
                         <Text style={styles.blockDescription}>{block.description}</Text>
                         <View style={styles.blockFooter}>
-                          <Text style={styles.blockStatus}>
-                            {isTaken ? 'No disponible' : 'Disponible'}
-                          </Text>
+                          <Text style={styles.blockStatus}>{isTaken ? 'No disponible' : 'Disponible'}</Text>
                         </View>
                       </LinearGradient>
                     </Pressable>
@@ -651,37 +748,33 @@ export default function ReservationWizard({ isOpen, onClose }: ReservationWizard
                 })}
               </View>
 
-              {selectedDepartment && selectedSpace && selectedDayInfo && (
+              {selectedDepartment && selectedSpace && selectedDayInfo ? (
                 <View style={styles.summaryCard}>
                   <Text style={styles.summaryTitle}>Resumen de tu reserva</Text>
                   <View style={styles.summaryRow}>
-                    <Users size={16} color="#7C3AED" />
+                    <Users size={16} color="#4338ca" />
                     <Text style={styles.summaryText}>{selectedDepartment.label}</Text>
                   </View>
                   <View style={styles.summaryRow}>
-                    <MapPin size={16} color="#7C3AED" />
+                    <MapPin size={16} color="#4338ca" />
                     <Text style={styles.summaryText}>{selectedSpace.name}</Text>
                   </View>
                   <View style={styles.summaryRow}>
-                    <Clock size={16} color="#7C3AED" />
+                    <Clock size={16} color="#4338ca" />
                     <Text style={styles.summaryText}>
-                      {dayjs(selectedDayInfo.iso)
-                        .format('dddd D [de] MMMM')
-                        .replace(/^./, (char) => char.toUpperCase())}{' '}
-                      · {selectedBlock === 'morning' ? 'Bloque AM' : selectedBlock === 'afternoon' ? 'Bloque PM' : '-'}
+                      {formatLongDate(selectedDayInfo.iso)} · {getBlockLabel(selectedBlock)}
                     </Text>
                   </View>
                 </View>
-              )}
+              ) : null}
 
               <Pressable
                 style={[
                   styles.primaryButton,
-                  (!selectedDepartment || !selectedSpace || !selectedDate || !selectedBlock || submitting) &&
-                    styles.primaryButtonDisabled,
+                  (!selectedBlock || submitting) && styles.primaryButtonDisabled,
                 ]}
                 onPress={handleConfirmReservation}
-                disabled={!selectedDepartment || !selectedSpace || !selectedDate || !selectedBlock || submitting}
+                disabled={!selectedBlock || submitting}
               >
                 {submitting ? (
                   <ActivityIndicator color="#fff" />
@@ -689,229 +782,246 @@ export default function ReservationWizard({ isOpen, onClose }: ReservationWizard
                   <Text style={styles.primaryButtonLabel}>Confirmar reserva</Text>
                 )}
               </Pressable>
-            </View>
+            </MotiView>
           )}
         </View>
       </ScrollView>
-
-      <View style={styles.footerNavigation}>
-        <Pressable
-          style={[styles.footerButton, stepper.isFirst && styles.footerButtonDisabled]}
-          disabled={stepper.isFirst}
-          onPress={stepper.previous}
-        >
-          <ChevronLeft size={18} color={stepper.isFirst ? '#a5b4fc' : '#4f46e5'} />
-          <Text style={[styles.footerButtonLabel, stepper.isFirst && styles.footerButtonLabelDisabled]}>Atrás</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.footerButton, (!canAdvance || stepper.isLast) && styles.footerButtonDisabled]}
-          disabled={!canAdvance}
-          onPress={() => {
-            if (canAdvance && nextStepId !== stepper.activeStep) {
-              stepper.goTo(nextStepId)
-            }
-          }}
-        >
-          <Text style={[styles.footerButtonLabel, (!canAdvance || stepper.isLast) && styles.footerButtonLabelDisabled]}>Siguiente</Text>
-          <ChevronRight size={18} color={!canAdvance || stepper.isLast ? '#a5b4fc' : '#4f46e5'} />
-        </Pressable>
-      </View>
-    </View>
+    </LinearGradient>
   )
 }
 
 const styles = StyleSheet.create({
-  header: {
-    paddingTop: 8,
-    paddingBottom: 16,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  headerSubtitle: {
-    color: '#6b7280',
-    marginTop: 4,
-    fontSize: 14,
+  gradientBackground: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
   },
   scrollContent: {
-    paddingBottom: 120,
+    paddingBottom: 80,
   },
-  stepsContainer: {
-    borderRadius: 20,
-    backgroundColor: '#f5f3ff',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    marginBottom: 18,
+  header: {
+    paddingTop: 12,
+    paddingBottom: 24,
   },
-  stepItem: {
+  backButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(99,102,241,0.16)',
   },
-  stepItemActive: {
-    backgroundColor: 'rgba(255,255,255,0.55)',
-    borderRadius: 18,
-    paddingHorizontal: 12,
-  },
-  stepIndicator: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: '#c4b5fd',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-    backgroundColor: '#fff',
-  },
-  stepIndicatorActive: {
-    backgroundColor: '#4f46e5',
-    borderColor: '#4f46e5',
-  },
-  stepIndicatorComplete: {
-    backgroundColor: '#4f46e5',
-    borderColor: '#4f46e5',
-  },
-  stepIndicatorText: {
-    fontSize: 13,
+  backButtonLabel: {
+    color: '#ede9fe',
     fontWeight: '600',
-    color: '#4f46e5',
+    fontSize: 13,
   },
-  stepTextWrapper: {
+  headerTitle: {
+    marginTop: 18,
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#f8fafc',
+  },
+  headerSubtitle: {
+    marginTop: 8,
+    color: 'rgba(226,232,240,0.85)',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  timeline: {
+    borderRadius: 20,
+    backgroundColor: 'rgba(30,41,59,0.55)',
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    marginBottom: 22,
+  },
+  timelineRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 14,
+    paddingVertical: 10,
+  },
+  timelineMarkerWrapper: {
+    alignItems: 'center',
+  },
+  timelineMarker: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(148,163,184,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timelineMarkerActive: {
+    backgroundColor: '#a855f7',
+  },
+  timelineMarkerComplete: {
+    backgroundColor: '#c7d2fe',
+  },
+  timelineIndex: {
+    color: '#e2e8f0',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  timelineConnector: {
+    width: 2,
+    flex: 1,
+    backgroundColor: 'rgba(148,163,184,0.25)',
+    marginTop: 6,
+  },
+  timelineConnectorActive: {
+    backgroundColor: '#a855f7',
+  },
+  timelineInfo: {
     flex: 1,
   },
-  stepTitle: {
-    fontSize: 14,
+  timelineTitle: {
+    color: '#e2e8f0',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  timelineTitleActive: {
+    color: '#fef3c7',
+  },
+  timelineDescription: {
+    color: 'rgba(226,232,240,0.7)',
+    marginTop: 4,
+    fontSize: 13,
+  },
+  timelineSummary: {
+    marginTop: 6,
+    color: '#f8fafc',
     fontWeight: '600',
-    color: '#312e81',
+    fontSize: 13,
   },
-  stepTitleActive: {
-    color: '#1d1b4b',
-  },
-  stepDescription: {
-    fontSize: 12,
-    color: '#5b21b6',
-    marginTop: 2,
-  },
-  stepDivider: {
-    height: 1,
-    backgroundColor: 'rgba(139, 92, 246, 0.12)',
-    marginTop: 12,
-  },
-  stepContentWrapper: {
-    gap: 16,
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 26,
-    padding: 20,
-    shadowColor: 'rgba(15,23,42,0.08)',
-    shadowOpacity: 1,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 18,
+  contentCard: {
+    borderRadius: 28,
+    padding: 22,
+    backgroundColor: '#f8fafc',
+    shadowColor: 'rgba(15, 23, 42, 0.4)',
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
     elevation: 6,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '700',
-    color: '#1f2937',
+    color: '#111827',
   },
   sectionSubtitle: {
+    marginTop: 6,
     color: '#6b7280',
-    marginTop: 4,
-    marginBottom: 12,
+    fontSize: 14,
+    lineHeight: 20,
   },
   departmentGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+    marginTop: 18,
   },
-  departmentPill: {
+  departmentChip: {
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 18,
+    paddingVertical: 12,
+    borderRadius: 14,
     backgroundColor: '#ede9fe',
   },
-  departmentPillActive: {
+  departmentChipActive: {
     backgroundColor: '#4f46e5',
   },
   departmentLabel: {
     fontWeight: '600',
-    color: '#4c1d95',
+    color: '#4338ca',
   },
   departmentLabelActive: {
-    color: '#fff',
+    color: '#f8fafc',
+  },
+  carouselWrapper: {
+    marginTop: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  carouselControl: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#eef2ff',
+  },
+  carouselControlDisabled: {
+    backgroundColor: '#e2e8f0',
   },
   spaceCard: {
-    width: 240,
-    borderRadius: 24,
+    flex: 1,
+    height: 260,
+    borderRadius: 26,
     overflow: 'hidden',
-    marginRight: 16,
-    backgroundColor: '#fff',
-    shadowColor: 'rgba(30, 41, 59, 0.12)',
-    shadowOpacity: 1,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 14,
-    elevation: 4,
-  },
-  spaceCardActive: {
-    borderWidth: 2,
-    borderColor: '#7C3AED',
+    backgroundColor: '#0f172a',
   },
   spaceImage: {
+    position: 'absolute',
     width: '100%',
-    height: 140,
+    height: '100%',
+  },
+  spaceOverlay: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
   },
   spaceContent: {
-    padding: 14,
-    gap: 8,
-  },
-  spaceName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  spaceDescription: {
-    fontSize: 13,
-    color: '#6b7280',
-  },
-  spaceMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flex: 1,
+    padding: 20,
     justifyContent: 'space-between',
   },
-  metaRow: {
+  spaceName: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#f8fafc',
+  },
+  spaceDescription: {
+    marginTop: 6,
+    fontSize: 13,
+    color: 'rgba(226,232,240,0.85)',
+    lineHeight: 18,
+  },
+  spaceMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   metaText: {
-    fontSize: 12,
+    color: '#e0e7ff',
     fontWeight: '600',
-    color: '#4f46e5',
-  },
-  metaPrice: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#1f2937',
   },
-  primaryButton: {
-    marginTop: 18,
-    backgroundColor: '#4f46e5',
-    paddingVertical: 14,
-    borderRadius: 18,
-    alignItems: 'center',
+  carouselDots: {
+    flexDirection: 'row',
     justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+    marginBottom: 12,
   },
-  primaryButtonDisabled: {
-    backgroundColor: '#c7d2fe',
+  carouselDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#e2e8f0',
+    opacity: 0.5,
   },
-  primaryButtonLabel: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 15,
+  carouselDotActive: {
+    opacity: 1,
+    backgroundColor: '#4f46e5',
   },
   availabilityLoading: {
     alignItems: 'center',
@@ -920,9 +1030,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   availabilityError: {
-    backgroundColor: 'rgba(248,113,113,0.12)',
+    marginTop: 16,
+    padding: 18,
     borderRadius: 18,
-    padding: 16,
+    backgroundColor: 'rgba(248,113,113,0.12)',
   },
   availabilityErrorText: {
     color: '#b91c1c',
@@ -930,26 +1041,27 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   dayCard: {
-    width: 120,
-    padding: 14,
+    flex: 1,
     borderRadius: 18,
-    marginRight: 12,
-    backgroundColor: '#f8f7ff',
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    backgroundColor: '#eef2ff',
   },
   dayCardSelected: {
     backgroundColor: '#4f46e5',
   },
   dayWeekday: {
     fontSize: 12,
-    textTransform: 'uppercase',
-    color: '#6b21a8',
     fontWeight: '700',
+    color: '#4338ca',
+    textTransform: 'uppercase',
   },
   dayWeekdaySelected: {
     color: '#ede9fe',
   },
   dayLabel: {
-    fontSize: 20,
+    marginTop: 6,
+    fontSize: 22,
     fontWeight: '700',
     color: '#312e81',
   },
@@ -957,10 +1069,11 @@ const styles = StyleSheet.create({
     color: '#ede9fe',
   },
   dayStatusBadge: {
-    marginTop: 12,
+    marginTop: 14,
+    borderRadius: 999,
     paddingVertical: 6,
-    borderRadius: 14,
-    alignItems: 'center',
+    paddingHorizontal: 10,
+    alignSelf: 'flex-start',
   },
   dayStatusText: {
     fontSize: 12,
@@ -968,13 +1081,14 @@ const styles = StyleSheet.create({
   },
   legendRow: {
     flexDirection: 'row',
-    justifyContent: 'space-evenly',
-    marginTop: 16,
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 18,
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   legendDot: {
     width: 10,
@@ -982,28 +1096,29 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   legendText: {
+    color: '#6b7280',
     fontSize: 12,
-    color: '#4c1d95',
   },
   blockGrid: {
+    marginTop: 18,
     gap: 16,
   },
   blockCard: {
-    borderRadius: 24,
+    borderRadius: 22,
     overflow: 'hidden',
-    height: 160,
+    opacity: 0.9,
   },
   blockCardSelected: {
-    borderWidth: 2,
-    borderColor: '#22c55e',
+    borderWidth: 3,
+    borderColor: '#facc15',
+    opacity: 1,
   },
   blockCardDisabled: {
-    opacity: 0.6,
+    opacity: 0.45,
   },
   blockGradient: {
-    flex: 1,
-    padding: 18,
-    justifyContent: 'space-between',
+    padding: 20,
+    gap: 12,
   },
   blockHeader: {
     flexDirection: 'row',
@@ -1011,38 +1126,44 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   blockRange: {
-    color: '#fff',
+    color: '#f1f5f9',
     fontWeight: '600',
+    fontSize: 13,
   },
   blockTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
-    color: '#fff',
+    color: '#f8fafc',
   },
   blockDescription: {
-    color: 'rgba(255,255,255,0.85)',
+    color: 'rgba(241,245,249,0.85)',
     fontSize: 13,
+    lineHeight: 18,
   },
   blockFooter: {
     alignItems: 'flex-start',
   },
   blockStatus: {
-    color: '#fff',
-    fontWeight: '700',
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(15,23,42,0.3)',
+    color: '#f8fafc',
+    fontWeight: '600',
     fontSize: 12,
-    textTransform: 'uppercase',
   },
   summaryCard: {
     marginTop: 20,
-    borderRadius: 20,
-    backgroundColor: '#f5f3ff',
-    padding: 16,
-    gap: 10,
+    padding: 18,
+    borderRadius: 18,
+    backgroundColor: '#eef2ff',
+    gap: 12,
   },
   summaryTitle: {
-    fontSize: 15,
     fontWeight: '700',
-    color: '#312e81',
+    color: '#1f2937',
+    fontSize: 16,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -1050,89 +1171,94 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   summaryText: {
-    color: '#4338ca',
+    color: '#1f2937',
+    fontSize: 14,
     fontWeight: '600',
   },
-  footerNavigation: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(79,70,229,0.15)',
-  },
-  footerButton: {
-    flexDirection: 'row',
+  primaryButton: {
+    marginTop: 24,
+    backgroundColor: '#4338ca',
+    paddingVertical: 15,
+    borderRadius: 18,
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 16,
-    backgroundColor: 'rgba(79,70,229,0.08)',
   },
-  footerButtonDisabled: {
-    backgroundColor: 'rgba(199,210,254,0.5)',
+  primaryButtonDisabled: {
+    backgroundColor: '#c7d2fe',
   },
-  footerButtonLabel: {
+  primaryButtonLabel: {
+    color: '#f8fafc',
     fontWeight: '700',
-    color: '#4338ca',
+    fontSize: 15,
   },
-  footerButtonLabelDisabled: {
-    color: '#a5b4fc',
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    color: '#6b7280',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    gap: 12,
+  secondaryButton: {
+    marginTop: 24,
+    paddingVertical: 14,
     paddingHorizontal: 24,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#cbd5f5',
   },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+  secondaryButtonLabel: {
     color: '#1f2937',
-    textAlign: 'center',
-  },
-  emptySubtitle: {
-    color: '#6b7280',
+    fontWeight: '600',
     textAlign: 'center',
   },
   successContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 32,
     gap: 20,
+    backgroundColor: '#0f172a',
   },
   successBadge: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
   successTitle: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: '700',
-    color: '#15803d',
+    color: '#f8fafc',
+    textAlign: 'center',
   },
   successMessage: {
+    color: 'rgba(226,232,240,0.85)',
     textAlign: 'center',
-    color: '#166534',
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    gap: 20,
+    backgroundColor: '#0f172a',
+  },
+  emptyTitle: {
+    color: '#f8fafc',
+    fontSize: 24,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    color: 'rgba(226,232,240,0.75)',
+    textAlign: 'center',
     fontSize: 15,
+    lineHeight: 22,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+    backgroundColor: '#0f172a',
+  },
+  loadingText: {
+    color: '#e2e8f0',
+    fontSize: 14,
   },
 })

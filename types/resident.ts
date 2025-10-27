@@ -18,10 +18,9 @@ export interface ResidentContextType {
   isSurveyPanelOpen: boolean
   isFeedbackPanelOpen: boolean
   isInvitationPanelOpen: boolean
-  isReservationPanelOpen: boolean
   isAnyPanelOpen: boolean
-  isPackagesPanelOpen?: boolean // 👈 opcional si solo se usa en algunos contextos
-  isAlertPanelOpen?: boolean
+  isPackagesPanelOpen: boolean
+  isAlertPanelOpen: boolean
 
   // 🔹 Cargas
   loadingSurveys: boolean
@@ -42,15 +41,13 @@ export interface ResidentContextType {
   openFeedbackPanel: () => void
   openInvitationPanel: () => void
   openAlertPanel: () => void
-  openPackagesPanel: () => void // ✅ agregado
-  openReservationPanel: () => void
+  openPackagesPanel: () => void
   closeAlertPanel: () => void
-  closeReservationPanel: () => void
   closePanels: () => void
 
   // 🔹 Estado auxiliar
   setSelectedSurvey: (survey: any | null) => void
   setAlertDetail: (alert: Alert | null) => void
   setLoadingAlerts: (loading: boolean) => void
-  setParcelDetail: (parcel: Parcel | null) => void // ✅ agregado
+  setParcelDetail: (parcel: Parcel | null) => void
 }
