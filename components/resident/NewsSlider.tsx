@@ -3,33 +3,23 @@ import SkeletonCard from '@/components/ui/SkeletonCard'
 import type { Alert } from '@/types/alert'
 import { MotiView } from 'moti'
 import React from 'react'
-import {
-  Dimensions,
-  FlatList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native'
+import { Dimensions, FlatList, StyleSheet, Text, View } from 'react-native'
 import NewsCard from './NewsCard'
 
 const { width } = Dimensions.get('window')
 
 export default function NewsSlider() {
-  const { alerts, openAlertPanel, setAlertDetail, setLoadingAlerts, loadingAlerts } =
+  const { alerts, openAlertPanel, setAlertDetail, loadingAlerts } =
     useResidentContext()
 
-  const handleShowAlertDetail = async (alertId: string) => {
+  const handleShowAlertDetail = (alertId: string) => {
     openAlertPanel()
-    setLoadingAlerts(true)
 
     try {
       const alert = alerts.find((a) => a.id === alertId)
       if (alert) setAlertDetail(alert)
     } catch (error) {
       console.error('Error al cargar alerta:', error)
-    } finally {
-      setLoadingAlerts(false)
     }
   }
 
@@ -81,18 +71,14 @@ export default function NewsSlider() {
               transition={{ duration: 500 }}
               style={{ width: cardWidth, marginRight: 14 }}
             >
-              <TouchableOpacity
-                activeOpacity={0.9}
+              <NewsCard
+                id={item.id}
+                date={item.created_at}
+                title={item.title}
+                message={item.message}
+                type={item.type}
                 onPress={() => handleShowAlertDetail(item.id)}
-              >
-                <NewsCard
-                  id={item.id}
-                  date={item.created_at}
-                  title={item.title}
-                  message={item.message}
-                  type={item.type}
-                />
-              </TouchableOpacity>
+              />
             </MotiView>
           )
         }}

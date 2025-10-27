@@ -44,6 +44,7 @@ export interface ResidentContextType {
   openAlertPanel: () => void
   openPackagesPanel: () => void // ✅ agregado
   openReservationPanel: () => void
+  closeAlertPanel: () => void
   closePanels: () => void
 
   // 🔹 Estado auxiliar
