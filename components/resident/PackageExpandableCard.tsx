@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   Modal,
 } from 'react-native'
-import { Image } from 'expo-image'
+import { Image, type ImageSource } from 'expo-image'
 import Animated, {
   Extrapolation,
   interpolate,
@@ -65,6 +65,8 @@ const SMALL_CARD_WIDTH = 150
 const SMALL_CARD_HEIGHT = 180
 const SMALL_CARD_RADIUS = 20
 
+let isAnyCardExpanded = false
+
 export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
   id,
   imageUrl,
@@ -101,9 +103,25 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
   const detailOverlap = 24
   const detailPanelHeight = Math.min(screenHeight, detailPanelBaseHeight + detailOverlap)
   const detailTop = Math.max(0, screenHeight - detailPanelHeight)
+  const imageSource = useMemo<ImageSource>(() => ({ uri: imageUrl }), [imageUrl])
+
+  const releaseGlobalExpansionLock = useCallback(() => {
+    isAnyCardExpanded = false
+  }, [])
 
   const handleOpen = useCallback(() => {
-    cardRef.current?.measureInWindow((x, y, width, height) => {
+    if (isAnyCardExpanded) {
+      return
+    }
+
+    const card = cardRef.current
+    if (!card) {
+      return
+    }
+
+    isAnyCardExpanded = true
+
+    card.measureInWindow((x, y, width, height) => {
       originX.value = x
       originY.value = y
       originWidth.value = width
@@ -116,10 +134,11 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
 
   const finishClosing = useCallback(() => {
     setIsExpanded(false)
+    releaseGlobalExpansionLock()
     if (onClose) {
       onClose()
     }
-  }, [onClose])
+  }, [onClose, releaseGlobalExpansionLock])
 
   const closeCard = useCallback(() => {
     animation.value = withTiming(0, CLOSE_CONFIG, (finished) => {
@@ -128,6 +147,14 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
       }
     })
   }, [animation, finishClosing])
+
+  React.useEffect(() => {
+    return () => {
+      if (isExpanded) {
+        releaseGlobalExpansionLock()
+      }
+    }
+  }, [isExpanded, releaseGlobalExpansionLock])
 
   const panGesture = useMemo(() => {
     return Gesture.Pan()
@@ -243,7 +270,12 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
           ]}
         >
           <Animated.View style={[styles.thumbnailWrapper, collapsedImageParallaxStyle]}>
-            <Image source={{ uri: imageUrl }} style={styles.thumbnail} contentFit="cover" />
+            <Image
+              source={imageSource}
+              recyclingKey={`package-${id}-collapsed`}
+              style={styles.thumbnail}
+              contentFit="cover"
+            />
           </Animated.View>
           <LinearGradient
             colors={['rgba(0,0,0,0.7)', 'rgba(0,0,0,0.0)']}
@@ -274,7 +306,8 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
               <Animated.View style={[styles.expandedCard, animatedCardStyle]}>
                 <Animated.View style={[styles.expandedImageWrapper, imageAnimatedStyle]}>
                   <Image
-                    source={{ uri: imageUrl }}
+                    source={imageSource}
+                    recyclingKey={`package-${id}-expanded`}
                     style={styles.expandedImage}
                     contentFit="cover"
                   />
@@ -373,6 +406,7 @@ export const PackageExpandableCard: React.FC<PackageExpandableCardProps> = ({
                           {signatureImageUrl ? (
                             <Image
                               source={{ uri: signatureImageUrl }}
+                              recyclingKey={`package-${id}-signature`}
                               style={styles.signatureImage}
                               contentFit="contain"
                             />
