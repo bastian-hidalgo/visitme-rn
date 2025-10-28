@@ -16,7 +16,9 @@ export default function NewReservationPage() {
   const params = useLocalSearchParams()
   const [allowed, setAllowed] = useState(false)
 
-  const routeCommunitySlug = params.community as string
+  const routeCommunitySlug = Array.isArray(params.community)
+    ? params.community[0]
+    : (params.community as string | undefined)
 
   useEffect(() => {
     if (authLoading || userLoading) return
@@ -29,9 +31,14 @@ export default function NewReservationPage() {
       const selected =
         (await AsyncStorage.getItem('selected_community')) || userCommunitySlug
 
-      if (!selected || (routeCommunitySlug && selected !== routeCommunitySlug)) {
+      if (!selected) {
         await AsyncStorage.setItem(SKIP_COMMUNITY_AUTO_REDIRECT_KEY, 'true')
         router.replace('../choose-community')
+        return
+      }
+
+      if (routeCommunitySlug !== selected) {
+        router.replace({ pathname: '/reservations/new', params: { community: selected } })
         return
       }
 

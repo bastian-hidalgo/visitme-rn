@@ -35,6 +35,7 @@ export interface ResidentContextType {
   fetchVisits: () => void
   fetchPackages: () => void
   refreshSurveys: () => Promise<void>
+  resetCommunityData: (options?: { loadingState?: boolean }) => void
 
   // 🔹 Control de paneles
   openSurveyPanel: () => void

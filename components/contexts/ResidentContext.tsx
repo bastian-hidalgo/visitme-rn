@@ -56,6 +56,34 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
     closeAlertPanel()
   }, [closeAlertPanel])
 
+  const resetCommunityData = useCallback(
+    (options?: { loadingState?: boolean }) => {
+      const loadingState = options?.loadingState ?? false
+
+      setAlerts([])
+      setReservations([])
+      setVisits([])
+      setPackages([])
+      setSurveys([])
+      setSelectedSurvey(null)
+      setSelectedParcel(null)
+      setAlertDetailState(null)
+
+      setSurveyPanelOpen(false)
+      setFeedbackPanelOpen(false)
+      setInvitationPanelOpen(false)
+      setPackagesPanelOpen(false)
+      setAlertPanelOpen(false)
+
+      setLoadingAlerts(loadingState)
+      setLoadingReservations(loadingState)
+      setLoadingVisits(loadingState)
+      setLoadingPackages(loadingState)
+      setLoadingSurveys(loadingState)
+    },
+    []
+  )
+
   // 🔹 Estado combinado
   const isAnyPanelOpen =
     isSurveyPanelOpen ||
@@ -244,7 +272,13 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
 
   // 🔹 Cargar todo en montaje
   useEffect(() => {
-    if (userLoading || !id || !communityId) return
+    if (userLoading) return
+
+    const shouldShowLoading = Boolean(id && communityId)
+    resetCommunityData({ loadingState: shouldShowLoading })
+
+    if (!id || !communityId) return
+
     const loadAll = () => {
       fetchAlerts()
       fetchReservations()
@@ -252,6 +286,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
       fetchPackages()
       refreshSurveys()
     }
+
     loadAll()
     const interval = setInterval(loadAll, 60000)
     return () => clearInterval(interval)
@@ -264,6 +299,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
     fetchVisits,
     fetchPackages,
     refreshSurveys,
+    resetCommunityData,
   ])
 
   // ✅ Contexto
@@ -301,6 +337,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         fetchVisits,
         fetchPackages,
         refreshSurveys,
+        resetCommunityData,
 
         // 🔹 Control de paneles
         openSurveyPanel,

@@ -1,3 +1,4 @@
+import { useResidentContext } from '@/components/contexts/ResidentContext'
 import { ThemedText } from '@/components/themed-text'
 import { ThemedView } from '@/components/themed-view'
 import { supabase } from '@/lib/supabase'
@@ -5,7 +6,7 @@ import { useSupabaseAuth } from '@/providers/supabase-auth-provider'
 import { useUser } from '@/providers/user-provider'
 import type { CommunityMembershipRow } from '@/types/communities'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { useRouter } from 'expo-router'
+import { useFocusEffect, useRouter } from 'expo-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
@@ -44,7 +45,16 @@ interface CommunityOption {
 
 export default function ChooseCommunityScreen() {
   const { session, isLoading: authLoading } = useSupabaseAuth()
-  const { setUserData } = useUser()
+  const { setUserData, communityId: activeCommunityId, communitySlug: activeCommunitySlug } =
+    useUser()
+  const {
+    resetCommunityData,
+    fetchAlerts,
+    fetchReservations,
+    fetchVisits,
+    fetchPackages,
+    refreshSurveys,
+  } = useResidentContext()
   const router = useRouter()
   const colorScheme = useColorScheme()
   const isDarkMode = colorScheme === 'dark'
@@ -55,7 +65,34 @@ export default function ChooseCommunityScreen() {
   const [selectingId, setSelectingId] = useState<string | null>(null)
 
   const scrollY = useRef(new Animated.Value(0)).current
+  const hasSelectedRef = useRef(false)
   const { height: windowHeight } = useWindowDimensions()
+
+  useFocusEffect(
+    useCallback(() => {
+      resetCommunityData({ loadingState: false })
+
+      return () => {
+        if (hasSelectedRef.current) {
+          return
+        }
+
+        resetCommunityData({ loadingState: true })
+        fetchAlerts()
+        fetchReservations()
+        fetchVisits()
+        fetchPackages()
+        refreshSurveys()
+      }
+    }, [
+      fetchAlerts,
+      fetchPackages,
+      fetchReservations,
+      fetchVisits,
+      refreshSurveys,
+      resetCommunityData,
+    ])
+  )
 
   const loadCommunities = useCallback(async () => {
     setLoading(true)
@@ -106,6 +143,23 @@ export default function ChooseCommunityScreen() {
 
   const handleSelect = async (community: CommunityOption) => {
     setSelectingId(community.id)
+    hasSelectedRef.current = true
+
+    const isSameCommunity =
+      (!!activeCommunityId && community.id === activeCommunityId) ||
+      (!!activeCommunitySlug && community.slug === activeCommunitySlug)
+
+    const triggerResidentRefresh = () =>
+      Promise.all([
+        fetchAlerts(),
+        fetchReservations(),
+        fetchVisits(),
+        fetchPackages(),
+        refreshSurveys(),
+      ])
+
+    resetCommunityData({ loadingState: true })
+
     try {
       await AsyncStorage.multiSet([
         [SELECTED_COMMUNITY_KEY, community.slug],
@@ -118,7 +172,18 @@ export default function ChooseCommunityScreen() {
         communityName: community.name,
       })
       await AsyncStorage.removeItem(SKIP_COMMUNITY_AUTO_REDIRECT_KEY)
-      router.replace({ pathname: '/(tabs)', params: { community: community.slug } })
+
+      if (isSameCommunity) {
+        triggerResidentRefresh().catch((err) => {
+          console.error('[choose-community] refresh error', err)
+        })
+      }
+
+      if (router.canGoBack()) {
+        router.back()
+      } else {
+        router.replace({ pathname: '/(tabs)', params: { community: community.slug } })
+      }
     } catch (err) {
       console.error('[choose-community] handleSelect error', err)
       Alert.alert('Ups, algo falló', 'No pudimos ingresar a la comunidad seleccionada.')
