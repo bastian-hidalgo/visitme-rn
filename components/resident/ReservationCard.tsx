@@ -47,57 +47,42 @@ export default function ReservationCard({ data, onPress }: ReservationCardProps)
 
   const statusPill = useMemo(() => {
     if (data.status === 'cancelado') {
-      return { label: 'Cancelada', textColor: '#FEE2E2', background: 'rgba(239,68,68,0.32)' }
+      return { label: 'Cancelada', textColor: '#FEE2E2', background: 'rgba(239,68,68,0.42)' }
     }
-    return { label: 'Confirmada', textColor: '#DCFCE7', background: 'rgba(34,197,94,0.32)' }
+    return { label: 'Confirmada', textColor: '#DCFCE7', background: 'rgba(34,197,94,0.4)' }
   }, [data.status])
 
   return (
     <MotiView from={{ opacity: 0, translateY: 16 }} animate={{ opacity: 1, translateY: 0 }} style={styles.wrapper}>
-      <TouchableOpacity
-        activeOpacity={0.9}
-        style={styles.card}
-        onPress={() => onPress?.(data)}
-      >
+      <TouchableOpacity activeOpacity={0.9} style={styles.card} onPress={() => onPress?.(data)}>
         <Image source={{ uri: finalImageUrl }} style={styles.image} contentFit="cover" />
-        <LinearGradient
-          colors={['rgba(15,23,42,0.85)', 'rgba(15,23,42,0.55)', 'rgba(30,41,59,0.35)']}
-          style={styles.overlay}
-        />
+        <LinearGradient colors={['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.6)', 'rgba(15,23,42,0.95)']} style={styles.overlay} />
 
-        <View style={styles.topRow}>
-          <View style={styles.dateBadge}>
-            <Text style={styles.dateDay}>{day}</Text>
-            <Text style={styles.dateMonth}>{month}</Text>
-          </View>
+        <View style={styles.header}>
           <View style={[styles.statusBadge, { backgroundColor: statusPill.background }]}>
             <Text style={[styles.statusText, { color: statusPill.textColor }]}>{statusPill.label}</Text>
           </View>
         </View>
 
-        <View style={styles.content}>
-          <View style={styles.titleRow}>
-            <Text numberOfLines={2} style={styles.title}>
-              {title}
-            </Text>
-          </View>
-
-          <View style={styles.metaRow}>
-            <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>Departamento</Text>
-              <Text style={styles.metaValue}>{departmentNumber}</Text>
+        <View style={styles.bottomContent}>
+          <View style={styles.mainInfo}>
+            <View style={styles.dateBadge}>
+              <Text style={styles.dateDay}>{day}</Text>
+              <Text style={styles.dateMonth}>{month}</Text>
             </View>
-            <View style={styles.metaDivider} />
-            <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>Horario</Text>
-              <Text style={styles.metaValue}>{timeBlock}</Text>
+            <View style={styles.titleBlock}>
+              <Text numberOfLines={2} style={styles.title}>
+                {title}
+              </Text>
+              <Text style={styles.subtitle}>{timeBlock}</Text>
+              <Text style={styles.metaValue}>Depto. {departmentNumber}</Text>
             </View>
           </View>
 
           <View style={styles.footer}>
             <View style={styles.weatherBadge}>
               {weatherIcon}
-              <Text style={styles.weatherLabel}>
+              <Text style={styles.weatherLabel} numberOfLines={1}>
                 {data.weather_description || 'Clima estimado'}
               </Text>
             </View>
@@ -114,104 +99,91 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   card: {
-    height: 228,
-    borderRadius: 22,
+    height: 272,
+    borderRadius: 26,
     overflow: 'hidden',
     backgroundColor: '#111827',
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 22,
-    justifyContent: 'space-between',
   },
   image: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 22,
+    borderRadius: 26,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
   },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  dateBadge: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    paddingHorizontal: 5,
-    paddingVertical: 5,
-    borderRadius: 16,
-    alignItems: 'center',
-    width: 48,
-  },
-  dateDay: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  dateMonth: {
-    color: 'rgba(255,255,255,0.7)',
-    fontWeight: '600',
-    fontSize: 11,
-    letterSpacing: 1,
+  header: {
+    paddingTop: 18,
+    paddingHorizontal: 18,
   },
   statusBadge: {
+    alignSelf: 'flex-end',
     paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 999,
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 0.8,
   },
-  content: {
-    marginTop: 16,
+  bottomContent: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    paddingHorizontal: 18,
+    paddingBottom: 20,
+    gap: 18,
   },
-  titleRow: {
-    marginBottom: 14,
+  mainInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 16,
+  },
+  dateBadge: {
+    backgroundColor: 'rgba(15,23,42,0.75)',
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    minWidth: 56,
+  },
+  dateDay: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 18,
+    lineHeight: 20,
+  },
+  dateMonth: {
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '700',
+    fontSize: 12,
+    letterSpacing: 1,
+  },
+  titleBlock: {
+    flex: 1,
+    gap: 4,
   },
   title: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
-    lineHeight: 22,
+    lineHeight: 24,
   },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(15,23,42,0.55)',
-    borderRadius: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    gap: 12,
-  },
-  metaItem: {
-    flex: 1,
-  },
-  metaLabel: {
-    color: 'rgba(255,255,255,0.65)',
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: 4,
-  },
-  metaValue: {
-    color: '#F8FAFC',
+  subtitle: {
+    color: 'rgba(226,232,240,0.85)',
     fontSize: 14,
     fontWeight: '600',
   },
-  metaDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+  metaValue: {
+    color: 'rgba(226,232,240,0.75)',
+    fontSize: 13,
+    fontWeight: '500',
   },
   footer: {
-    marginTop: 18,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingBottom: 6
   },
   weatherBadge: {
     flexDirection: 'row',
@@ -220,12 +192,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.16)',
   },
   weatherLabel: {
     color: '#E0F2FE',
     fontSize: 12,
     fontWeight: '600',
+    maxWidth: 120,
   },
   ctaText: {
     color: '#F97316',
