@@ -5,7 +5,10 @@ import { dayjs, now, toServerUTC } from '@/lib/time'
 import { supabase } from '@/lib/supabase'
 import { useUser } from '@/providers/user-provider'
 import * as Clipboard from 'expo-clipboard'
-import { LinearGradient } from 'expo-linear-gradient'
+import DateTimePicker, {
+  DateTimePickerAndroid,
+  type DateTimePickerEvent,
+} from '@react-native-community/datetimepicker'
 import { Check, CheckCircle2, ChevronLeft, Clipboard as ClipboardIcon, Share2, User, Users } from 'lucide-react-native'
 import { Building2, Car, CalendarDays, Phone } from 'lucide-react-native'
 import { MotiView } from 'moti'
@@ -20,6 +23,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Platform,
 } from 'react-native'
 import Toast from 'react-native-toast-message'
 
@@ -88,6 +92,17 @@ const VISIT_TYPE_OPTIONS: Array<{ value: 'peatonal' | 'vehicular'; label: string
 
 const DATE_INPUT_FORMAT = 'YYYY-MM-DD HH:mm'
 
+const getDefaultExpectedAt = () => now().format(DATE_INPUT_FORMAT)
+
+const createInitialFormState = (): FormState => ({
+  type: null,
+  visitorName: '',
+  contact: '',
+  licensePlate: '',
+  expectedAt: getDefaultExpectedAt(),
+  guests: '1',
+})
+
 const generateInvitationCode = () => {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   return Array.from({ length: 6 })
@@ -128,23 +143,25 @@ export default function InvitationWizard({ onExit }: InvitationWizardProps) {
   const [reloadToken, setReloadToken] = useState(0)
   const [departments, setDepartments] = useState<DepartmentOption[]>([])
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(null)
-  const [form, setForm] = useState<FormState>({
-    type: null,
-    visitorName: '',
-    contact: '',
-    licensePlate: '',
-    expectedAt: '',
-    guests: '1',
-  })
+  const [form, setForm] = useState<FormState>(() => createInitialFormState())
   const [formErrors, setFormErrors] = useState<FormErrors>({})
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<SuccessState | null>(null)
   const [copiedLink, setCopiedLink] = useState(false)
+  const [showExpectedPicker, setShowExpectedPicker] = useState(false)
 
   const selectedDepartment = useMemo(
     () => departments.find((dept) => dept.id === selectedDepartmentId) ?? null,
     [departments, selectedDepartmentId],
   )
+
+  const expectedAtDate = useMemo(() => {
+    const parsed = dayjs(form.expectedAt, DATE_INPUT_FORMAT, true)
+    if (parsed.isValid()) {
+      return parsed.toDate()
+    }
+    return now().toDate()
+  }, [form.expectedAt])
 
   const completedSteps = useMemo(() => {
     const done = new Set<StepId>()
@@ -271,16 +288,10 @@ export default function InvitationWizard({ onExit }: InvitationWizardProps) {
   const resetWizard = () => {
     setSuccess(null)
     setCopiedLink(false)
-    setForm({
-      type: null,
-      visitorName: '',
-      contact: '',
-      licensePlate: '',
-      expectedAt: '',
-      guests: '1',
-    })
+    setForm(createInitialFormState())
     setSelectedDepartmentId(null)
     setFormErrors({})
+    setShowExpectedPicker(false)
     stepper.goTo('department')
   }
 
@@ -378,6 +389,72 @@ export default function InvitationWizard({ onExit }: InvitationWizardProps) {
   const invitationUrl = success ? `${getBaseUrl()}/v/${success.code}` : null
   const expectedLabel = formatExpectedLabel(form.expectedAt)
 
+  const handleApplyExpectedAt = useCallback(
+    (date: Date) => {
+      const formatted = dayjs(date).format(DATE_INPUT_FORMAT)
+      setForm((prev) => ({ ...prev, expectedAt: formatted }))
+      setFormErrors((prev) => {
+        if (!prev.expectedAt) return prev
+        const { expectedAt: _removed, ...rest } = prev
+        return rest
+      })
+    },
+    [],
+  )
+
+  const handleExpectedAtChange = useCallback(
+    (event: DateTimePickerEvent, date?: Date) => {
+      if (Platform.OS === 'android') {
+        if (event.type === 'dismissed') {
+          return
+        }
+        if (date) {
+          handleApplyExpectedAt(date)
+        }
+        return
+      }
+
+      if (event.type === 'dismissed') {
+        setShowExpectedPicker(false)
+        return
+      }
+
+      if (date) {
+        handleApplyExpectedAt(date)
+      }
+    },
+    [handleApplyExpectedAt],
+  )
+
+  const openExpectedPicker = useCallback(() => {
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        mode: 'datetime',
+        is24Hour: true,
+        value: expectedAtDate,
+        onChange: (event, date) => {
+          handleExpectedAtChange(event, date ?? undefined)
+        },
+      })
+      return
+    }
+    setShowExpectedPicker(true)
+  }, [expectedAtDate, handleExpectedAtChange])
+
+  const closeExpectedPicker = useCallback(() => {
+    setShowExpectedPicker(false)
+  }, [])
+
+  const handleClearExpectedAt = useCallback(() => {
+    setForm((prev) => ({ ...prev, expectedAt: '' }))
+    setFormErrors((prev) => {
+      if (!prev.expectedAt) return prev
+      const { expectedAt: _removed, ...rest } = prev
+      return rest
+    })
+    setShowExpectedPicker(false)
+  }, [])
+
   const handleCopyLink = async () => {
     if (!invitationUrl) return
     await Clipboard.setStringAsync(invitationUrl)
@@ -426,14 +503,10 @@ Nos vemos pronto.`
 
   return (
     <View style={styles.screen}>
-      <LinearGradient
-        colors={['#f8f5ff', '#ffffff']}
-        style={StyleSheet.absoluteFill}
-      />
-
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        bounces={false}
       >
         <View style={styles.header}>
           <TouchableOpacity onPress={onExit} style={styles.backButton} activeOpacity={0.85}>
@@ -616,14 +689,25 @@ Nos vemos pronto.`
               <Text style={styles.inputLabel}>Nombre completo *</Text>
               <TextInput
                 value={form.visitorName}
-                onChangeText={(value) => setForm((prev) => ({ ...prev, visitorName: value }))}
+                onChangeText={(value) => {
+                  setForm((prev) => ({ ...prev, visitorName: value }))
+                  if (formErrors.visitorName) {
+                    setFormErrors((prev) => {
+                      const next = { ...prev }
+                      delete next.visitorName
+                      return next
+                    })
+                  }
+                }}
                 placeholder="Ej: Juan Pérez"
                 placeholderTextColor="#9ca3af"
                 style={styles.input}
               />
               {formErrors.visitorName ? (
                 <Text style={styles.inputError}>{formErrors.visitorName}</Text>
-              ) : null}
+              ) : (
+                <Text style={styles.helperText}>Nombre de la persona principal que esperas.</Text>
+              )}
             </View>
 
             <View style={styles.formGroup}>
@@ -635,6 +719,7 @@ Nos vemos pronto.`
                 placeholderTextColor="#9ca3af"
                 style={styles.input}
               />
+              <Text style={styles.helperText}>Ayudará a portería a contactar a tu invitado si es necesario.</Text>
             </View>
 
             {form.type === 'vehicular' ? (
@@ -653,25 +738,78 @@ Nos vemos pronto.`
 
             <View style={styles.formGroup}>
               <Text style={styles.inputLabel}>Hora estimada de llegada (opcional)</Text>
-              <TextInput
-                value={form.expectedAt}
-                onChangeText={(value) => setForm((prev) => ({ ...prev, expectedAt: value }))}
-                placeholder="AAAA-MM-DD HH:mm"
-                placeholderTextColor="#9ca3af"
-                style={styles.input}
-              />
+              <TouchableOpacity
+                style={[styles.inputButton, form.expectedAt ? styles.inputButtonActive : null]}
+                onPress={openExpectedPicker}
+                activeOpacity={0.85}
+              >
+                <CalendarDays size={18} color={form.expectedAt ? '#4c1d95' : '#9ca3af'} />
+                <Text
+                  style={[
+                    styles.inputButtonValue,
+                    form.expectedAt ? styles.inputButtonValueActive : styles.inputButtonPlaceholder,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {form.expectedAt
+                    ? dayjs(form.expectedAt, DATE_INPUT_FORMAT, true).isValid()
+                      ? dayjs(form.expectedAt, DATE_INPUT_FORMAT).format('DD [de] MMMM YYYY · HH:mm hrs')
+                      : form.expectedAt
+                    : 'Selecciona fecha y hora'}
+                </Text>
+              </TouchableOpacity>
+              {form.expectedAt ? (
+                <TouchableOpacity onPress={handleClearExpectedAt} style={styles.clearButton} activeOpacity={0.8}>
+                  <Text style={styles.clearButtonLabel}>Quitar hora</Text>
+                </TouchableOpacity>
+              ) : null}
               {formErrors.expectedAt ? (
                 <Text style={styles.inputError}>{formErrors.expectedAt}</Text>
               ) : (
-                <Text style={styles.helperText}>Usa el formato 2024-12-24 18:30 para agendar la visita.</Text>
+                <Text style={styles.helperText}>Selecciona el día y hora en que esperas la visita.</Text>
               )}
+              {Platform.OS === 'ios' && showExpectedPicker ? (
+                <View style={styles.pickerContainer}>
+                  <DateTimePicker
+                    mode="datetime"
+                    value={expectedAtDate}
+                    onChange={(event, date) => {
+                      if (event.type === 'dismissed') {
+                        closeExpectedPicker()
+                        return
+                      }
+                      if (date) {
+                        handleApplyExpectedAt(date)
+                      }
+                    }}
+                    display="inline"
+                    locale="es-ES"
+                  />
+                  <TouchableOpacity
+                    style={styles.primaryButton}
+                    onPress={closeExpectedPicker}
+                    activeOpacity={0.88}
+                  >
+                    <Text style={styles.primaryButtonLabel}>Listo</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
             </View>
 
             <View style={styles.formGroup}>
               <Text style={styles.inputLabel}>Número de acompañantes</Text>
               <TextInput
                 value={form.guests}
-                onChangeText={(value) => setForm((prev) => ({ ...prev, guests: value }))}
+                onChangeText={(value) => {
+                  setForm((prev) => ({ ...prev, guests: value }))
+                  if (formErrors.guests) {
+                    setFormErrors((prev) => {
+                      const next = { ...prev }
+                      delete next.guests
+                      return next
+                    })
+                  }
+                }}
                 placeholder="1"
                 placeholderTextColor="#9ca3af"
                 keyboardType="number-pad"
@@ -833,14 +971,14 @@ Nos vemos pronto.`
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f5f3ff',
   },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f5f3ff',
   },
   errorTitle: {
     fontSize: 20,
@@ -1074,6 +1212,46 @@ const styles = StyleSheet.create({
     color: '#111827',
     backgroundColor: '#f9fafb',
   },
+  inputButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: '#f9fafb',
+  },
+  inputButtonActive: {
+    borderColor: '#7c3aed',
+    backgroundColor: '#ede9fe',
+  },
+  inputButtonValue: {
+    flex: 1,
+    fontSize: 15,
+    color: '#111827',
+  },
+  inputButtonValueActive: {
+    color: '#312e81',
+    fontWeight: '600',
+  },
+  inputButtonPlaceholder: {
+    color: '#9ca3af',
+  },
+  clearButton: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#ede9fe',
+  },
+  clearButtonLabel: {
+    color: '#4c1d95',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   helperText: {
     marginTop: 6,
     fontSize: 12,
@@ -1083,6 +1261,13 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 12,
     color: '#dc2626',
+  },
+  pickerContainer: {
+    marginTop: 12,
+    gap: 12,
+    backgroundColor: '#f4f0ff',
+    borderRadius: 18,
+    padding: 12,
   },
   stepActionsRow: {
     marginTop: 8,
