@@ -156,7 +156,12 @@ export default function ChooseCommunityScreen() {
         communityName: community.name,
       })
       await AsyncStorage.removeItem(SKIP_COMMUNITY_AUTO_REDIRECT_KEY)
-      router.replace({ pathname: '/(tabs)', params: { community: community.slug } })
+
+      if (router.canGoBack()) {
+        router.back()
+      } else {
+        router.replace({ pathname: '/(tabs)', params: { community: community.slug } })
+      }
     } catch (err) {
       console.error('[choose-community] handleSelect error', err)
       Alert.alert('Ups, algo falló', 'No pudimos ingresar a la comunidad seleccionada.')
