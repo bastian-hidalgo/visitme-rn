@@ -2,6 +2,7 @@ import {
   BottomSheetBackdrop,
   BottomSheetModal,
   BottomSheetScrollView,
+  BottomSheetTextInput,
   type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet'
 import { Image } from 'expo-image'
@@ -11,18 +12,25 @@ import dayjs from 'dayjs'
 import 'dayjs/locale/es'
 import timezone from 'dayjs/plugin/timezone'
 import utc from 'dayjs/plugin/utc'
-import { CalendarDays, Clock3, Download, MapPin, ShieldAlert } from 'lucide-react-native'
+import {
+  CalendarDays,
+  Clock3,
+  Download,
+  MapPin,
+  ShieldAlert,
+  XCircle,
+} from 'lucide-react-native'
 import { MotiView } from 'moti'
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   FlatList,
   Platform,
   Share,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native'
@@ -35,6 +43,7 @@ import ReservationCard from './ReservationCard'
 import { useWeatherForReservations, type ReservationWithWeather } from '@/lib/useWeatherForReservations'
 import { useUser } from '@/providers/user-provider'
 import { supabase } from '@/lib/supabase'
+import getUrlImageFromStorage from '@/lib/getUrlImageFromStorage'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -56,6 +65,7 @@ export default function ReservationsSlider() {
   const [cancellationError, setCancellationError] = useState('')
   const [isCancelling, setIsCancelling] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
+  const [showCancellationForm, setShowCancellationForm] = useState(false)
 
   const bottomSheetRef = useRef<BottomSheetModal>(null)
 
@@ -71,16 +81,18 @@ export default function ReservationsSlider() {
     setSelectedReservation(reservation)
     setJustification('')
     setCancellationError('')
+    setShowCancellationForm(false)
     bottomSheetRef.current?.present()
   }, [])
 
   const closeDetail = useCallback(() => {
     bottomSheetRef.current?.dismiss()
-    setTimeout(() => {
-      setSelectedReservation(null)
-      setJustification('')
-      setCancellationError('')
-    }, 250)
+      setTimeout(() => {
+        setSelectedReservation(null)
+        setJustification('')
+        setCancellationError('')
+        setShowCancellationForm(false)
+      }, 250)
   }, [])
 
   const renderBackdrop = useCallback(
@@ -96,19 +108,27 @@ export default function ReservationsSlider() {
     []
   )
 
-  const handleCancelReservation = useCallback(async () => {
+  const validateCancellation = useCallback(() => {
     if (!selectedReservation?.id || !userId) {
       setCancellationError('No fue posible validar la reserva.')
-      return
+      return false
     }
 
     if (selectedReservation.status === 'cancelado') {
       setCancellationError('Esta reserva ya fue cancelada.')
-      return
+      return false
     }
 
     if (justification.trim().length < 5) {
       setCancellationError('Ingresa una justificación de al menos 5 caracteres.')
+      return false
+    }
+
+    return true
+  }, [justification, selectedReservation, userId])
+
+  const performCancelReservation = useCallback(async () => {
+    if (!validateCancellation()) {
       return
     }
 
@@ -140,7 +160,22 @@ export default function ReservationsSlider() {
     } finally {
       setIsCancelling(false)
     }
-  }, [closeDetail, fetchReservations, justification, selectedReservation, userId])
+  }, [closeDetail, fetchReservations, justification, selectedReservation, userId, validateCancellation])
+
+  const handleConfirmCancelPress = useCallback(() => {
+    if (!validateCancellation()) {
+      return
+    }
+
+    Alert.alert(
+      'Confirmar anulación',
+      '¿Estás seguro de que deseas anular esta reserva?',
+      [
+        { text: 'Mantener', style: 'cancel' },
+        { text: 'Sí, anular', style: 'destructive', onPress: performCancelReservation },
+      ]
+    )
+  }, [performCancelReservation, validateCancellation])
 
   const escapeICS = useCallback((value: string) => {
     return value.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;')
@@ -151,9 +186,16 @@ export default function ReservationsSlider() {
 
     try {
       setIsDownloading(true)
-      const dateObj = dayjs.utc(selectedReservation.date).tz(tz, true)
-      const startDate = dateObj.format('YYYYMMDD')
-      const endDate = dateObj.add(1, 'day').format('YYYYMMDD')
+      const baseDate = dayjs.utc(selectedReservation.date).tz(tz, true)
+      const startHour =
+        selectedReservation.block === 'morning'
+          ? 9
+          : selectedReservation.block === 'afternoon'
+            ? 15
+            : 10
+      const durationHours = selectedReservation.duration_hours ?? 2
+      const startDateTime = baseDate.hour(startHour).minute(0).second(0)
+      const endDateTime = startDateTime.add(durationHours, 'hour')
       const summary = escapeICS(selectedReservation.common_space_name ?? 'Reserva VisitMe')
       const descriptionLines = [
         selectedReservation.block === 'morning'
@@ -172,8 +214,27 @@ export default function ReservationsSlider() {
       const description = escapeICS(descriptionLines)
       const location = escapeICS(selectedReservation.common_space_name ?? 'Espacio común')
       const nowStamp = dayjs().utc().format('YYYYMMDD[T]HHmmss[Z]')
+      const dtStart = `${startDateTime.format('YYYYMMDD[T]HHmmss')}`
+      const dtEnd = `${endDateTime.format('YYYYMMDD[T]HHmmss')}`
 
-      const ics = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//VisitMe//Reservas//ES\nBEGIN:VEVENT\nUID:${selectedReservation.id}\nDTSTAMP:${nowStamp}\nDTSTART;VALUE=DATE:${startDate}\nDTEND;VALUE=DATE:${endDate}\nSUMMARY:${summary}\nLOCATION:${location}\nDESCRIPTION:${description}\nEND:VEVENT\nEND:VCALENDAR`
+      const icsLines = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//VisitMe//Reservas//ES',
+        'CALSCALE:GREGORIAN',
+        'BEGIN:VEVENT',
+        `UID:${selectedReservation.id}`,
+        `DTSTAMP:${nowStamp}`,
+        `DTSTART;TZID=${tz}:${dtStart}`,
+        `DTEND;TZID=${tz}:${dtEnd}`,
+        `SUMMARY:${summary}`,
+        `LOCATION:${location}`,
+        `DESCRIPTION:${description}`,
+        'END:VEVENT',
+        'END:VCALENDAR',
+      ]
+
+      const ics = `${icsLines.join('\r\n')}\r\n`
 
       const fileName = `reserva-${selectedReservation.id}.ics`
       const fileUri = `${FileSystem.cacheDirectory ?? ''}${fileName}`
@@ -188,11 +249,8 @@ export default function ReservationsSlider() {
 
       await Share.share({
         url: shareUrl,
-        message:
-          Platform.OS === 'android'
-            ? 'Descarga tu evento y agrégalo a tu calendario preferido.'
-            : undefined,
         title: 'Agregar al calendario',
+        subject: 'Reserva VisitMe',
       })
     } catch (error) {
       console.error('Error al generar archivo ICS:', error)
@@ -253,14 +311,29 @@ export default function ReservationsSlider() {
         backgroundStyle={styles.sheetBackground}
         handleIndicatorStyle={styles.sheetHandle}
         onDismiss={closeDetail}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        bottomInset={Platform.OS === 'ios' ? 36 : 24}
       >
         {selectedReservation ? (
-          <BottomSheetScrollView style={styles.sheetScroll} showsVerticalScrollIndicator={false}>
+          <BottomSheetScrollView
+            style={styles.sheetScroll}
+            contentContainerStyle={styles.sheetContentContainer}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
             <View style={styles.sheetHeroContainer}>
               <Image
                 source={{
                   uri:
-                    selectedReservation.common_space_image_url ||
+                    getUrlImageFromStorage(
+                      selectedReservation.common_space_image_url ?? '',
+                      'common-spaces'
+                    ) ||
+                    getUrlImageFromStorage(
+                      selectedReservation.common_space_image_url ?? '',
+                      'common-space-images'
+                    ) ||
                     'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb',
                 }}
                 style={styles.sheetHeroImage}
@@ -326,28 +399,62 @@ export default function ReservationsSlider() {
                 <Text style={styles.sheetSectionDescription}>
                   Cuéntanos el motivo para que podamos notificar al equipo de la comunidad.
                 </Text>
-                <TextInput
-                  placeholder="Escribe tu justificación"
-                  placeholderTextColor="rgba(255,255,255,0.5)"
-                  multiline
-                  value={justification}
-                  onChangeText={setJustification}
-                  style={styles.input}
-                  textAlignVertical="top"
-                />
-                {cancellationError ? <Text style={styles.errorText}>{cancellationError}</Text> : null}
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={handleCancelReservation}
-                  disabled={isCancelling}
-                  style={[styles.cancelButton, isCancelling && styles.cancelButtonDisabled]}
-                >
-                  {isCancelling ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.cancelButtonText}>Anular reserva</Text>
-                  )}
-                </TouchableOpacity>
+
+                {!showCancellationForm ? (
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      setShowCancellationForm(true)
+                      setCancellationError('')
+                    }}
+                    style={styles.expandCancelButton}
+                  >
+                    <ShieldAlert size={18} color="#ef4444" />
+                    <Text style={styles.expandCancelText}>Escribir justificación</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <>
+                    <BottomSheetTextInput
+                      placeholder="Escribe tu justificación"
+                      placeholderTextColor="rgba(255,255,255,0.5)"
+                      multiline
+                      value={justification}
+                      onChangeText={setJustification}
+                      style={styles.input}
+                      textAlignVertical="top"
+                      enablesReturnKeyAutomatically
+                    />
+                    {cancellationError ? (
+                      <Text style={styles.errorText}>{cancellationError}</Text>
+                    ) : null}
+                    <View style={styles.cancelActionsRow}>
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={() => {
+                          setShowCancellationForm(false)
+                          setJustification('')
+                          setCancellationError('')
+                        }}
+                        style={styles.cancelSecondaryButton}
+                      >
+                        <XCircle size={18} color="#cbd5f5" />
+                        <Text style={styles.cancelSecondaryText}>Descartar</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={handleConfirmCancelPress}
+                        disabled={isCancelling}
+                        style={[styles.cancelButton, isCancelling && styles.cancelButtonDisabled]}
+                      >
+                        {isCancelling ? (
+                          <ActivityIndicator color="#fff" />
+                        ) : (
+                          <Text style={styles.cancelButtonText}>Confirmar anulación</Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
               </View>
             )}
 
@@ -419,10 +526,11 @@ const styles = StyleSheet.create({
   cardWrapper: {
     width: width * 0.72,
     marginRight: 16,
+    paddingBottom: 8,
   },
   listContent: {
     paddingRight: 16,
-    paddingBottom: 12,
+    paddingBottom: 24,
   },
   sheetBackground: {
     backgroundColor: '#0f172a',
@@ -434,6 +542,9 @@ const styles = StyleSheet.create({
   },
   sheetScroll: {
     paddingHorizontal: 20,
+  },
+  sheetContentContainer: {
+    paddingBottom: 36,
   },
   sheetHeroContainer: {
     borderRadius: 22,
@@ -535,11 +646,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginBottom: 12,
   },
+  expandCancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(248,113,113,0.4)',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    backgroundColor: 'rgba(15,23,42,0.35)',
+  },
+  expandCancelText: {
+    color: '#fca5a5',
+    fontWeight: '700',
+    fontSize: 14,
+  },
   cancelButton: {
     backgroundColor: '#ef4444',
     paddingVertical: 14,
     borderRadius: 16,
     alignItems: 'center',
+    flex: 1,
   },
   cancelButtonDisabled: {
     opacity: 0.6,
@@ -548,6 +676,27 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  cancelActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  cancelSecondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.35)',
+    backgroundColor: 'rgba(15,23,42,0.2)',
+  },
+  cancelSecondaryText: {
+    color: '#cbd5f5',
+    fontWeight: '600',
+    fontSize: 14,
   },
   calendarButton: {
     flexDirection: 'row',

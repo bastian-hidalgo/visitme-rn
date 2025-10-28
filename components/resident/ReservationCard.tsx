@@ -1,3 +1,4 @@
+import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
 import dayjs from 'dayjs'
 import 'dayjs/locale/es'
@@ -7,8 +8,8 @@ import { Cloud, CloudRain, Sun, Wind } from 'lucide-react-native'
 import { MotiView } from 'moti'
 import React, { useMemo } from 'react'
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
-import { Image } from 'expo-image'
 
+import getUrlImageFromStorage from '@/lib/getUrlImageFromStorage'
 import type { ReservationWithWeather } from '@/lib/useWeatherForReservations'
 
 // 📅 Configuración de dayjs
@@ -29,7 +30,29 @@ export default function ReservationCard({ data, onPress }: ReservationCardProps)
   const title = data.common_space_name || 'Espacio común'
   const timeBlock =
     data.block === 'morning' ? 'Bloque AM' : data.block === 'afternoon' ? 'Bloque PM' : 'Horario sin asignar'
-  const finalImageUrl = data.common_space_image_url || 'https://images.unsplash.com/photo-1505691938895-1758d7feb511'
+  const finalImageUrl = useMemo(() => {
+    if (!data.common_space_image_url) {
+      return 'https://images.unsplash.com/photo-1505691938895-1758d7feb511'
+    }
+
+    const fromCommonSpaces = getUrlImageFromStorage(
+      data.common_space_image_url,
+      'common-spaces'
+    )
+    if (fromCommonSpaces) {
+      return fromCommonSpaces
+    }
+
+    const fromAltBucket = getUrlImageFromStorage(
+      data.common_space_image_url,
+      'common-space-images'
+    )
+
+    return (
+      fromAltBucket ||
+      'https://images.unsplash.com/photo-1505691938895-1758d7feb511'
+    )
+  }, [data.common_space_image_url])
   const departmentNumber = data.department_number || 'Sin departamento'
 
   const weatherIcon = useMemo(() => {
@@ -117,16 +140,18 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   card: {
-    height: 220,
-    borderRadius: 28,
+    height: 228,
+    borderRadius: 22,
     overflow: 'hidden',
     backgroundColor: '#111827',
-    padding: 16,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 22,
     justifyContent: 'space-between',
   },
   image: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 28,
+    borderRadius: 22,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -208,7 +233,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.18)',
   },
   footer: {
-    marginTop: 16,
+    marginTop: 18,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -219,7 +244,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 999,
+    borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.12)',
   },
   weatherLabel: {
