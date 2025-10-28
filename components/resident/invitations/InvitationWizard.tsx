@@ -183,20 +183,20 @@ export default function InvitationWizard({ onExit }: InvitationWizardProps) {
       try {
         const { data, error } = await supabase
           .from('user_departments')
-          .select('department_id, active, department:department_id(number)')
+          .select('department_id, active, can_reserve, department:department_id(number, reservations_blocked)')
           .eq('user_id', userId)
           .eq('community_id', communityId)
-          .eq('active', true)
-          .order('department:department_id(number)', { ascending: true })
 
         if (error) throw error
 
         const mapped = (data || [])
           .filter((row) => row.active !== false)
+          .filter((row) => row.can_reserve !== false && row.department?.reservations_blocked !== true)
           .map((row) => ({
             id: row.department_id,
             label: row.department?.number ? `Depto ${row.department.number}` : 'Departamento',
           }))
+          .sort((a, b) => a.label.localeCompare(b.label, 'es'))
 
         if (!cancelled) {
           setDepartments(mapped)
