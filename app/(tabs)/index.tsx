@@ -15,7 +15,9 @@ export default function ResidentPage() {
   const params = useLocalSearchParams()
   const [allowed, setAllowed] = useState(false)
 
-  const routeCommunitySlug = params.community as string
+  const routeCommunitySlug = Array.isArray(params.community)
+    ? params.community[0]
+    : (params.community as string | undefined)
 
   useEffect(() => {
     if (authLoading || userLoading) return
@@ -36,14 +38,8 @@ export default function ResidentPage() {
         return
       }
 
-      if (!routeCommunitySlug) {
+      if (routeCommunitySlug !== selected) {
         router.replace({ pathname: '/(tabs)', params: { community: selected } })
-        return
-      }
-
-      if (selected !== routeCommunitySlug) {
-        await AsyncStorage.setItem(SKIP_COMMUNITY_AUTO_REDIRECT_KEY, 'true')
-        router.replace('../choose-community')
         return
       }
 
