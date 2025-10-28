@@ -1,6 +1,5 @@
 import { useResidentContext } from '@/components/contexts/ResidentContext'
 import { useStepperize } from '@/lib/stepperize'
-import { getBaseUrl } from '@/lib/getBaseUrl'
 import { dayjs, now, toServerUTC } from '@/lib/time'
 import { supabase } from '@/lib/supabase'
 import { useUser } from '@/providers/user-provider'
@@ -9,10 +8,19 @@ import DateTimePicker, {
   DateTimePickerAndroid,
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker'
-import { Check, CheckCircle2, ChevronLeft, Clipboard as ClipboardIcon, Share2, User, Users } from 'lucide-react-native'
+import {
+  Check,
+  CheckCircle2,
+  ChevronLeft,
+  Clipboard as ClipboardIcon,
+  Share2,
+  User,
+  Users,
+  XCircle,
+} from 'lucide-react-native'
 import { Building2, Car, CalendarDays, Phone } from 'lucide-react-native'
 import { MotiView } from 'moti'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Linking,
@@ -91,6 +99,7 @@ const VISIT_TYPE_OPTIONS: Array<{ value: 'peatonal' | 'vehicular'; label: string
 ]
 
 const DATE_INPUT_FORMAT = 'YYYY-MM-DD HH:mm'
+const INVITATION_BASE_URL = 'https://app.visitme.cl'
 
 const getDefaultExpectedAt = () => now().format(DATE_INPUT_FORMAT)
 
@@ -121,7 +130,7 @@ const formatExpectedLabel = (raw: string) => {
   if (!trimmed) return null
   const parsed = dayjs(trimmed, DATE_INPUT_FORMAT, true)
   if (!parsed.isValid()) return trimmed
-  return parsed.format('DD [de] MMMM YYYY • HH:mm [hrs]')
+  return parsed.format('DD [de] MMMM YYYY • HH:mm')
 }
 
 const parseExpectedAt = (raw: string): string | null => {
@@ -149,6 +158,31 @@ export default function InvitationWizard({ onExit }: InvitationWizardProps) {
   const [success, setSuccess] = useState<SuccessState | null>(null)
   const [copiedLink, setCopiedLink] = useState(false)
   const [showExpectedPicker, setShowExpectedPicker] = useState(false)
+  const notificationSoundRef = useRef<any>(null)
+
+  const loadNotificationSound = useCallback(async () => {
+    try {
+      const { Audio } = await import('expo-av')
+      const result = await Audio.Sound.createAsync(
+        require('../../../assets/sounds/notification.mp3'),
+        { shouldPlay: false },
+      )
+
+      return result.sound
+    } catch (error) {
+      console.warn('No se pudo cargar el sonido de notificación', error)
+      return null
+    }
+  }, [])
+
+  const ensureNotificationSound = useCallback(async () => {
+    if (notificationSoundRef.current) return notificationSoundRef.current
+    const sound = await loadNotificationSound()
+    if (sound) {
+      notificationSoundRef.current = sound
+    }
+    return sound
+  }, [loadNotificationSound])
 
   const selectedDepartment = useMemo(
     () => departments.find((dept) => dept.id === selectedDepartmentId) ?? null,
@@ -244,6 +278,42 @@ export default function InvitationWizard({ onExit }: InvitationWizardProps) {
       stepper.goTo('type')
     }
   }, [departments, selectedDepartmentId, stepper])
+
+  useEffect(() => {
+    if (!success) return
+
+    let isActive = true
+
+    const prepareAndPlay = async () => {
+      const sound = await ensureNotificationSound()
+      if (!sound || !isActive) return
+      try {
+        if (sound.replayAsync) {
+          await sound.replayAsync()
+        } else {
+          await sound.setPositionAsync(0)
+          await sound.playAsync()
+        }
+      } catch (error) {
+        console.warn('No se pudo reproducir el sonido de notificación', error)
+      }
+    }
+
+    prepareAndPlay()
+
+    return () => {
+      isActive = false
+    }
+  }, [ensureNotificationSound, success])
+
+  useEffect(() => {
+    return () => {
+      if (notificationSoundRef.current) {
+        notificationSoundRef.current.unloadAsync().catch(() => null)
+        notificationSoundRef.current = null
+      }
+    }
+  }, [])
 
   const handleSelectDepartment = (departmentId: string) => {
     setSelectedDepartmentId(departmentId)
@@ -386,7 +456,7 @@ export default function InvitationWizard({ onExit }: InvitationWizardProps) {
     }
   }
 
-  const invitationUrl = success ? `${getBaseUrl()}/v/${success.code}` : null
+  const invitationUrl = success ? `${INVITATION_BASE_URL}/v/${success.code}` : null
   const expectedLabel = formatExpectedLabel(form.expectedAt)
 
   const handleApplyExpectedAt = useCallback(
@@ -738,31 +808,39 @@ Nos vemos pronto.`
 
             <View style={styles.formGroup}>
               <Text style={styles.inputLabel}>Hora estimada de llegada (opcional)</Text>
-              <TouchableOpacity
-                style={[styles.inputButton, form.expectedAt ? styles.inputButtonActive : null]}
-                onPress={openExpectedPicker}
-                activeOpacity={0.85}
-              >
-                <CalendarDays size={18} color={form.expectedAt ? '#4c1d95' : '#9ca3af'} />
-                <Text
-                  style={[
-                    styles.inputButtonValue,
-                    form.expectedAt ? styles.inputButtonValueActive : styles.inputButtonPlaceholder,
-                  ]}
-                  numberOfLines={1}
+              <View style={styles.inputButtonRow}>
+                <TouchableOpacity
+                  style={[styles.inputButton, form.expectedAt ? styles.inputButtonActive : null]}
+                  onPress={openExpectedPicker}
+                  activeOpacity={0.85}
                 >
-                  {form.expectedAt
-                    ? dayjs(form.expectedAt, DATE_INPUT_FORMAT, true).isValid()
-                      ? dayjs(form.expectedAt, DATE_INPUT_FORMAT).format('DD [de] MMMM YYYY · HH:mm hrs')
-                      : form.expectedAt
-                    : 'Selecciona fecha y hora'}
-                </Text>
-              </TouchableOpacity>
-              {form.expectedAt ? (
-                <TouchableOpacity onPress={handleClearExpectedAt} style={styles.clearButton} activeOpacity={0.8}>
-                  <Text style={styles.clearButtonLabel}>Quitar hora</Text>
+                  <CalendarDays size={18} color={form.expectedAt ? '#4c1d95' : '#9ca3af'} />
+                  <Text
+                    style={[
+                      styles.inputButtonValue,
+                      form.expectedAt ? styles.inputButtonValueActive : styles.inputButtonPlaceholder,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {form.expectedAt
+                      ? dayjs(form.expectedAt, DATE_INPUT_FORMAT, true).isValid()
+                        ? dayjs(form.expectedAt, DATE_INPUT_FORMAT).format('DD [de] MMMM YYYY · HH:mm')
+                        : form.expectedAt
+                      : 'Selecciona fecha y hora'}
+                  </Text>
                 </TouchableOpacity>
-              ) : null}
+                {form.expectedAt ? (
+                  <TouchableOpacity
+                    onPress={handleClearExpectedAt}
+                    style={styles.clearIconButton}
+                    accessibilityLabel="Quitar hora estimada"
+                    activeOpacity={0.8}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  >
+                    <XCircle size={18} color="#6b7280" />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
               {formErrors.expectedAt ? (
                 <Text style={styles.inputError}>{formErrors.expectedAt}</Text>
               ) : (
@@ -1212,6 +1290,11 @@ const styles = StyleSheet.create({
     color: '#111827',
     backgroundColor: '#f9fafb',
   },
+  inputButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   inputButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1239,18 +1322,13 @@ const styles = StyleSheet.create({
   inputButtonPlaceholder: {
     color: '#9ca3af',
   },
-  clearButton: {
-    marginTop: 8,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
+  clearIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#ede9fe',
-  },
-  clearButtonLabel: {
-    color: '#4c1d95',
-    fontSize: 12,
-    fontWeight: '600',
   },
   helperText: {
     marginTop: 6,

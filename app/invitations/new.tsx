@@ -3,7 +3,7 @@ import { SKIP_COMMUNITY_AUTO_REDIRECT_KEY } from '@/constants/storageKeys'
 import { useSupabaseAuth } from '@/providers/supabase-auth-provider'
 import { useUser } from '@/providers/user-provider'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import React, { useEffect, useState } from 'react'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -59,6 +59,7 @@ export default function NewInvitationPage() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <Stack.Screen options={{ headerShown: false }} />
       <InvitationWizard onExit={() => router.back()} />
       <Toast />
     </SafeAreaView>
@@ -68,12 +69,12 @@ export default function NewInvitationPage() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f5f3ff',
   },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f5f3ff',
   },
 })
