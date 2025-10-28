@@ -27,7 +27,6 @@ export default function ReservationCard({ data, onPress }: ReservationCardProps)
   const day = dateObj.format('DD')
   const month = dateObj.format('MMM').toUpperCase()
   const title = data.common_space_name || 'Espacio común'
-  console.log('data', data)
   const timeBlock =
     data.block === 'morning' ? 'Bloque AM' : data.block === 'afternoon' ? 'Bloque PM' : 'Horario sin asignar'
   const finalImageUrl = data.common_space_image_url || 'https://images.unsplash.com/photo-1505691938895-1758d7feb511'
