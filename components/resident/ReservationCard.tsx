@@ -1,15 +1,14 @@
-import { Image } from 'expo-image'
-import { LinearGradient } from 'expo-linear-gradient'
 import dayjs from 'dayjs'
 import 'dayjs/locale/es'
 import timezone from 'dayjs/plugin/timezone'
 import utc from 'dayjs/plugin/utc'
+import { Image } from 'expo-image'
+import { LinearGradient } from 'expo-linear-gradient'
 import { Cloud, CloudRain, Sun, Wind } from 'lucide-react-native'
 import { MotiView } from 'moti'
 import React, { useMemo } from 'react'
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 
-import getUrlImageFromStorage from '@/lib/getUrlImageFromStorage'
 import type { ReservationWithWeather } from '@/lib/useWeatherForReservations'
 
 // 📅 Configuración de dayjs
@@ -28,31 +27,10 @@ export default function ReservationCard({ data, onPress }: ReservationCardProps)
   const day = dateObj.format('DD')
   const month = dateObj.format('MMM').toUpperCase()
   const title = data.common_space_name || 'Espacio común'
+  console.log('data', data)
   const timeBlock =
     data.block === 'morning' ? 'Bloque AM' : data.block === 'afternoon' ? 'Bloque PM' : 'Horario sin asignar'
-  const finalImageUrl = useMemo(() => {
-    if (!data.common_space_image_url) {
-      return 'https://images.unsplash.com/photo-1505691938895-1758d7feb511'
-    }
-
-    const fromCommonSpaces = getUrlImageFromStorage(
-      data.common_space_image_url,
-      'common-spaces'
-    )
-    if (fromCommonSpaces) {
-      return fromCommonSpaces
-    }
-
-    const fromAltBucket = getUrlImageFromStorage(
-      data.common_space_image_url,
-      'common-space-images'
-    )
-
-    return (
-      fromAltBucket ||
-      'https://images.unsplash.com/photo-1505691938895-1758d7feb511'
-    )
-  }, [data.common_space_image_url])
+  const finalImageUrl = data.common_space_image_url || 'https://images.unsplash.com/photo-1505691938895-1758d7feb511'
   const departmentNumber = data.department_number || 'Sin departamento'
 
   const weatherIcon = useMemo(() => {
@@ -71,9 +49,6 @@ export default function ReservationCard({ data, onPress }: ReservationCardProps)
   const statusPill = useMemo(() => {
     if (data.status === 'cancelado') {
       return { label: 'Cancelada', textColor: '#FEE2E2', background: 'rgba(239,68,68,0.32)' }
-    }
-    if (data.status === 'pendiente') {
-      return { label: 'Pendiente', textColor: '#FEF3C7', background: 'rgba(251,191,36,0.32)' }
     }
     return { label: 'Confirmada', textColor: '#DCFCE7', background: 'rgba(34,197,94,0.32)' }
   }, [data.status])
@@ -163,16 +138,16 @@ const styles = StyleSheet.create({
   },
   dateBadge: {
     backgroundColor: 'rgba(255,255,255,0.14)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 5,
+    paddingVertical: 5,
     borderRadius: 16,
     alignItems: 'center',
-    width: 64,
+    width: 48,
   },
   dateDay: {
     color: '#fff',
     fontWeight: '700',
-    fontSize: 20,
+    fontSize: 16,
   },
   dateMonth: {
     color: 'rgba(255,255,255,0.7)',
@@ -237,6 +212,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingBottom: 6
   },
   weatherBadge: {
     flexDirection: 'row',
