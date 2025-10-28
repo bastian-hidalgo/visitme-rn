@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
   communityName: { color: '#fff', fontSize: 17, fontWeight: '700' },
   separator: { height: 1, backgroundColor: 'rgba(255,255,255,0.15)', marginVertical: 24, width: '100%' },
   menu: { gap: 12 },
-  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
+  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12 },
   menuItemActive: { backgroundColor: 'rgba(255,255,255,0.15)' },
   menuIcon: { marginRight: 14, opacity: 0.9, color: '#fff' },
   menuText: { color: '#fff', fontSize: 15, fontWeight: '500' },

@@ -1,6 +1,7 @@
 import { getGreeting } from '@/lib/greetings'
 import { useUser } from '@/providers/user-provider'
 import { LinearGradient } from 'expo-linear-gradient'
+import { useRouter } from 'expo-router'
 import { Building2 } from 'lucide-react-native'
 import React from 'react'
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native'
@@ -13,6 +14,7 @@ interface Props {
 
 export default function Header({ onToggleMenu, progress }: Props) {
   const greeting = getGreeting()
+  const router = useRouter()
   const { name, avatarUrl, communityName } = useUser()
 
   const avatarStyle = useAnimatedStyle(() => ({
@@ -20,6 +22,10 @@ export default function Header({ onToggleMenu, progress }: Props) {
       { scale: 1 - progress.value * 0.05 },
     ],
   }))
+
+  const handleNavigate = (path: string) => {
+    setTimeout(() => router.push(path as any), 250)
+  }
 
   return (
     <View style={styles.container}>
@@ -41,12 +47,12 @@ export default function Header({ onToggleMenu, progress }: Props) {
           style={styles.communityBadge}
         >
           <Building2 size={16} color="#FDE68A" style={{ marginRight: 8 }} />
-          <View>
+          <Pressable onPress={() => handleNavigate('/choose-community')}>
             <Text style={styles.communityBadgeLabel}>Tu comunidad</Text>
             <Text style={styles.communityBadgeText} numberOfLines={1}>
               {communityName}
             </Text>
-          </View>
+          </Pressable>
         </LinearGradient>
 
         {/* Usuario */}

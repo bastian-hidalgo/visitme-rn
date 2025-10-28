@@ -6,7 +6,9 @@ import type { Database } from '@/types/supabase'
 import dayjs from 'dayjs'
 import 'dayjs/locale/es'
 import { LinearGradient } from 'expo-linear-gradient'
+import { Check, ChevronLeft, Clock, MapPin, Timer, Users } from 'lucide-react-native'
 import { MotiView } from 'moti'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Dimensions,
@@ -20,8 +22,6 @@ import {
   Text,
   View,
 } from 'react-native'
-import { Check, ChevronLeft, Clock, MapPin, Timer, Users } from 'lucide-react-native'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Toast from 'react-native-toast-message'
 
 const WINDOW_WIDTH = Dimensions.get('window').width
@@ -1042,7 +1042,7 @@ const styles = StyleSheet.create({
   },
   stepperWrapper: {
     marginTop: 12,
-    marginBottom: 24,
+    marginBottom: 12,
     borderRadius: 24,
     backgroundColor: '#f5f3ff',
     paddingVertical: 16,
@@ -1131,8 +1131,8 @@ const styles = StyleSheet.create({
   },
   spaceStepCard: {
     paddingHorizontal: 0,
-    paddingTop: 24,
-    paddingBottom: 32,
+    paddingTop: 6,
+    paddingBottom: 6,
   },
   spaceStepHeader: {
     paddingHorizontal: 24,
