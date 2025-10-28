@@ -6,7 +6,7 @@ import { useSupabaseAuth } from '@/providers/supabase-auth-provider'
 import { useUser } from '@/providers/user-provider'
 import type { CommunityMembershipRow } from '@/types/communities'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { useRouter } from 'expo-router'
+import { useFocusEffect, useRouter } from 'expo-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
@@ -46,7 +46,14 @@ interface CommunityOption {
 export default function ChooseCommunityScreen() {
   const { session, isLoading: authLoading } = useSupabaseAuth()
   const { setUserData } = useUser()
-  const { resetCommunityData } = useResidentContext()
+  const {
+    resetCommunityData,
+    fetchAlerts,
+    fetchReservations,
+    fetchVisits,
+    fetchPackages,
+    refreshSurveys,
+  } = useResidentContext()
   const router = useRouter()
   const colorScheme = useColorScheme()
   const isDarkMode = colorScheme === 'dark'
@@ -57,7 +64,34 @@ export default function ChooseCommunityScreen() {
   const [selectingId, setSelectingId] = useState<string | null>(null)
 
   const scrollY = useRef(new Animated.Value(0)).current
+  const hasSelectedRef = useRef(false)
   const { height: windowHeight } = useWindowDimensions()
+
+  useFocusEffect(
+    useCallback(() => {
+      resetCommunityData({ loadingState: false })
+
+      return () => {
+        if (hasSelectedRef.current) {
+          return
+        }
+
+        resetCommunityData({ loadingState: true })
+        fetchAlerts()
+        fetchReservations()
+        fetchVisits()
+        fetchPackages()
+        refreshSurveys()
+      }
+    }, [
+      fetchAlerts,
+      fetchPackages,
+      fetchReservations,
+      fetchVisits,
+      refreshSurveys,
+      resetCommunityData,
+    ])
+  )
 
   const loadCommunities = useCallback(async () => {
     setLoading(true)
@@ -108,6 +142,7 @@ export default function ChooseCommunityScreen() {
 
   const handleSelect = async (community: CommunityOption) => {
     setSelectingId(community.id)
+    hasSelectedRef.current = true
     resetCommunityData({ loadingState: true })
     try {
       await AsyncStorage.multiSet([

@@ -19,7 +19,7 @@ type UserMenuPanelProps = {
 export default function UserMenuPanel({ isOpen, onClose, progress }: UserMenuPanelProps) {
   const router = useRouter()
   const { avatarUrl, communityName, id, logout } = useUser()
-  const { openFeedbackPanel, resetCommunityData } = useResidentContext()
+  const { openFeedbackPanel } = useResidentContext()
   const [hasMultipleCommunities, setHasMultipleCommunities] = useState(false)
   const [activeItem, setActiveItem] = useState('home')
 
@@ -35,9 +35,6 @@ export default function UserMenuPanel({ isOpen, onClose, progress }: UserMenuPan
   }, [id])
 
   const handleNavigate = (path: string) => {
-    if (path === '/choose-community') {
-      resetCommunityData({ loadingState: false })
-    }
     onClose()
     setTimeout(() => router.push(path as any), 250)
   }
