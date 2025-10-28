@@ -1,15 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient'
 import { MotiView } from 'moti'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  Alert,
-  LayoutChangeEvent,
-  Linking,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native'
+import { LayoutChangeEvent, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useResidentContext } from '@/components/contexts/ResidentContext'
@@ -45,29 +37,6 @@ export default function ResidentDashboard() {
     }
   })
   const { reservations } = useResidentContext()
-
-  const handleCancelReservation = (id: string) => {
-    Alert.alert(
-      'Cancelar reserva',
-      'Muy pronto podrás gestionar tus reservas desde la aplicación móvil. Por ahora te redirigiremos a la versión web.',
-      [
-        {
-          text: 'Abrir en la web',
-          onPress: () => {
-            const url = `${process.env.EXPO_PUBLIC_WEB_APP_URL || 'https://app.visitme.cl'}/reservas`
-            Linking.openURL(url).catch((error) => {
-              console.error('No fue posible abrir la URL de reservas', error)
-            })
-          },
-        },
-        { text: 'Cerrar', style: 'cancel' },
-      ]
-    )
-  }
-
-  const handleViewReason = (reason: string) => {
-    Alert.alert('Motivo de cancelación', reason)
-  }
 
   // Estado del banner de reserva (hoy / mañana / pasada)
   const { status, formattedDate } = getReservationBannerStatus(reservations)
@@ -164,10 +133,7 @@ export default function ResidentDashboard() {
                 onLayout={registerSection('reservations')}
               >
                 <View style={styles.sectionSurface}>
-                  <ReservationsSlider
-                    onCancel={handleCancelReservation}
-                    onViewReason={handleViewReason}
-                  />
+                  <ReservationsSlider />
                 </View>
               </MotiView>
 
