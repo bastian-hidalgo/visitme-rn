@@ -45,7 +45,8 @@ interface CommunityOption {
 
 export default function ChooseCommunityScreen() {
   const { session, isLoading: authLoading } = useSupabaseAuth()
-  const { setUserData } = useUser()
+  const { setUserData, communityId: activeCommunityId, communitySlug: activeCommunitySlug } =
+    useUser()
   const {
     resetCommunityData,
     fetchAlerts,
@@ -143,7 +144,22 @@ export default function ChooseCommunityScreen() {
   const handleSelect = async (community: CommunityOption) => {
     setSelectingId(community.id)
     hasSelectedRef.current = true
+
+    const isSameCommunity =
+      (!!activeCommunityId && community.id === activeCommunityId) ||
+      (!!activeCommunitySlug && community.slug === activeCommunitySlug)
+
+    const triggerResidentRefresh = () =>
+      Promise.all([
+        fetchAlerts(),
+        fetchReservations(),
+        fetchVisits(),
+        fetchPackages(),
+        refreshSurveys(),
+      ])
+
     resetCommunityData({ loadingState: true })
+
     try {
       await AsyncStorage.multiSet([
         [SELECTED_COMMUNITY_KEY, community.slug],
@@ -156,6 +172,12 @@ export default function ChooseCommunityScreen() {
         communityName: community.name,
       })
       await AsyncStorage.removeItem(SKIP_COMMUNITY_AUTO_REDIRECT_KEY)
+
+      if (isSameCommunity) {
+        triggerResidentRefresh().catch((err) => {
+          console.error('[choose-community] refresh error', err)
+        })
+      }
 
       if (router.canGoBack()) {
         router.back()
