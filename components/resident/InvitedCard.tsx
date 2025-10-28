@@ -1,5 +1,5 @@
 import * as Clipboard from 'expo-clipboard'
-import { Car, Copy, Share2, UsersRound } from 'lucide-react-native'
+import { CalendarDays, Car, Copy, Share2, UsersRound } from 'lucide-react-native'
 import { MotiView } from 'moti'
 import React, { useState } from 'react'
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
@@ -52,75 +52,72 @@ Nos vemos!`
     Linking.openURL(link)
   }
 
+  const formattedDate = scheduled_at ?? 'Sin fecha'
+
   return (
     <MotiView
-      from={{ opacity: 0, translateY: 20 }}
+      from={{ opacity: 0, translateY: 24 }}
       animate={{ opacity: 1, translateY: 0 }}
-      transition={{ duration: 500 }}
+      transition={{ duration: 450 }}
       style={styles.container}
     >
       <TouchableOpacity
         activeOpacity={0.9}
         onPress={onPress}
-        style={styles.contentButton}
+        style={styles.touchable}
       >
-        <View style={styles.info}>
-          {/* Fecha */}
+        <View style={styles.header}>
           <View style={styles.dateBadge}>
-            <Text style={styles.dateText}>
-              {scheduled_at ? scheduled_at : 'Sin fecha'}
-            </Text>
+            <CalendarDays size={14} color="#4c1d95" />
+            <Text style={styles.dateText}>{formattedDate}</Text>
           </View>
-
-          {/* Nombre */}
-          <Text style={styles.visitorName}>
+          <Text style={styles.visitorName} numberOfLines={2}>
             {visitor_name}
           </Text>
+        </View>
 
-          {/* Patente */}
+        <View style={styles.metaSection}>
+          <View style={styles.metaBadge}>
+            <UsersRound size={16} color="#4c1d95" />
+            <Text style={styles.metaText}>{guests ?? 1} invitado{(guests ?? 1) > 1 ? 's' : ''}</Text>
+          </View>
           {license_plate && (
-            <View style={styles.licenseBadge}>
-              <Text style={styles.licenseText}>{license_plate}</Text>
+            <View style={styles.metaBadge}>
+              <Car size={16} color="#4c1d95" />
+              <Text style={styles.metaText}>{license_plate}</Text>
             </View>
           )}
-
-          {/* Íconos */}
-          <View style={styles.iconRow}>
-            <View style={styles.iconBubble}>
-              <UsersRound size={18} color="#4c1d95" />
-              <Text style={styles.guestsText}>
-                {guests}
-              </Text>
-            </View>
-            {license_plate && (
-              <View style={styles.iconBubble}>
-                <Car size={18} color="#4c1d95" />
-              </View>
-            )}
+          <View style={styles.metaBadge}>
+            <Text style={styles.metaLabel}>Código</Text>
+            <Text style={styles.metaText}>{code}</Text>
           </View>
+          {secret_code && (
+            <View style={styles.metaBadge}>
+              <Text style={styles.metaLabel}>Secreto</Text>
+              <Text style={styles.metaText}>{secret_code}</Text>
+            </View>
+          )}
         </View>
       </TouchableOpacity>
 
-      {/* Botones inferiores */}
+      <View style={styles.divider} />
+
       <View style={styles.actionsRow}>
         <TouchableOpacity
           onPress={handleShare}
-          activeOpacity={0.8}
-          style={styles.shareButton}
+          activeOpacity={0.85}
+          style={styles.primaryAction}
         >
-          <Share2 size={14} color="#fff" />
-          <Text style={styles.shareButtonText}>Compartir</Text>
+          <Share2 size={16} color="#ffffff" />
         </TouchableOpacity>
 
         <TouchableOpacity
           onPress={handleCopy}
-          activeOpacity={0.8}
-          style={[styles.copyButton, copied && styles.copyButtonDisabled]}
+          activeOpacity={0.85}
+          style={[styles.secondaryAction, copied && styles.secondaryActionDisabled]}
         >
-          <Copy size={14} color="#4c1d95" />
-          <Text style={styles.copyButtonText}>
-            {copied ? 'Copiado' : 'Copiar'}
-          </Text>
+          <Copy size={16} color="#4c1d95" />
+          <Text style={styles.secondaryActionText}>{copied ? 'Copiado' : 'Copiar enlace'}</Text>
         </TouchableOpacity>
       </View>
     </MotiView>
@@ -129,112 +126,119 @@ Nos vemos!`
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#ede9fe',
-    width: 140,
-    height: 200,
-    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    width: 220,
+    minHeight: 220,
     justifyContent: 'space-between',
-    marginHorizontal: 4,
+    marginHorizontal: 6,
+    borderWidth: 1,
+    borderColor: '#e0e7ff',
+    shadowColor: '#111827',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
-  contentButton: {
+  touchable: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
   },
-  info: {
-    alignItems: 'center',
-    gap: 8,
+  header: {
+    gap: 12,
   },
   dateBadge: {
-    backgroundColor: '#c4b5fd',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    backgroundColor: '#eef2ff',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 9999,
   },
   dateText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#5b21b6',
+    color: '#3730a3',
   },
   visitorName: {
-    color: '#5b21b6',
-    fontWeight: '600',
-    fontSize: 14,
-    textAlign: 'center',
+    color: '#1f2937',
+    fontWeight: '700',
+    fontSize: 18,
+    lineHeight: 24,
   },
-  licenseBadge: {
-    backgroundColor: '#ddd6fe',
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    marginTop: 4,
-  },
-  licenseText: {
-    fontSize: 12,
-    color: '#5b21b6',
-  },
-  iconRow: {
-    flexDirection: 'row',
+  metaSection: {
+    marginTop: 16,
     gap: 8,
-    marginTop: 8,
   },
-  iconBubble: {
-    width: 32,
-    height: 32,
-    backgroundColor: '#c4b5fd',
-    borderRadius: 16,
+  metaBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
+    gap: 8,
+    backgroundColor: '#f5f3ff',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
   },
-  guestsText: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    fontSize: 10,
+  metaLabel: {
+    fontSize: 12,
     fontWeight: '600',
-    color: '#5b21b6',
+    color: '#4338ca',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  metaText: {
+    fontSize: 13,
+    color: '#4338ca',
+    fontWeight: '600',
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#e0e7ff',
+    marginHorizontal: 16,
   },
   actionsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    paddingHorizontal: 8,
-    paddingBottom: 8,
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  primaryAction: {
+    flex: 1,
+    backgroundColor: '#4c1d95',
+    paddingVertical: 10,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
   },
-  shareButton: {
-    flex: 1,
-    backgroundColor: '#5b21b6',
-    paddingVertical: 6,
-    borderRadius: 12,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  shareButtonText: {
+  primaryActionText: {
     color: '#ffffff',
-    fontSize: 12,
-    marginLeft: 4,
+    fontWeight: '600',
+    fontSize: 13,
   },
-  copyButton: {
+  secondaryAction: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#c4b5fd',
-    paddingVertical: 6,
+    backgroundColor: '#eef2ff',
+    paddingVertical: 10,
     borderRadius: 12,
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
+    gap: 8,
   },
-  copyButtonDisabled: {
-    opacity: 0.6,
+  secondaryActionDisabled: {
+    opacity: 0.5,
   },
-  copyButtonText: {
+  secondaryActionText: {
     color: '#4338ca',
-    fontSize: 12,
-    marginLeft: 4,
+    fontWeight: '600',
+    fontSize: 13,
   },
 })
