@@ -71,7 +71,10 @@ export default function UserMenuPanel({ isOpen, onClose, progress }: UserMenuPan
             {MENU_ITEMS.map((item) => (
               <Pressable
                 key={item.id}
-                onPress={item.onPress}
+                onPress={() => {
+                  setActiveItem(item.id)
+                  item.onPress()
+                }}
                 style={[styles.menuItem, activeItem === item.id && styles.menuItemActive]}
               >
                 <View style={styles.menuIcon}>{item.icon}</View>

@@ -49,16 +49,12 @@ export default function PackageExpandableCard({
   detailDescription,
 }: PackageExpandableCardProps) {
   const bottomSheetRef = useRef<BottomSheetModal>(null)
-  const [isOpen, setIsOpen] = React.useState(false)
-
   const openSheet = useCallback(() => {
-    setIsOpen(true)
     bottomSheetRef.current?.present()
   }, [])
 
   const closeSheet = useCallback(() => {
     bottomSheetRef.current?.dismiss()
-    setIsOpen(false)
     onClose?.()
   }, [onClose])
 
