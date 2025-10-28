@@ -58,15 +58,15 @@ export default function InvitedSlider() {
         data={data}
         keyExtractor={(item) => item.id.toString()}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingRight: 16 }}
+        contentContainerStyle={styles.listContent}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         renderItem={({ item }) => {
           if (!isVisit(item)) {
             return (
               <EmptyActionCard
                 onCreate={handleNavigateToWizard}
-                width={140}
-                height={200}
+                width={220}
+                height={220}
               >
                 Realizar una{'\n'}invitación
               </EmptyActionCard>
@@ -110,5 +110,9 @@ const styles = StyleSheet.create({
   },
   separator: {
     width: 16,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 4,
   },
 })
