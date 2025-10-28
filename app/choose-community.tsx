@@ -1,3 +1,4 @@
+import { useResidentContext } from '@/components/contexts/ResidentContext'
 import { ThemedText } from '@/components/themed-text'
 import { ThemedView } from '@/components/themed-view'
 import { supabase } from '@/lib/supabase'
@@ -45,6 +46,7 @@ interface CommunityOption {
 export default function ChooseCommunityScreen() {
   const { session, isLoading: authLoading } = useSupabaseAuth()
   const { setUserData } = useUser()
+  const { resetCommunityData } = useResidentContext()
   const router = useRouter()
   const colorScheme = useColorScheme()
   const isDarkMode = colorScheme === 'dark'
@@ -106,6 +108,7 @@ export default function ChooseCommunityScreen() {
 
   const handleSelect = async (community: CommunityOption) => {
     setSelectingId(community.id)
+    resetCommunityData({ loadingState: true })
     try {
       await AsyncStorage.multiSet([
         [SELECTED_COMMUNITY_KEY, community.slug],
