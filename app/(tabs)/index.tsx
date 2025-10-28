@@ -25,10 +25,23 @@ export default function ResidentPage() {
     }
 
     const checkCommunity = async () => {
+      setAllowed(false)
+
       const selected =
         (await AsyncStorage.getItem('selected_community')) || userCommunitySlug
 
-      if (!selected || selected !== routeCommunitySlug) {
+      if (!selected) {
+        await AsyncStorage.setItem(SKIP_COMMUNITY_AUTO_REDIRECT_KEY, 'true')
+        router.replace('../choose-community')
+        return
+      }
+
+      if (!routeCommunitySlug) {
+        router.replace({ pathname: '/(tabs)', params: { community: selected } })
+        return
+      }
+
+      if (selected !== routeCommunitySlug) {
         await AsyncStorage.setItem(SKIP_COMMUNITY_AUTO_REDIRECT_KEY, 'true')
         router.replace('../choose-community')
         return
@@ -38,7 +51,15 @@ export default function ResidentPage() {
     }
 
     checkCommunity()
-  }, [authLoading, userLoading, session, id, routeCommunitySlug, router, userCommunitySlug])
+  }, [
+    authLoading,
+    userLoading,
+    session,
+    id,
+    routeCommunitySlug,
+    router,
+    userCommunitySlug,
+  ])
 
   if (authLoading || userLoading || !allowed) {
     return (
