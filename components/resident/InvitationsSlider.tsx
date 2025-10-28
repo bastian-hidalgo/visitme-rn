@@ -3,16 +3,28 @@ import ActionButton from '@/components/resident/ActionButton'
 import InvitedCard from '@/components/resident/InvitedCard'
 import EmptyActionCard from '@/components/ui/EmptyActionCard'
 import type { Database } from '@/types/supabase'
+import { useUser } from '@/providers/user-provider'
 import { UserPlus } from 'lucide-react-native'
+import { useRouter } from 'expo-router'
 import { MotiView } from 'moti'
-import React from 'react'
+import React, { useCallback } from 'react'
 import { FlatList, StyleSheet, Text, View } from 'react-native'
 
 type Visit = Database['public']['Tables']['visits']['Row']
 type VisitItem = Visit | { id: 'new' }
 
 export default function InvitedSlider() {
-  const { visits, openInvitationPanel } = useResidentContext()
+  const { visits } = useResidentContext()
+  const { communitySlug } = useUser()
+  const router = useRouter()
+
+  const handleNavigateToWizard = useCallback(() => {
+    if (communitySlug) {
+      router.push({ pathname: '/invitations/new', params: { community: communitySlug } })
+    } else {
+      router.push('/invitations/new')
+    }
+  }, [communitySlug, router])
 
   const data: VisitItem[] = [
     ...visits,
@@ -36,7 +48,7 @@ export default function InvitedSlider() {
         <ActionButton
           text="Invitar"
           icon={UserPlus}
-          onPress={openInvitationPanel}
+          onPress={handleNavigateToWizard}
         />
       </View>
 
@@ -52,7 +64,7 @@ export default function InvitedSlider() {
           if (!isVisit(item)) {
             return (
               <EmptyActionCard
-                onCreate={openInvitationPanel}
+                onCreate={handleNavigateToWizard}
                 width={140}
                 height={200}
               >
