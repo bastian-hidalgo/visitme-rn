@@ -1,4 +1,3 @@
-import { getBaseUrl } from '@/lib/getBaseUrl'
 import * as Clipboard from 'expo-clipboard'
 import { Car, Copy, Share2, UsersRound } from 'lucide-react-native'
 import { MotiView } from 'moti'
@@ -26,7 +25,8 @@ export default function InvitedCard({
   onPress
 }: InvitedCardProps) {
   const [copied, setCopied] = useState(false)
-  const url = `${getBaseUrl()}/v/${code}`
+  const INVITATION_BASE_URL = process.env.EXPO_BASE_URL || 'https://app.visitme.cl'
+  const url = `${INVITATION_BASE_URL}/v/${code}`
 
   const handleCopy = async () => {
     await Clipboard.setStringAsync(url)

@@ -1,200 +1,84 @@
 import { useResidentContext } from '@/components/contexts/ResidentContext'
 import { useStepperize } from '@/lib/stepperize'
-import { dayjs, now, toServerUTC } from '@/lib/time'
-import { supabase } from '@/lib/supabase'
+import { dayjs, now } from '@/lib/time'
 import { useUser } from '@/providers/user-provider'
+import DateTimePicker from '@react-native-community/datetimepicker'
 import * as Clipboard from 'expo-clipboard'
-import DateTimePicker, {
-  DateTimePickerAndroid,
-  type DateTimePickerEvent,
-} from '@react-native-community/datetimepicker'
 import {
+  Building2,
+  CalendarDays,
+  Car,
   Check,
   CheckCircle2,
   ChevronLeft,
   Clipboard as ClipboardIcon,
+  Phone,
   Share2,
   User,
   Users,
   XCircle,
 } from 'lucide-react-native'
-import { Building2, Car, CalendarDays, Phone } from 'lucide-react-native'
 import { MotiView } from 'moti'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-  Platform,
+  View
 } from 'react-native'
 import Toast from 'react-native-toast-message'
+import { useDepartments } from './hooks/useDepartments'
+import { useInvitationCreator } from './hooks/useInvitationCreator'
+import { useInvitationForm } from './hooks/useInvitationForm'
+import { useNotificationSound } from './hooks/useNotificationSound'
 
 type StepId = 'department' | 'type' | 'details' | 'review'
 
-type DepartmentOption = {
-  id: string
-  label: string
-}
-
-type FormState = {
-  type: 'peatonal' | 'vehicular' | null
-  visitorName: string
-  contact: string
-  licensePlate: string
-  expectedAt: string
-  guests: string
-}
-
-type FormErrors = Partial<Record<'visitorName' | 'expectedAt' | 'guests', string>>
-
-type SuccessState = {
-  code: string
-  secret_code: string | null
-}
-
-type InvitationWizardProps = {
-  onExit?: () => void
-}
-
 const STEP_DEFINITIONS = [
-  {
-    id: 'department' as const,
-    title: 'Departamento',
-    description: 'Elige a qué departamento quedará asociada la invitación.',
-  },
-  {
-    id: 'type' as const,
-    title: 'Tipo de visita',
-    description: 'Define si tu invitado llegará a pie o en vehículo.',
-  },
-  {
-    id: 'details' as const,
-    title: 'Detalles',
-    description: 'Ingresa los datos necesarios para validar al visitante.',
-  },
-  {
-    id: 'review' as const,
-    title: 'Confirmación',
-    description: 'Revisa el resumen antes de generar la invitación.',
-  },
+  { id: 'department' as const, title: 'Departamento', description: 'Elige a qué departamento quedará asociada la invitación.' },
+  { id: 'type' as const, title: 'Tipo de visita', description: 'Define si tu invitado llegará a pie o en vehículo.' },
+  { id: 'details' as const, title: 'Detalles', description: 'Ingresa los datos necesarios para validar al visitante.' },
+  { id: 'review' as const, title: 'Confirmación', description: 'Revisa el resumen antes de generar la invitación.' },
 ]
 
-const VISIT_TYPE_OPTIONS: Array<{ value: 'peatonal' | 'vehicular'; label: string; description: string }> = [
-  {
-    value: 'peatonal',
-    label: 'Visita peatonal',
-    description: 'Invitados que llegarán caminando o serán dejados en la entrada.',
-  },
-  {
-    value: 'vehicular',
-    label: 'Visita vehicular',
-    description: 'Invitados que ingresarán en auto o necesitan estacionamiento.',
-  },
+const VISIT_TYPE_OPTIONS = [
+  { value: 'peatonal', label: 'Visita peatonal', description: 'Invitados que llegarán caminando o serán dejados en la entrada.' },
+  { value: 'vehicular', label: 'Visita vehicular', description: 'Invitados que ingresarán en auto o necesitan estacionamiento.' },
 ]
 
-const DATE_INPUT_FORMAT = 'YYYY-MM-DD HH:mm'
-const INVITATION_BASE_URL = 'https://app.visitme.cl'
+const DATE_INPUT_FORMAT = process.env.EXPO_PUBLIC_DATETIME_FORMAT || 'YYYY-MM-DD HH:mm'
+const INVITATION_BASE_URL = process.env.EXPO_BASE_URL || 'https://app.visitme.cl'
 
-const getDefaultExpectedAt = () => now().format(DATE_INPUT_FORMAT)
-
-const createInitialFormState = (): FormState => ({
-  type: null,
-  visitorName: '',
-  contact: '',
-  licensePlate: '',
-  expectedAt: getDefaultExpectedAt(),
-  guests: '1',
-})
-
-const generateInvitationCode = () => {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  return Array.from({ length: 6 })
-    .map(() => alphabet[Math.floor(Math.random() * alphabet.length)])
-    .join('')
-}
-
-const generateSecretCode = () => {
-  const min = 100000
-  const max = 999999
-  return Math.floor(Math.random() * (max - min + 1) + min).toString()
-}
-
-const formatExpectedLabel = (raw: string) => {
-  const trimmed = raw.trim()
-  if (!trimmed) return null
-  const parsed = dayjs(trimmed, DATE_INPUT_FORMAT, true)
-  if (!parsed.isValid()) return trimmed
-  return parsed.format('DD [de] MMMM YYYY • HH:mm')
-}
-
-const parseExpectedAt = (raw: string): string | null => {
-  const trimmed = raw.trim()
-  if (!trimmed) return null
-  const parsed = dayjs(trimmed, DATE_INPUT_FORMAT, true)
-  if (!parsed.isValid()) return null
-  return toServerUTC(parsed)
-}
-
-export default function InvitationWizard({ onExit }: InvitationWizardProps) {
+export default function InvitationWizard({ onExit }: { onExit?: () => void }) {
   const { id: userId, communityId, name: residentName, communityName } = useUser()
   const { fetchVisits } = useResidentContext()
-
   const stepper = useStepperize<StepId>({ steps: STEP_DEFINITIONS, initialStep: 'department' })
 
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [reloadToken, setReloadToken] = useState(0)
-  const [departments, setDepartments] = useState<DepartmentOption[]>([])
+  const { departments, loading, error, reload } = useDepartments(userId, communityId)
+  const { form, setForm, errors: formErrors, setErrors: setFormErrors, validate } = useInvitationForm()
+  const { play } = useNotificationSound()
+  const { create } = useInvitationCreator({ communityId, userId, residentName })
+
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(null)
-  const [form, setForm] = useState<FormState>(() => createInitialFormState())
-  const [formErrors, setFormErrors] = useState<FormErrors>({})
+  const [success, setSuccess] = useState<{ code: string; secret_code: string | null } | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [success, setSuccess] = useState<SuccessState | null>(null)
   const [copiedLink, setCopiedLink] = useState(false)
   const [showExpectedPicker, setShowExpectedPicker] = useState(false)
-  const notificationSoundRef = useRef<any>(null)
-
-  const loadNotificationSound = useCallback(async () => {
-    try {
-      const { Audio } = await import('expo-av')
-      const result = await Audio.Sound.createAsync(
-        require('../../../assets/sounds/notification.mp3'),
-        { shouldPlay: false },
-      )
-
-      return result.sound
-    } catch (error) {
-      console.warn('No se pudo cargar el sonido de notificación', error)
-      return null
-    }
-  }, [])
-
-  const ensureNotificationSound = useCallback(async () => {
-    if (notificationSoundRef.current) return notificationSoundRef.current
-    const sound = await loadNotificationSound()
-    if (sound) {
-      notificationSoundRef.current = sound
-    }
-    return sound
-  }, [loadNotificationSound])
 
   const selectedDepartment = useMemo(
-    () => departments.find((dept) => dept.id === selectedDepartmentId) ?? null,
-    [departments, selectedDepartmentId],
+    () => departments.find((d) => d.id === selectedDepartmentId) ?? null,
+    [departments, selectedDepartmentId]
   )
 
   const expectedAtDate = useMemo(() => {
     const parsed = dayjs(form.expectedAt, DATE_INPUT_FORMAT, true)
-    if (parsed.isValid()) {
-      return parsed.toDate()
-    }
-    return now().toDate()
+    return parsed.isValid() ? parsed.toDate() : now().toDate()
   }, [form.expectedAt])
 
   const completedSteps = useMemo(() => {
@@ -204,7 +88,7 @@ export default function InvitationWizard({ onExit }: InvitationWizardProps) {
     if (form.visitorName.trim()) done.add('details')
     if (success) done.add('review')
     return done
-  }, [form.type, form.visitorName, selectedDepartment, success])
+  }, [selectedDepartment, form.type, form.visitorName, success])
 
   const stepSummaries = useMemo(
     () => ({
@@ -215,108 +99,63 @@ export default function InvitationWizard({ onExit }: InvitationWizardProps) {
           : 'Visita vehicular'
         : null,
       details: form.visitorName
-        ? [form.visitorName.trim(), form.licensePlate.trim()].filter(Boolean).join(' · ')
+        ? [form.visitorName.trim(), form.licensePlate.trim()]
+            .filter(Boolean)
+            .join(' · ')
         : null,
       review: success ? 'Invitación creada' : null,
     }),
-    [form.licensePlate, form.type, form.visitorName, selectedDepartment?.label, success],
+    [selectedDepartment, form.type, form.visitorName, form.licensePlate, success]
   )
-
-  useEffect(() => {
-    if (!communityId || !userId) return
-
-    let cancelled = false
-
-    const loadDepartments = async () => {
-      setLoading(true)
-      setLoadError(null)
-
-      try {
-        const { data, error } = await supabase
-          .from('user_departments')
-          .select('department_id, active, can_reserve, department:department_id(number, reservations_blocked)')
-          .eq('user_id', userId)
-          .eq('community_id', communityId)
-
-        if (error) throw error
-
-        const mapped = (data || [])
-          .filter((row) => row.active !== false)
-          .filter((row) => row.can_reserve !== false && row.department?.reservations_blocked !== true)
-          .map((row) => ({
-            id: row.department_id,
-            label: row.department?.number ? `Depto ${row.department.number}` : 'Departamento',
-          }))
-          .sort((a, b) => a.label.localeCompare(b.label, 'es'))
-
-        if (!cancelled) {
-          setDepartments(mapped)
-          if (!mapped.length) {
-            setLoadError('No encontramos departamentos asociados a tu usuario.')
+  
+    const openExpectedPicker = () => {
+    if (Platform.OS === 'android') {
+      const { DateTimePickerAndroid } = require('@react-native-community/datetimepicker')
+      DateTimePickerAndroid.open({
+        mode: 'datetime',
+        is24Hour: true,
+        value: expectedAtDate,
+        onChange: (_event, date) => {
+          if (date) {
+            const formatted = dayjs(date).format(DATE_INPUT_FORMAT)
+            setForm(prev => ({ ...prev, expectedAt: formatted }))
+            if (formErrors.expectedAt) {
+              const { expectedAt, ...rest } = formErrors
+              setFormErrors(rest)
+            }
           }
-        }
-      } catch (error) {
-        console.error('Error al cargar departamentos', error)
-        if (!cancelled) {
-          setLoadError('No pudimos obtener tus departamentos. Intenta nuevamente.')
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
+        },
+      })
+      return
     }
+    setShowExpectedPicker(true)
+  }
 
-    loadDepartments()
+  const closeExpectedPicker = () => {
+    setShowExpectedPicker(false)
+  }
 
-    return () => {
-      cancelled = true
+  const handleApplyExpectedAt = (date: Date) => {
+    const formatted = dayjs(date).format(DATE_INPUT_FORMAT)
+    setForm(prev => ({ ...prev, expectedAt: formatted }))
+    if (formErrors.expectedAt) {
+      const { expectedAt, ...rest } = formErrors
+      setFormErrors(rest)
     }
-  }, [communityId, reloadToken, userId])
+  }
 
-  useEffect(() => {
-    if (departments.length === 1 && !selectedDepartmentId) {
-      setSelectedDepartmentId(departments[0].id)
-      stepper.goTo('type')
+  const handleClearExpectedAt = () => {
+    setForm(prev => ({ ...prev, expectedAt: '' }))
+    if (formErrors.expectedAt) {
+      const { expectedAt, ...rest } = formErrors
+      setFormErrors(rest)
     }
-  }, [departments, selectedDepartmentId, stepper])
+    setShowExpectedPicker(false)
+  }
 
-  useEffect(() => {
-    if (!success) return
 
-    let isActive = true
-
-    const prepareAndPlay = async () => {
-      const sound = await ensureNotificationSound()
-      if (!sound || !isActive) return
-      try {
-        if (sound.replayAsync) {
-          await sound.replayAsync()
-        } else {
-          await sound.setPositionAsync(0)
-          await sound.playAsync()
-        }
-      } catch (error) {
-        console.warn('No se pudo reproducir el sonido de notificación', error)
-      }
-    }
-
-    prepareAndPlay()
-
-    return () => {
-      isActive = false
-    }
-  }, [ensureNotificationSound, success])
-
-  useEffect(() => {
-    return () => {
-      if (notificationSoundRef.current) {
-        notificationSoundRef.current.unloadAsync().catch(() => null)
-        notificationSoundRef.current = null
-      }
-    }
-  }, [])
-
-  const handleSelectDepartment = (departmentId: string) => {
-    setSelectedDepartmentId(departmentId)
+  const handleSelectDepartment = (id: string) => {
+    setSelectedDepartmentId(id)
     stepper.goTo('type')
   }
 
@@ -325,205 +164,53 @@ export default function InvitationWizard({ onExit }: InvitationWizardProps) {
     stepper.goTo('details')
   }
 
-  const validateDetails = useCallback(() => {
-    const errors: FormErrors = {}
-    if (!form.visitorName.trim()) {
-      errors.visitorName = 'Ingresa el nombre de tu invitado.'
-    }
-
-    if (form.expectedAt.trim()) {
-      const parsed = dayjs(form.expectedAt.trim(), DATE_INPUT_FORMAT, true)
-      if (!parsed.isValid()) {
-        errors.expectedAt = 'Usa el formato AAAA-MM-DD HH:mm'
-      }
-    }
-
-    if (form.guests.trim()) {
-      const guests = Number(form.guests.trim())
-      if (!Number.isFinite(guests) || guests < 1) {
-        errors.guests = 'Ingresa un número válido de acompañantes.'
-      }
-    }
-
-    setFormErrors(errors)
-    return Object.keys(errors).length === 0
-  }, [form.expectedAt, form.guests, form.visitorName])
-
-  const handleContinueFromDetails = () => {
-    if (validateDetails()) {
-      stepper.goTo('review')
-    }
-  }
-
-  const resetWizard = () => {
-    setSuccess(null)
-    setCopiedLink(false)
-    setForm(createInitialFormState())
-    setSelectedDepartmentId(null)
-    setFormErrors({})
-    setShowExpectedPicker(false)
-    stepper.goTo('department')
-  }
-
-  const createInvitation = useCallback(async () => {
-    if (!selectedDepartment || !form.type) {
-      throw new Error('Faltan datos para crear la invitación')
-    }
-
-    const guestsNumber = Number(form.guests.trim() || '1')
-    const guests = !Number.isFinite(guestsNumber) || guestsNumber < 1 ? 1 : Math.round(guestsNumber)
-    const expectedAt = parseExpectedAt(form.expectedAt)
-
-    const expiresAt = expectedAt
-      ? dayjs(expectedAt).add(1, 'day')
-      : now().add(1, 'day')
-
-    const payload = {
-      community_id: communityId,
-      department_id: selectedDepartment.id,
-      department: selectedDepartment.label,
-      user_id: userId,
-      resident_name: residentName,
-      visitor_name: form.visitorName.trim(),
-      contact: form.contact.trim() || null,
-      license_plate: form.type === 'vehicular' ? form.licensePlate.trim().toUpperCase() || null : null,
-      type: form.type,
-      guests,
-      expected_at: expectedAt,
-      scheduled_at: expectedAt,
-      expires_at: toServerUTC(expiresAt),
-      status: null as string | null,
-    }
-
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-      const code = generateInvitationCode()
-      const secret = generateSecretCode()
-
-      const { data, error } = await supabase
-        .from('visits')
-        .insert({
-          ...payload,
-          code,
-          secret_code: secret,
-        })
-        .select('code, secret_code')
-        .maybeSingle()
-
-      if (!error && data) {
-        return data as SuccessState
-      }
-
-      if (error && typeof error.message === 'string' && error.message.includes('duplicate')) {
-        continue
-      }
-
-      throw error ?? new Error('No fue posible crear la invitación')
-    }
-
-    throw new Error('No fue posible generar un código único')
-  }, [communityId, form.contact, form.expectedAt, form.guests, form.licensePlate, form.type, form.visitorName, residentName, selectedDepartment, userId])
-
   const handleConfirmInvitation = async () => {
     if (!selectedDepartment) {
+      Toast.show({ type: 'info', text1: 'Selecciona un departamento.' })
       stepper.goTo('department')
-      Toast.show({ type: 'info', text1: 'Selecciona un departamento para continuar.' })
       return
     }
-
     if (!form.type) {
+      Toast.show({ type: 'info', text1: 'Selecciona el tipo de visita.' })
       stepper.goTo('type')
-      Toast.show({ type: 'info', text1: 'Elige el tipo de visita.' })
       return
     }
-
-    if (!validateDetails()) {
+    if (!validate()) {
       stepper.goTo('details')
       return
     }
 
     setSubmitting(true)
     try {
-      const result = await createInvitation()
+      const result = await create(form, selectedDepartment)
       await fetchVisits()
+      play()
       setSuccess(result)
       stepper.goTo('review')
       Toast.show({ type: 'success', text1: 'Invitación creada con éxito.' })
-    } catch (error) {
-      console.error('Error al crear invitación', error)
-      Toast.show({ type: 'error', text1: 'No pudimos crear la invitación.' })
+    } catch {
+      Toast.show({ type: 'error', text1: 'No se pudo crear la invitación.' })
     } finally {
       setSubmitting(false)
     }
   }
-
-  const invitationUrl = success ? `${INVITATION_BASE_URL}/v/${success.code}` : null
-  const expectedLabel = formatExpectedLabel(form.expectedAt)
-
-  const handleApplyExpectedAt = useCallback(
-    (date: Date) => {
-      const formatted = dayjs(date).format(DATE_INPUT_FORMAT)
-      setForm((prev) => ({ ...prev, expectedAt: formatted }))
-      setFormErrors((prev) => {
-        if (!prev.expectedAt) return prev
-        const { expectedAt: _removed, ...rest } = prev
-        return rest
-      })
-    },
-    [],
-  )
-
-  const handleExpectedAtChange = useCallback(
-    (event: DateTimePickerEvent, date?: Date) => {
-      if (Platform.OS === 'android') {
-        if (event.type === 'dismissed') {
-          return
-        }
-        if (date) {
-          handleApplyExpectedAt(date)
-        }
-        return
-      }
-
-      if (event.type === 'dismissed') {
-        setShowExpectedPicker(false)
-        return
-      }
-
-      if (date) {
-        handleApplyExpectedAt(date)
-      }
-    },
-    [handleApplyExpectedAt],
-  )
-
-  const openExpectedPicker = useCallback(() => {
-    if (Platform.OS === 'android') {
-      DateTimePickerAndroid.open({
-        mode: 'datetime',
-        is24Hour: true,
-        value: expectedAtDate,
-        onChange: (event, date) => {
-          handleExpectedAtChange(event, date ?? undefined)
-        },
+  const handleContinueFromDetails = () => {
+    if (!validate()) {
+      Toast.show({
+        type: 'info',
+        text1: 'Revisa los campos antes de continuar.',
       })
       return
     }
-    setShowExpectedPicker(true)
-  }, [expectedAtDate, handleExpectedAtChange])
 
-  const closeExpectedPicker = useCallback(() => {
-    setShowExpectedPicker(false)
-  }, [])
-
-  const handleClearExpectedAt = useCallback(() => {
-    setForm((prev) => ({ ...prev, expectedAt: '' }))
-    setFormErrors((prev) => {
-      if (!prev.expectedAt) return prev
-      const { expectedAt: _removed, ...rest } = prev
-      return rest
-    })
-    setShowExpectedPicker(false)
-  }, [])
+    stepper.goTo('review')
+  }
+  const invitationUrl = success ? `${INVITATION_BASE_URL}/v/${success.code}` : null
+  const expectedLabel = form.expectedAt
+    ? dayjs(form.expectedAt, DATE_INPUT_FORMAT).isValid()
+      ? dayjs(form.expectedAt, DATE_INPUT_FORMAT).format('DD [de] MMMM YYYY · HH:mm')
+      : form.expectedAt
+    : null
 
   const handleCopyLink = async () => {
     if (!invitationUrl) return
@@ -535,14 +222,26 @@ export default function InvitationWizard({ onExit }: InvitationWizardProps) {
   const handleShareWhatsapp = () => {
     if (!invitationUrl || !success) return
     const message = `Hola ${form.visitorName.trim()}, te invité a mi comunidad ${communityName}.
-
 Preséntate en portería con este enlace: ${invitationUrl}.
-
 Si te lo piden, el código secreto es: ${success.secret_code ?? '—'}.
-
 Nos vemos pronto.`
-    const url = `https://wa.me/?text=${encodeURIComponent(message)}`
-    Linking.openURL(url)
+    Linking.openURL(`https://wa.me/?text=${encodeURIComponent(message)}`)
+  }
+
+  const resetWizard = () => {
+    setSuccess(null)
+    setCopiedLink(false)
+    setForm((prev) => ({
+      ...prev,
+      type: null,
+      visitorName: '',
+      contact: '',
+      licensePlate: '',
+      guests: '1',
+      expectedAt: dayjs().format(DATE_INPUT_FORMAT),
+    }))
+    setSelectedDepartmentId(null)
+    stepper.goTo('department')
   }
 
   if (loading) {
@@ -553,18 +252,12 @@ Nos vemos pronto.`
     )
   }
 
-  if (loadError) {
+  if (error) {
     return (
       <View style={styles.loadingContainer}>
         <Text style={styles.errorTitle}>No pudimos cargar tus departamentos</Text>
-        <Text style={styles.errorDescription}>{loadError}</Text>
-        <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={() => {
-            setLoadError(null)
-            setReloadToken((prev) => prev + 1)
-          }}
-        >
+        <Text style={styles.errorDescription}>{error}</Text>
+        <TouchableOpacity style={styles.primaryButton} onPress={reload}>
           <Text style={styles.primaryButtonLabel}>Reintentar</Text>
         </TouchableOpacity>
       </View>
