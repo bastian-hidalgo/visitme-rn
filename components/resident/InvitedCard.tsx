@@ -109,7 +109,6 @@ Nos vemos!`
           style={styles.primaryAction}
         >
           <Share2 size={16} color="#ffffff" />
-          <Text style={styles.primaryActionText}>Compartir</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
