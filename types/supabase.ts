@@ -1462,6 +1462,7 @@ export type Database = {
           accepts_notifications: boolean
           active: boolean
           avatar_url: string | null
+          birthday: string | null
           community_id: string | null
           confirmed: boolean | null
           email: string | null
@@ -1478,6 +1479,7 @@ export type Database = {
           accepts_notifications?: boolean
           active?: boolean
           avatar_url?: string | null
+          birthday?: string | null
           community_id?: string | null
           confirmed?: boolean | null
           email?: string | null
@@ -1494,6 +1496,7 @@ export type Database = {
           accepts_notifications?: boolean
           active?: boolean
           avatar_url?: string | null
+          birthday?: string | null
           community_id?: string | null
           confirmed?: boolean | null
           email?: string | null
@@ -2180,7 +2183,7 @@ export type Database = {
         }[]
       }
       get_feedback_detailed: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           community_id: string | null
           community_name: string | null
@@ -2199,6 +2202,12 @@ export type Database = {
           user_id: string | null
           user_name: string | null
         }[]
+        SetofOptions: {
+          from: "*"
+          to: "view_feedback_detailed"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_feedbacks_between: {
         Args: {
@@ -2227,6 +2236,12 @@ export type Database = {
           updated_at: string | null
           version: string
         }[]
+        SetofOptions: {
+          from: "*"
+          to: "product_updates"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_parcels_between: {
         Args: {
@@ -2334,12 +2349,9 @@ export type Database = {
           total: number
         }[]
       }
-      get_residents_listing: {
-        Args: { p_community_id: string }
-        Returns: Json
-      }
+      get_residents_listing: { Args: { p_community_id: string }; Returns: Json }
       get_session_user_info: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           community_id: string
           id: string
@@ -2347,7 +2359,7 @@ export type Database = {
         }[]
       }
       get_updates_with_metrics: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           created_at: string
           description: string
@@ -2423,14 +2435,8 @@ export type Database = {
         Args: { p_community_id: string }
         Returns: boolean
       }
-      jwt_custom_claims: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      mark_overtimed_slots: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      jwt_custom_claims: { Args: never; Returns: Json }
+      mark_overtimed_slots: { Args: never; Returns: undefined }
       reactivate_user: {
         Args: { p_community_id: string; p_user_id: string }
         Returns: undefined
@@ -2443,10 +2449,7 @@ export type Database = {
         Args: { p_community_id: string; p_user_id: string }
         Returns: undefined
       }
-      unset_google_linked: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      unset_google_linked: { Args: never; Returns: undefined }
     }
     Enums: {
       block_type: "morning" | "afternoon"
