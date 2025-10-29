@@ -46,6 +46,7 @@ export default function PackageSlider() {
         snapToInterval={300}
         decelerationRate="fast"
         bounces={false}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
         contentContainerStyle={styles.listContent}
       />
     </MotiView>
@@ -54,7 +55,13 @@ export default function PackageSlider() {
 
 const styles = StyleSheet.create({
   container: { width: '100%', marginTop: 16 },
-  listContent: { paddingHorizontal: 10 },
+  listContent: {
+    paddingLeft: 0,
+    paddingRight: 16,
+  },
+  separator: {
+    width: 12,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

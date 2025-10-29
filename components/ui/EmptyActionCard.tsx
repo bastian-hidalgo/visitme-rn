@@ -71,7 +71,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#ede9fe',
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 4,
   },
   touchable: {
     alignItems: 'center',
