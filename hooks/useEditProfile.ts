@@ -4,45 +4,10 @@ import type { ImagePickerAsset, ImagePickerOptions } from 'expo-image-picker'
 import Toast from 'react-native-toast-message'
 
 import { updateOwnProfile } from '@/lib/api/users'
+import { decodeBase64ToArrayBuffer } from '@/lib/base64'
 import { supabase } from '@/lib/supabase'
 import { dayjs, now } from '@/lib/time'
 import { useUser } from '@/providers/user-provider'
-
-const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-
-function decodeBase64ToArrayBuffer(base64: string) {
-  const cleaned = base64.replace(/\s/g, '')
-  const padding = cleaned.endsWith('==') ? 2 : cleaned.endsWith('=') ? 1 : 0
-  const byteLength = (cleaned.length * 3) / 4 - padding
-  const array = new Uint8Array(byteLength)
-
-  let buffer = 0
-  let bits = 0
-  let index = 0
-
-  for (let i = 0; i < cleaned.length; i += 1) {
-    const char = cleaned[i]
-    if (char === '=') {
-      break
-    }
-
-    const value = BASE64_ALPHABET.indexOf(char)
-    if (value === -1) {
-      continue
-    }
-
-    buffer = (buffer << 6) | value
-    bits += 6
-
-    if (bits >= 8) {
-      bits -= 8
-      array[index] = (buffer >> bits) & 0xff
-      index += 1
-    }
-  }
-
-  return array.buffer.slice(0, index)
-}
 
 export function useEditProfile() {
   const {
@@ -83,6 +48,7 @@ export function useEditProfile() {
 
   const pickAvatar = useCallback(async () => {
     try {
+      // eslint-disable-next-line import/no-unresolved
       const ImagePicker = await import('expo-image-picker')
       const {
         launchImageLibraryAsync,

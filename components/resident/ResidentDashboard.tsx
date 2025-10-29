@@ -5,6 +5,7 @@ import { LayoutChangeEvent, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useResidentContext } from '@/components/contexts/ResidentContext'
+import FeedbackPanel from '@/components/resident/FeedbackPanel'
 import Header from '@/components/resident/Header'
 import HeroBanner from '@/components/resident/HeroBanner'
 import InvitationsSlider from '@/components/resident/InvitationsSlider'
@@ -195,6 +196,7 @@ export default function ResidentDashboard() {
           onClose={() => setIsMenuOpen(false)}
           progress={menuProgress}
         />
+        <FeedbackPanel />
     </SafeAreaView>
   )
 }
