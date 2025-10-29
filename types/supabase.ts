@@ -1459,6 +1459,7 @@ export type Database = {
       }
       users: {
         Row: {
+          birthday: string | null
           accepts_notifications: boolean
           active: boolean
           avatar_url: string | null
@@ -1475,6 +1476,7 @@ export type Database = {
           role: string | null
         }
         Insert: {
+          birthday?: string | null
           accepts_notifications?: boolean
           active?: boolean
           avatar_url?: string | null
@@ -1491,6 +1493,7 @@ export type Database = {
           role?: string | null
         }
         Update: {
+          birthday?: string | null
           accepts_notifications?: boolean
           active?: boolean
           avatar_url?: string | null

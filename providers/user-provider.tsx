@@ -27,6 +27,9 @@ export interface UserProfile {
   email: string
   role: string
   avatar_url?: string
+  phone?: string
+  birthday?: string | null
+  accepts_notifications?: boolean
 }
 
 export interface UserContextType {
@@ -38,6 +41,9 @@ export interface UserContextType {
   communitySlug: string
   communityName: string
   avatarUrl: string
+  phone: string
+  birthday: string | null
+  acceptsNotifications: boolean
   loading: boolean
   session: Session | null
   userDepartments: {
@@ -63,6 +69,9 @@ const defaultUserContext: UserContextType = {
   communitySlug: '',
   communityName: '',
   avatarUrl: '',
+  phone: '',
+  birthday: null,
+  acceptsNotifications: true,
   loading: true,
   session: null,
   userDepartments: [],
@@ -114,6 +123,9 @@ export const UserProvider = ({ children }: UserProviderProps) => {
           communitySlug: '',
           communityName: '',
           avatarUrl: '',
+          phone: '',
+          birthday: null,
+          acceptsNotifications: true,
           loading: false,
           session,
           userDepartments: [],
@@ -121,6 +133,39 @@ export const UserProvider = ({ children }: UserProviderProps) => {
         }
 
       const updated = { ...base, ...data }
+
+      if (base.profile || data.profile) {
+        const currentProfile = base.profile ?? null
+        const incomingProfile = data.profile ?? null
+        const mergedProfile = {
+          ...(currentProfile ?? {}),
+          ...(incomingProfile ?? {}),
+        } as UserProfile
+
+        if (typeof data.name !== 'undefined') {
+          mergedProfile.name = data.name
+        }
+        if (typeof data.email !== 'undefined') {
+          mergedProfile.email = data.email
+        }
+        if (typeof data.role !== 'undefined') {
+          mergedProfile.role = data.role
+        }
+        if (typeof data.avatarUrl !== 'undefined') {
+          mergedProfile.avatar_url = data.avatarUrl
+        }
+        if (typeof data.phone !== 'undefined') {
+          mergedProfile.phone = data.phone
+        }
+        if (typeof data.birthday !== 'undefined') {
+          mergedProfile.birthday = data.birthday
+        }
+        if (typeof data.acceptsNotifications !== 'undefined') {
+          mergedProfile.accepts_notifications = data.acceptsNotifications
+        }
+
+        updated.profile = mergedProfile
+      }
       AsyncStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated))
       if (data.communityName) {
         AsyncStorage.setItem(COMMUNITY_NAME_KEY, data.communityName)
@@ -139,7 +184,7 @@ export const UserProvider = ({ children }: UserProviderProps) => {
   const fetchUserProfile = async (userId: string) => {
     const { data: userProfile } = await supabase
       .from('users')
-      .select('id, name, email, role, avatar_url')
+      .select('id, name, email, role, avatar_url, phone, accepts_notifications, birthday')
       .eq('id', userId)
       .single()
 
@@ -186,6 +231,12 @@ export const UserProvider = ({ children }: UserProviderProps) => {
         communitySlug,
         communityName,
         avatarUrl: userProfile.avatar_url || '',
+        phone: userProfile.phone || '',
+        birthday: userProfile.birthday || null,
+        acceptsNotifications:
+          typeof userProfile.accepts_notifications === 'boolean'
+            ? userProfile.accepts_notifications
+            : true,
         loading: false,
         session,
         userDepartments: [],
@@ -195,6 +246,9 @@ export const UserProvider = ({ children }: UserProviderProps) => {
           email: userProfile.email || '',
           role: userProfile.role || '',
           avatar_url: userProfile.avatar_url || '',
+          phone: userProfile.phone || '',
+          birthday: userProfile.birthday || null,
+          accepts_notifications: userProfile.accepts_notifications ?? true,
         },
       }
       setUser(newUser)

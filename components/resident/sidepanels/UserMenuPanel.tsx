@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useUser } from '@/providers/user-provider'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
-import { ArrowLeftRight, Camera, Lightbulb, LogOut } from 'lucide-react-native'
+import { ArrowLeftRight, Lightbulb, LogOut, UserRound } from 'lucide-react-native'
 import React, { useEffect, useState } from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { SharedValue } from 'react-native-reanimated'
@@ -40,8 +40,18 @@ export default function UserMenuPanel({ isOpen, onClose, progress }: UserMenuPan
   }
 
   const MENU_ITEMS = [
-    { id: 'photo', text: 'Editar foto', icon: <Camera size={18} color="#fff" />, onPress: () => handleNavigate('/profile/edit-avatar') },
-    { id: 'suggest', text: 'Realizar una sugerencia', icon: <Lightbulb size={18} color="#fff" />, onPress: () => openFeedbackPanel() },
+    {
+      id: 'profile',
+      text: 'Editar perfil',
+      icon: <UserRound size={18} color="#fff" />,
+      onPress: () => handleNavigate('/profile/edit-profile'),
+    },
+    {
+      id: 'suggest',
+      text: 'Realizar una sugerencia',
+      icon: <Lightbulb size={18} color="#fff" />,
+      onPress: () => openFeedbackPanel(),
+    },
     ...(hasMultipleCommunities
       ? [{ id: 'change', text: 'Cambiar comunidad', icon: <ArrowLeftRight size={18} color="#fff" />, onPress: () => handleNavigate('/choose-community') }]
       : []),
