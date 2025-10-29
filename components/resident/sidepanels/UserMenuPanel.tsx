@@ -18,7 +18,7 @@ type UserMenuPanelProps = {
 
 export default function UserMenuPanel({ isOpen, onClose, progress }: UserMenuPanelProps) {
   const router = useRouter()
-  const { avatarUrl, communityName, id, logout } = useUser()
+  const { avatarUrl, communityName, id, logout, name } = useUser()
   const { openFeedbackPanel } = useResidentContext()
   const [hasMultipleCommunities, setHasMultipleCommunities] = useState(false)
   const [activeItem, setActiveItem] = useState('home')
@@ -60,8 +60,8 @@ export default function UserMenuPanel({ isOpen, onClose, progress }: UserMenuPan
               />
             </View>
             <View style={styles.headerText}>
-              <Text style={styles.communityLabel}>Tu comunidad</Text>
-              <Text style={styles.communityName}>{communityName || 'Sin nombre'}</Text>
+              <Text style={styles.communityLabel}>{communityName || 'Sin comunidad'}</Text>
+              <Text style={styles.userName}>{name || 'Sin nombre'}</Text>
             </View>
           </View>
 
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
   avatar: { width: 66, height: 66, borderRadius: 33 },
   headerText: { alignItems: 'flex-start' },
   communityLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 13, marginBottom: 2 },
-  communityName: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  userName: { color: '#fff', fontSize: 17, fontWeight: '700' },
   separator: { height: 1, backgroundColor: 'rgba(255,255,255,0.15)', marginVertical: 24, width: '100%' },
   menu: { gap: 12 },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12 },
