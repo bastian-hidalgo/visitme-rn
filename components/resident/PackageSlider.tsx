@@ -23,7 +23,10 @@ export default function PackageSlider() {
       style={styles.container}
     >
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Tus Encomiendas</Text>
+        <View>
+          <Text style={styles.headerEyebrow}>¿Ha llegado algo?</Text>
+          <Text style={styles.headerTitle}>Tus Encomiendas</Text>
+        </View>
         <View style={styles.packageCount}>
           <Package size={22} color="#f97316" />
           <Text style={styles.packageCountText}>{packages.length}</Text>
@@ -62,6 +65,13 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     color: '#111827',
+  },
+  headerEyebrow: {
+    color: '#6B7280',
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   packageCount: {
     flexDirection: 'row',

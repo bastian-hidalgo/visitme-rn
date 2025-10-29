@@ -40,6 +40,12 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permite a VisitMe acceder a tus fotos para actualizar tu avatar."
+        }
       ]
     ],
     "experiments": {
