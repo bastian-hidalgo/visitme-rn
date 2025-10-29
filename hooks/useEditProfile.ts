@@ -89,6 +89,7 @@ export function useEditProfile() {
         requestMediaLibraryPermissionsAsync,
         getMediaLibraryPermissionsAsync,
         PermissionStatus,
+        MediaTypeOptions,
       } = ImagePicker
 
       const currentPermission = await getMediaLibraryPermissionsAsync?.()
@@ -120,7 +121,7 @@ export function useEditProfile() {
         allowsEditing: true,
         aspect: [1, 1] as [number, number],
         quality: 0.8,
-        mediaTypes: ['images'] as unknown as ImagePickerOptions['mediaTypes'],
+        mediaTypes: MediaTypeOptions.Images,
         base64: true,
       }
 

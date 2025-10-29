@@ -92,25 +92,30 @@ const EditProfileScreen = () => {
     []
   )
 
-  const focusField = useCallback((field: string) => {
-    const position = fieldPositions.current[field]
-    if (!scrollViewRef.current || typeof position !== 'number') {
-      return
-    }
+  const focusField = useCallback(
+    (field: string) => {
+      const position = fieldPositions.current[field]
+      if (!scrollViewRef.current || typeof position !== 'number') {
+        return
+      }
 
-    const scrollTo = () => {
-      scrollViewRef.current?.scrollTo({
-        y: Math.max(0, position - 140),
-        animated: true,
-      })
-    }
+      const keyboardCompensation = keyboardHeight > 0 ? keyboardHeight + 100 : 200
 
-    if (Platform.OS === 'android') {
-      setTimeout(scrollTo, 120)
-    } else {
-      scrollTo()
-    }
-  }, [])
+      const scrollTo = () => {
+        scrollViewRef.current?.scrollTo({
+          y: Math.max(0, position - keyboardCompensation),
+          animated: true,
+        })
+      }
+
+      if (Platform.OS === 'android') {
+        setTimeout(scrollTo, keyboardHeight > 0 ? 80 : 180)
+      } else {
+        scrollTo()
+      }
+    },
+    [keyboardHeight]
+  )
 
   const onSave = async () => {
     const success = await handleSave()
@@ -159,7 +164,7 @@ const EditProfileScreen = () => {
           colors={['#1f2937', '#312e81']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[styles.header, { paddingTop: insets.top + 28 }]}
+          style={[styles.header, { paddingTop: insets.top + 20 }]}
         >
           <View style={styles.avatarSection}>
             <View style={styles.avatarWrapper}>
@@ -182,7 +187,7 @@ const EditProfileScreen = () => {
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={insets.top + 48}
+          keyboardVerticalOffset={insets.top + 36}
         >
           <ScrollView
             ref={scrollViewRef}
@@ -345,7 +350,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f3ff',
   },
   header: {
-    paddingBottom: 24,
+    paddingBottom: 28,
     paddingHorizontal: 24,
   },
   avatarSection: {
@@ -389,15 +394,15 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 72,
-    gap: 20,
-    marginTop: -56,
+    paddingTop: 32,
+    gap: 16,
+    marginTop: -32,
   },
   card: {
     backgroundColor: '#fff',
     borderRadius: 24,
     paddingHorizontal: 20,
-    paddingVertical: 24,
+    paddingVertical: 20,
     shadowColor: '#312e81',
     shadowOpacity: 0.08,
     shadowOffset: { width: 0, height: 12 },
