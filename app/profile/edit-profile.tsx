@@ -5,10 +5,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Dimensions,
-  findNodeHandle,
   Keyboard,
   KeyboardAvoidingView,
   Image,
+  type LayoutChangeEvent,
   Platform,
   Pressable,
   ScrollView,
@@ -36,8 +36,12 @@ const EditProfileScreen = () => {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const scrollViewRef = useRef<ScrollView>(null)
-  const nameFieldRef = useRef<View>(null)
-  const phoneFieldRef = useRef<View>(null)
+  const fieldLayouts = useRef<
+    Record<'name' | 'phone', { y: number; height: number }>
+  >({
+    name: { y: 0, height: 0 },
+    phone: { y: 0, height: 0 },
+  })
   const [keyboardHeight, setKeyboardHeight] = useState(0)
   const {
     initializing,
@@ -80,53 +84,47 @@ const EditProfileScreen = () => {
 
   const focusField = useCallback(
     (field: 'name' | 'phone') => {
-      const fieldRef = field === 'name' ? nameFieldRef.current : phoneFieldRef.current
       const scrollNode = scrollViewRef.current
+      const layout = fieldLayouts.current[field]
 
-      if (!fieldRef || !scrollNode) {
+      if (!scrollNode || !layout) {
         return
       }
 
       const buffer = 32
-      const runMeasure = () => {
-        const scrollHandle =
-          typeof scrollNode.getInnerViewNode === 'function'
-            ? scrollNode.getInnerViewNode()
-            : findNodeHandle(scrollNode)
+      const windowHeight = Dimensions.get('window').height
+      const availableHeight = Math.max(
+        240,
+        windowHeight - keyboardHeight - insets.bottom - 140
+      )
 
-        if (!scrollHandle) {
-          return
+      let target = Math.max(0, layout.y - buffer)
+
+      if (keyboardHeight > 0) {
+        const bottom = layout.y + layout.height + buffer
+        const neededOffset = bottom - availableHeight
+
+        if (neededOffset > target) {
+          target = neededOffset
         }
-
-        fieldRef.measureLayout(
-          scrollHandle,
-          (_x, y, _width, height) => {
-            const windowHeight = Dimensions.get('window').height
-            const availableHeight =
-              windowHeight - keyboardHeight - insets.bottom - buffer
-
-            let target = y - buffer
-
-            if (keyboardHeight > 0 && y + height > availableHeight) {
-              target = y + height - availableHeight
-            }
-
-            scrollNode.scrollTo({
-              y: Math.max(0, target),
-              animated: true,
-            })
-          },
-          () => {}
-        )
       }
 
-      if (Platform.OS === 'android') {
-        setTimeout(runMeasure, keyboardHeight > 0 ? 60 : 160)
-      } else {
-        runMeasure()
-      }
+      scrollNode.scrollTo({
+        y: Math.max(0, target),
+        animated: true,
+      })
     },
     [insets.bottom, keyboardHeight]
+  )
+
+  const handleFieldLayout = useCallback(
+    (field: 'name' | 'phone') => (event: LayoutChangeEvent) => {
+      fieldLayouts.current[field] = {
+        y: event.nativeEvent.layout.y,
+        height: event.nativeEvent.layout.height,
+      }
+    },
+    []
   )
 
   const onSave = async () => {
@@ -217,7 +215,10 @@ const EditProfileScreen = () => {
             <View style={styles.card}>
               <Text style={styles.sectionTitle}>Información personal</Text>
 
-              <View ref={nameFieldRef} style={styles.fieldRow}>
+              <View
+                onLayout={handleFieldLayout('name')}
+                style={styles.fieldRow}
+              >
                 <View style={styles.fieldIcon}>
                   <UserIcon size={18} color="#5b21b6" />
                 </View>
@@ -234,7 +235,10 @@ const EditProfileScreen = () => {
                 </View>
               </View>
 
-              <View ref={phoneFieldRef} style={styles.fieldRow}>
+              <View
+                onLayout={handleFieldLayout('phone')}
+                style={styles.fieldRow}
+              >
                 <View style={styles.fieldIcon}>
                   <Phone size={18} color="#5b21b6" />
                 </View>
