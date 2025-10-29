@@ -1,9 +1,10 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Stack, useRouter } from 'expo-router'
-import React, { useCallback, useMemo, useRef } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Image,
   Platform,
@@ -36,6 +37,7 @@ const EditProfileScreen = () => {
   const scrollViewRef = useRef<ScrollView>(null)
   const sectionOffsets = useRef<Record<string, number>>({})
   const fieldPositions = useRef<Record<string, number>>({})
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
   const {
     initializing,
     saving,
@@ -96,7 +98,18 @@ const EditProfileScreen = () => {
       return
     }
 
-    scrollViewRef.current.scrollTo({ y: Math.max(0, position - 80), animated: true })
+    const scrollTo = () => {
+      scrollViewRef.current?.scrollTo({
+        y: Math.max(0, position - 140),
+        animated: true,
+      })
+    }
+
+    if (Platform.OS === 'android') {
+      setTimeout(scrollTo, 120)
+    } else {
+      scrollTo()
+    }
   }, [])
 
   const onSave = async () => {
@@ -105,6 +118,21 @@ const EditProfileScreen = () => {
       router.back()
     }
   }
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'android' ? 'keyboardDidShow' : 'keyboardWillShow'
+    const hideEvent = Platform.OS === 'android' ? 'keyboardDidHide' : 'keyboardWillHide'
+
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates?.height ?? 0)
+    })
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0))
+
+    return () => {
+      showSub.remove()
+      hideSub.remove()
+    }
+  }, [])
 
   if (initializing) {
     return (
@@ -131,7 +159,7 @@ const EditProfileScreen = () => {
           colors={['#1f2937', '#312e81']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[styles.header, { paddingTop: insets.top + 36 }]}
+          style={[styles.header, { paddingTop: insets.top + 28 }]}
         >
           <View style={styles.avatarSection}>
             <View style={styles.avatarWrapper}>
@@ -154,7 +182,7 @@ const EditProfileScreen = () => {
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={insets.top + 72}
+          keyboardVerticalOffset={insets.top + 48}
         >
           <ScrollView
             ref={scrollViewRef}
@@ -162,7 +190,7 @@ const EditProfileScreen = () => {
             contentContainerStyle={[
               styles.scrollContent,
               {
-                paddingBottom: insets.bottom + 140,
+                paddingBottom: insets.bottom + keyboardHeight + 140,
               },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -260,7 +288,15 @@ const EditProfileScreen = () => {
             </View>
           </ScrollView>
 
-          <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+          <View
+            style={[
+              styles.footer,
+              {
+                paddingBottom: insets.bottom + 16 + keyboardHeight,
+                paddingTop: keyboardHeight > 0 ? 12 : 16,
+              },
+            ]}
+          >
             <Pressable style={styles.saveButton} onPress={onSave} disabled={saving}>
               {saving ? (
                 <ActivityIndicator color="#fff" />
@@ -309,7 +345,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f3ff',
   },
   header: {
-    paddingBottom: 40,
+    paddingBottom: 24,
     paddingHorizontal: 24,
   },
   avatarSection: {
@@ -353,9 +389,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 120,
+    paddingTop: 72,
     gap: 20,
-    marginTop: -72,
+    marginTop: -56,
   },
   card: {
     backgroundColor: '#fff',

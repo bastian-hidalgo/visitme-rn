@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert } from 'react-native'
-import type { ImagePickerAsset } from 'expo-image-picker'
+import type { ImagePickerAsset, ImagePickerOptions } from 'expo-image-picker'
 import Toast from 'react-native-toast-message'
 
 import { updateOwnProfile } from '@/lib/api/users'
@@ -84,10 +84,21 @@ export function useEditProfile() {
   const pickAvatar = useCallback(async () => {
     try {
       const ImagePicker = await import('expo-image-picker')
+      const {
+        launchImageLibraryAsync,
+        requestMediaLibraryPermissionsAsync,
+        getMediaLibraryPermissionsAsync,
+        PermissionStatus,
+      } = ImagePicker
 
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+      const currentPermission = await getMediaLibraryPermissionsAsync?.()
+      const isPermissionPermanentlyDenied =
+        currentPermission &&
+        (currentPermission.status === PermissionStatus.DENIED ||
+          currentPermission.status === 'denied') &&
+        currentPermission.canAskAgain === false
 
-      if (status !== 'granted') {
+      if (isPermissionPermanentlyDenied) {
         Alert.alert(
           'Permiso requerido',
           'Necesitamos acceso a tus fotos para actualizar tu avatar.'
@@ -95,13 +106,25 @@ export function useEditProfile() {
         return
       }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
+      const { status } = await requestMediaLibraryPermissionsAsync()
+
+      if (status !== PermissionStatus.GRANTED && status !== 'granted') {
+        Alert.alert(
+          'Permiso requerido',
+          'Necesitamos acceso a tus fotos para actualizar tu avatar.'
+        )
+        return
+      }
+
+      const pickerOptions: ImagePickerOptions = {
         allowsEditing: true,
-        aspect: [1, 1],
+        aspect: [1, 1] as [number, number],
         quality: 0.8,
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'] as unknown as ImagePickerOptions['mediaTypes'],
         base64: true,
-      })
+      }
+
+      const result = await launchImageLibraryAsync(pickerOptions)
 
       if (result.canceled || result.assets.length === 0) {
         return
@@ -118,7 +141,7 @@ export function useEditProfile() {
     } catch (error) {
       console.error('[useEditProfile] pickAvatar error', error)
 
-      if (error instanceof Error && error.message.includes('native module')) {
+      if (error instanceof Error && error.message.toLowerCase().includes('native module')) {
         Alert.alert(
           'Funcionalidad no disponible',
           'Necesitas reinstalar o actualizar la aplicación para seleccionar una imagen.'
