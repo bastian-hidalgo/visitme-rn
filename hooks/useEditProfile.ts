@@ -1,12 +1,48 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert } from 'react-native'
-import * as ImagePicker from 'expo-image-picker'
+import type { ImagePickerAsset } from 'expo-image-picker'
 import Toast from 'react-native-toast-message'
 
 import { updateOwnProfile } from '@/lib/api/users'
 import { supabase } from '@/lib/supabase'
 import { dayjs, now } from '@/lib/time'
 import { useUser } from '@/providers/user-provider'
+
+const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+
+function decodeBase64ToArrayBuffer(base64: string) {
+  const cleaned = base64.replace(/\s/g, '')
+  const padding = cleaned.endsWith('==') ? 2 : cleaned.endsWith('=') ? 1 : 0
+  const byteLength = (cleaned.length * 3) / 4 - padding
+  const array = new Uint8Array(byteLength)
+
+  let buffer = 0
+  let bits = 0
+  let index = 0
+
+  for (let i = 0; i < cleaned.length; i += 1) {
+    const char = cleaned[i]
+    if (char === '=') {
+      break
+    }
+
+    const value = BASE64_ALPHABET.indexOf(char)
+    if (value === -1) {
+      continue
+    }
+
+    buffer = (buffer << 6) | value
+    bits += 6
+
+    if (bits >= 8) {
+      bits -= 8
+      array[index] = (buffer >> bits) & 0xff
+      index += 1
+    }
+  }
+
+  return array.buffer.slice(0, index)
+}
 
 export function useEditProfile() {
   const {
@@ -25,7 +61,7 @@ export function useEditProfile() {
   const [phone, setPhone] = useState('')
   const [birthday, setBirthday] = useState<string | null>(null)
   const [acceptsNotifications, setAcceptsNotifications] = useState(true)
-  const [selectedAvatar, setSelectedAvatar] = useState<ImagePicker.ImagePickerAsset | null>(null)
+  const [selectedAvatar, setSelectedAvatar] = useState<ImagePickerAsset | null>(null)
   const [saving, setSaving] = useState(false)
   const [initializing, setInitializing] = useState(true)
   const [showDatePicker, setShowDatePicker] = useState(false)
@@ -46,18 +82,25 @@ export function useEditProfile() {
   }, [avatarUrl, selectedAvatar])
 
   const pickAvatar = useCallback(async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
-
-    if (status !== 'granted') {
-      Alert.alert('Permiso requerido', 'Necesitamos acceso a tus fotos para actualizar tu avatar.')
-      return
-    }
-
     try {
+      const ImagePicker = await import('expo-image-picker')
+
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permiso requerido',
+          'Necesitamos acceso a tus fotos para actualizar tu avatar.'
+        )
+        return
+      }
+
       const result = await ImagePicker.launchImageLibraryAsync({
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        base64: true,
       })
 
       if (result.canceled || result.assets.length === 0) {
@@ -74,6 +117,15 @@ export function useEditProfile() {
       setSelectedAvatar(asset)
     } catch (error) {
       console.error('[useEditProfile] pickAvatar error', error)
+
+      if (error instanceof Error && error.message.includes('native module')) {
+        Alert.alert(
+          'Funcionalidad no disponible',
+          'Necesitas reinstalar o actualizar la aplicación para seleccionar una imagen.'
+        )
+        return
+      }
+
       Alert.alert('Error', 'No pudimos abrir tu galería. Inténtalo nuevamente más tarde.')
     }
   }, [])
@@ -87,10 +139,13 @@ export function useEditProfile() {
       let finalAvatarUrl = avatarUrl || null
 
       if (selectedAvatar?.uri) {
-        const response = await fetch(selectedAvatar.uri)
-        const blob = await response.blob()
+        if (!selectedAvatar.base64) {
+          throw new Error('No pudimos procesar la imagen seleccionada.')
+        }
 
-        const mimeType = selectedAvatar.mimeType || blob.type || 'image/jpeg'
+        const fileBuffer = decodeBase64ToArrayBuffer(selectedAvatar.base64)
+
+        const mimeType = selectedAvatar.mimeType || 'image/jpeg'
         const guessedExtensionFromFileName =
           selectedAvatar.fileName?.split('.').pop()?.toLowerCase() || null
         const guessedExtensionFromUri = selectedAvatar.uri.split('?')[0].split('.').pop()?.toLowerCase()
@@ -102,7 +157,7 @@ export function useEditProfile() {
 
         const { error: uploadError } = await supabase.storage
           .from('avatars')
-          .upload(filePath, blob, {
+          .upload(filePath, fileBuffer, {
             upsert: true,
             contentType,
           })

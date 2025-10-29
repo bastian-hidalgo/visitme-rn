@@ -1,9 +1,10 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Stack, useRouter } from 'expo-router'
-import React, { useMemo } from 'react'
+import React, { useCallback, useMemo, useRef } from 'react'
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Image,
   Platform,
   Pressable,
@@ -13,6 +14,7 @@ import {
   Text,
   TextInput,
   View,
+  type LayoutChangeEvent,
 } from 'react-native'
 import {
   Bell,
@@ -31,6 +33,9 @@ import { dayjs, formatDate } from '@/lib/time'
 const EditProfileScreen = () => {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const scrollViewRef = useRef<ScrollView>(null)
+  const sectionOffsets = useRef<Record<string, number>>({})
+  const fieldPositions = useRef<Record<string, number>>({})
   const {
     initializing,
     saving,
@@ -70,6 +75,30 @@ const EditProfileScreen = () => {
     }
   }
 
+  const registerSection = useCallback(
+    (section: string) => (event: LayoutChangeEvent) => {
+      sectionOffsets.current[section] = event.nativeEvent.layout.y
+    },
+    []
+  )
+
+  const registerField = useCallback(
+    (section: string, field: string) => (event: LayoutChangeEvent) => {
+      const sectionOffset = sectionOffsets.current[section] ?? 0
+      fieldPositions.current[field] = sectionOffset + event.nativeEvent.layout.y
+    },
+    []
+  )
+
+  const focusField = useCallback((field: string) => {
+    const position = fieldPositions.current[field]
+    if (!scrollViewRef.current || typeof position !== 'number') {
+      return
+    }
+
+    scrollViewRef.current.scrollTo({ y: Math.max(0, position - 80), animated: true })
+  }, [])
+
   const onSave = async () => {
     const success = await handleSave()
     if (success) {
@@ -102,7 +131,7 @@ const EditProfileScreen = () => {
           colors={['#1f2937', '#312e81']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[styles.header, { paddingTop: insets.top + 48 }]}
+          style={[styles.header, { paddingTop: insets.top + 36 }]}
         >
           <View style={styles.avatarSection}>
             <View style={styles.avatarWrapper}>
@@ -122,115 +151,125 @@ const EditProfileScreen = () => {
           </View>
         </LinearGradient>
 
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.scrollContent,
-            {
-              paddingBottom: insets.bottom + 160,
-            },
-          ]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={insets.top + 72}
         >
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Información personal</Text>
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.scroll}
+            contentContainerStyle={[
+              styles.scrollContent,
+              {
+                paddingBottom: insets.bottom + 140,
+              },
+            ]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.card} onLayout={registerSection('personal')}>
+              <Text style={styles.sectionTitle}>Información personal</Text>
 
-            <View style={styles.fieldRow}>
-              <View style={styles.fieldIcon}>
-                <UserIcon size={18} color="#5b21b6" />
+              <View style={styles.fieldRow} onLayout={registerField('personal', 'name')}>
+                <View style={styles.fieldIcon}>
+                  <UserIcon size={18} color="#5b21b6" />
+                </View>
+                <View style={styles.fieldContent}>
+                  <Text style={styles.fieldLabel}>Tu nombre</Text>
+                  <TextInput
+                    value={name}
+                    onChangeText={setName}
+                    onFocus={() => focusField('name')}
+                    placeholder="Ingresa tu nombre"
+                    placeholderTextColor="#9ca3af"
+                    style={styles.textInput}
+                  />
+                </View>
               </View>
-              <View style={styles.fieldContent}>
-                <Text style={styles.fieldLabel}>Tu nombre</Text>
-                <TextInput
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="Ingresa tu nombre"
-                  placeholderTextColor="#9ca3af"
-                  style={styles.textInput}
-                />
-              </View>
-            </View>
 
-            <View style={styles.fieldRow}>
-              <View style={styles.fieldIcon}>
-                <Phone size={18} color="#5b21b6" />
+              <View style={styles.fieldRow} onLayout={registerField('personal', 'phone')}>
+                <View style={styles.fieldIcon}>
+                  <Phone size={18} color="#5b21b6" />
+                </View>
+                <View style={styles.fieldContent}>
+                  <Text style={styles.fieldLabel}>Teléfono</Text>
+                  <TextInput
+                    value={phone}
+                    onChangeText={setPhone}
+                    onFocus={() => focusField('phone')}
+                    placeholder="+56 9 1234 5678"
+                    placeholderTextColor="#9ca3af"
+                    keyboardType="phone-pad"
+                    style={styles.textInput}
+                  />
+                </View>
               </View>
-              <View style={styles.fieldContent}>
-                <Text style={styles.fieldLabel}>Teléfono</Text>
-                <TextInput
-                  value={phone}
-                  onChangeText={setPhone}
-                  placeholder="+56 9 1234 5678"
-                  placeholderTextColor="#9ca3af"
-                  keyboardType="phone-pad"
-                  style={styles.textInput}
-                />
-              </View>
-            </View>
 
-            <Pressable style={styles.fieldRow} onPress={openDatePicker}>
-              <View style={styles.fieldIcon}>
-                <Calendar size={18} color="#5b21b6" />
-              </View>
-              <View style={styles.fieldContent}>
-                <Text style={styles.fieldLabel}>Cumpleaños</Text>
-                <Text style={styles.fieldValue}>
-                  {birthday ? formatDate(birthday) : 'Añadir fecha de cumpleaños'}
-                </Text>
-              </View>
-              <ChevronRight size={18} color="#9ca3af" />
-            </Pressable>
-
-            {birthday && (
-              <Pressable style={styles.clearButton} onPress={clearBirthday}>
-                <Text style={styles.clearButtonText}>Limpiar cumpleaños</Text>
+              <Pressable style={styles.fieldRow} onPress={openDatePicker}>
+                <View style={styles.fieldIcon}>
+                  <Calendar size={18} color="#5b21b6" />
+                </View>
+                <View style={styles.fieldContent}>
+                  <Text style={styles.fieldLabel}>Cumpleaños</Text>
+                  <Text style={styles.fieldValue}>
+                    {birthday ? formatDate(birthday) : 'Añadir fecha de cumpleaños'}
+                  </Text>
+                </View>
+                <ChevronRight size={18} color="#9ca3af" />
               </Pressable>
-            )}
 
-            <View style={styles.fieldRow}>
-              <View style={styles.fieldIcon}>
-                <Mail size={18} color="#5b21b6" />
-              </View>
-              <View style={styles.fieldContent}>
-                <Text style={styles.fieldLabel}>Correo electrónico</Text>
-                <Text style={styles.fieldValue}>{email}</Text>
+              {birthday && (
+                <Pressable style={styles.clearButton} onPress={clearBirthday}>
+                  <Text style={styles.clearButtonText}>Limpiar cumpleaños</Text>
+                </Pressable>
+              )}
+
+              <View style={styles.fieldRow}>
+                <View style={styles.fieldIcon}>
+                  <Mail size={18} color="#5b21b6" />
+                </View>
+                <View style={styles.fieldContent}>
+                  <Text style={styles.fieldLabel}>Correo electrónico</Text>
+                  <Text style={styles.fieldValue}>{email}</Text>
+                </View>
               </View>
             </View>
-          </View>
 
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Preferencias</Text>
+            <View style={styles.card} onLayout={registerSection('preferences')}>
+              <Text style={styles.sectionTitle}>Preferencias</Text>
 
-            <View style={[styles.fieldRow, styles.switchRow]}>
-              <View style={styles.fieldIcon}>
-                <Bell size={18} color="#5b21b6" />
+              <View style={[styles.fieldRow, styles.switchRow]}>
+                <View style={styles.fieldIcon}>
+                  <Bell size={18} color="#5b21b6" />
+                </View>
+                <View style={styles.fieldContent}>
+                  <Text style={styles.fieldLabel}>Recibir notificaciones</Text>
+                  <Text style={styles.fieldDescription}>
+                    Mantente informado sobre eventos y visitas.
+                  </Text>
+                </View>
+                <Switch
+                  value={acceptsNotifications}
+                  onValueChange={toggleNotifications}
+                  trackColor={{ true: '#7c3aed', false: '#d1d5db' }}
+                  thumbColor={acceptsNotifications ? '#ede9fe' : '#f9fafb'}
+                />
               </View>
-              <View style={styles.fieldContent}>
-                <Text style={styles.fieldLabel}>Recibir notificaciones</Text>
-                <Text style={styles.fieldDescription}>
-                  Mantente informado sobre eventos y visitas.
-                </Text>
-              </View>
-              <Switch
-                value={acceptsNotifications}
-                onValueChange={toggleNotifications}
-                trackColor={{ true: '#7c3aed', false: '#d1d5db' }}
-                thumbColor={acceptsNotifications ? '#ede9fe' : '#f9fafb'}
-              />
             </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
 
-        <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
-          <Pressable style={styles.saveButton} onPress={onSave} disabled={saving}>
-            {saving ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.saveButtonText}>Guardar cambios</Text>
-            )}
-          </Pressable>
-        </View>
+          <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+            <Pressable style={styles.saveButton} onPress={onSave} disabled={saving}>
+              {saving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>Guardar cambios</Text>
+              )}
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
 
         {showDatePicker && (
           <View style={styles.datePickerOverlay}>
@@ -270,7 +309,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f3ff',
   },
   header: {
-    paddingBottom: 64,
+    paddingBottom: 40,
     paddingHorizontal: 24,
   },
   avatarSection: {
@@ -302,18 +341,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerSubtitle: {
-    marginTop: 16,
+    marginTop: 12,
     color: '#f3f4f6',
     fontSize: 15,
+  },
+  flex: {
+    flex: 1,
   },
   scroll: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 180,
+    paddingTop: 120,
     gap: 20,
-    marginTop: -96,
+    marginTop: -72,
   },
   card: {
     backgroundColor: '#fff',
