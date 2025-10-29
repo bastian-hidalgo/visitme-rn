@@ -8,8 +8,8 @@ import { useResidentContext } from '@/components/contexts/ResidentContext'
 import Header from '@/components/resident/Header'
 import HeroBanner from '@/components/resident/HeroBanner'
 import InvitationsSlider from '@/components/resident/InvitationsSlider'
-import NewsSlider from '@/components/resident/NewsSlider'
 import NewsDetailModal from '@/components/resident/NewsDetailModal'
+import NewsSlider from '@/components/resident/NewsSlider'
 import PackageSlider from '@/components/resident/PackageSlider'
 import QuickAccess from '@/components/resident/QuickAccess'
 import ReservationsSlider from '@/components/resident/ReservationsSlider'
@@ -124,6 +124,19 @@ export default function ResidentDashboard() {
                 </View>
               </MotiView>
 
+              {/* Encomiendas */}
+              <MotiView
+                from={{ opacity: 0, translateY: 20 }}
+                animate={{ opacity: 1, translateY: 0 }}
+                transition={{ delay: 500, duration: 400 }}
+                style={styles.sectionWrapper}
+                onLayout={registerSection('packages')}
+              >
+                <View style={styles.sectionSurface}>
+                  <PackageSlider />
+                </View>
+              </MotiView>
+
               {/* Reservas */}
               <MotiView
                 from={{ opacity: 0, translateY: 20 }}
@@ -147,19 +160,6 @@ export default function ResidentDashboard() {
               >
                 <View style={styles.sectionSurface}>
                   <InvitationsSlider />
-                </View>
-              </MotiView>
-
-              {/* Encomiendas */}
-              <MotiView
-                from={{ opacity: 0, translateY: 20 }}
-                animate={{ opacity: 1, translateY: 0 }}
-                transition={{ delay: 500, duration: 400 }}
-                style={styles.sectionWrapper}
-                onLayout={registerSection('packages')}
-              >
-                <View style={styles.sectionSurface}>
-                  <PackageSlider />
                 </View>
               </MotiView>
 

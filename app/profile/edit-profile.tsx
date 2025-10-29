@@ -1,23 +1,8 @@
+import { useEditProfile } from '@/hooks/useEditProfile'
+import { dayjs, formatDate } from '@/lib/time'
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Stack, useRouter } from 'expo-router'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  ActivityIndicator,
-  Dimensions,
-  Keyboard,
-  KeyboardAvoidingView,
-  Image,
-  type LayoutChangeEvent,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from 'react-native'
 import {
   Bell,
   Calendar,
@@ -27,22 +12,30 @@ import {
   Phone,
   User as UserIcon,
 } from 'lucide-react-native'
+import React, { useCallback, useMemo, useRef } from 'react'
+import {
+  ActivityIndicator,
+  Image,
+  type LayoutChangeEvent,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View
+} from 'react-native'
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
-
-import { useEditProfile } from '@/hooks/useEditProfile'
-import { dayjs, formatDate } from '@/lib/time'
 
 const EditProfileScreen = () => {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const scrollViewRef = useRef<ScrollView>(null)
-  const fieldLayouts = useRef<
-    Record<'name' | 'phone', { y: number; height: number }>
-  >({
+  const scrollViewRef = useRef<KeyboardAwareScrollView>(null)
+  const fieldLayouts = useRef<Record<'name' | 'phone', { y: number; height: number }>>({
     name: { y: 0, height: 0 },
     phone: { y: 0, height: 0 },
   })
-  const [keyboardHeight, setKeyboardHeight] = useState(0)
   const {
     initializing,
     saving,
@@ -65,57 +58,18 @@ const EditProfileScreen = () => {
   } = useEditProfile()
 
   const datePickerValue = useMemo(() => {
-    if (birthday) {
-      return dayjs(birthday).toDate()
-    }
+    if (birthday) return dayjs(birthday).toDate()
     return dayjs().subtract(18, 'year').toDate()
   }, [birthday])
 
   const handleSelectBirthday = (event: DateTimePickerEvent, selected?: Date) => {
     if (Platform.OS === 'android') {
-      if (event.type === 'set' && selected) {
-        handleBirthdayChange(selected)
-      }
+      if (event.type === 'set' && selected) handleBirthdayChange(selected)
       closeDatePicker()
     } else if (selected) {
       handleBirthdayChange(selected)
     }
   }
-
-  const focusField = useCallback(
-    (field: 'name' | 'phone') => {
-      const scrollNode = scrollViewRef.current
-      const layout = fieldLayouts.current[field]
-
-      if (!scrollNode || !layout) {
-        return
-      }
-
-      const buffer = 32
-      const windowHeight = Dimensions.get('window').height
-      const availableHeight = Math.max(
-        240,
-        windowHeight - keyboardHeight - insets.bottom - 140
-      )
-
-      let target = Math.max(0, layout.y - buffer)
-
-      if (keyboardHeight > 0) {
-        const bottom = layout.y + layout.height + buffer
-        const neededOffset = bottom - availableHeight
-
-        if (neededOffset > target) {
-          target = neededOffset
-        }
-      }
-
-      scrollNode.scrollTo({
-        y: Math.max(0, target),
-        animated: true,
-      })
-    },
-    [insets.bottom, keyboardHeight]
-  )
 
   const handleFieldLayout = useCallback(
     (field: 'name' | 'phone') => (event: LayoutChangeEvent) => {
@@ -129,25 +83,8 @@ const EditProfileScreen = () => {
 
   const onSave = async () => {
     const success = await handleSave()
-    if (success) {
-      router.back()
-    }
+    if (success) router.back()
   }
-
-  useEffect(() => {
-    const showEvent = Platform.OS === 'android' ? 'keyboardDidShow' : 'keyboardWillShow'
-    const hideEvent = Platform.OS === 'android' ? 'keyboardDidHide' : 'keyboardWillHide'
-
-    const showSub = Keyboard.addListener(showEvent, (event) => {
-      setKeyboardHeight(event.endCoordinates?.height ?? 0)
-    })
-    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0))
-
-    return () => {
-      showSub.remove()
-      hideSub.remove()
-    }
-  }, [])
 
   if (initializing) {
     return (
@@ -194,130 +131,106 @@ const EditProfileScreen = () => {
           </View>
         </LinearGradient>
 
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={insets.top + 36}
+        <KeyboardAwareScrollView
+          ref={scrollViewRef}
+          enableOnAndroid
+          extraScrollHeight={80}
+          keyboardOpeningTime={0}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + 140 },
+          ]}
+          showsVerticalScrollIndicator={false}
         >
-          <ScrollView
-            ref={scrollViewRef}
-            style={styles.scroll}
-            contentContainerStyle={[
-              styles.scrollContent,
-              {
-                paddingBottom: insets.bottom + keyboardHeight + 140,
-              },
-            ]}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="interactive"
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Información personal</Text>
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Información personal</Text>
 
-              <View
-                onLayout={handleFieldLayout('name')}
-                style={styles.fieldRow}
-              >
-                <View style={styles.fieldIcon}>
-                  <UserIcon size={18} color="#5b21b6" />
-                </View>
-                <View style={styles.fieldContent}>
-                  <Text style={styles.fieldLabel}>Tu nombre</Text>
-                  <TextInput
-                    value={name}
-                    onChangeText={setName}
-                    onFocus={() => focusField('name')}
-                    placeholder="Ingresa tu nombre"
-                    placeholderTextColor="#9ca3af"
-                    style={styles.textInput}
-                  />
-                </View>
+            <View onLayout={handleFieldLayout('name')} style={styles.fieldRow}>
+              <View style={styles.fieldIcon}>
+                <UserIcon size={18} color="#5b21b6" />
               </View>
-
-              <View
-                onLayout={handleFieldLayout('phone')}
-                style={styles.fieldRow}
-              >
-                <View style={styles.fieldIcon}>
-                  <Phone size={18} color="#5b21b6" />
-                </View>
-                <View style={styles.fieldContent}>
-                  <Text style={styles.fieldLabel}>Teléfono</Text>
-                  <TextInput
-                    value={phone}
-                    onChangeText={setPhone}
-                    onFocus={() => focusField('phone')}
-                    placeholder="+56 9 1234 5678"
-                    placeholderTextColor="#9ca3af"
-                    keyboardType="phone-pad"
-                    style={styles.textInput}
-                  />
-                </View>
-              </View>
-
-              <Pressable style={styles.fieldRow} onPress={openDatePicker}>
-                <View style={styles.fieldIcon}>
-                  <Calendar size={18} color="#5b21b6" />
-                </View>
-                <View style={styles.fieldContent}>
-                  <Text style={styles.fieldLabel}>Cumpleaños</Text>
-                  <Text style={styles.fieldValue}>
-                    {birthday ? formatDate(birthday) : 'Añadir fecha de cumpleaños'}
-                  </Text>
-                </View>
-                <ChevronRight size={18} color="#9ca3af" />
-              </Pressable>
-
-              {birthday && (
-                <Pressable style={styles.clearButton} onPress={clearBirthday}>
-                  <Text style={styles.clearButtonText}>Limpiar cumpleaños</Text>
-                </Pressable>
-              )}
-
-              <View style={styles.fieldRow}>
-                <View style={styles.fieldIcon}>
-                  <Mail size={18} color="#5b21b6" />
-                </View>
-                <View style={styles.fieldContent}>
-                  <Text style={styles.fieldLabel}>Correo electrónico</Text>
-                  <Text style={styles.fieldValue}>{email}</Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Preferencias</Text>
-
-              <View style={[styles.fieldRow, styles.switchRow]}>
-                <View style={styles.fieldIcon}>
-                  <Bell size={18} color="#5b21b6" />
-                </View>
-                <View style={styles.fieldContent}>
-                  <Text style={styles.fieldLabel}>Recibir notificaciones</Text>
-                  <Text style={styles.fieldDescription}>
-                    Mantente informado sobre eventos y visitas.
-                  </Text>
-                </View>
-                <Switch
-                  value={acceptsNotifications}
-                  onValueChange={toggleNotifications}
-                  trackColor={{ true: '#7c3aed', false: '#d1d5db' }}
-                  thumbColor={acceptsNotifications ? '#ede9fe' : '#f9fafb'}
+              <View style={styles.fieldContent}>
+                <Text style={styles.fieldLabel}>Tu nombre</Text>
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Ingresa tu nombre"
+                  placeholderTextColor="#9ca3af"
+                  style={styles.textInput}
                 />
               </View>
             </View>
-          </ScrollView>
 
-          <View
-            style={[
-              styles.footer,
-              {
-                paddingBottom: insets.bottom + 16 + keyboardHeight,
-                paddingTop: keyboardHeight > 0 ? 12 : 16,
-              },
-            ]}
-          >
+            <View onLayout={handleFieldLayout('phone')} style={styles.fieldRow}>
+              <View style={styles.fieldIcon}>
+                <Phone size={18} color="#5b21b6" />
+              </View>
+              <View style={styles.fieldContent}>
+                <Text style={styles.fieldLabel}>Teléfono</Text>
+                <TextInput
+                  value={phone}
+                  onChangeText={setPhone}
+                  placeholder="+56 9 1234 5678"
+                  placeholderTextColor="#9ca3af"
+                  keyboardType="phone-pad"
+                  style={styles.textInput}
+                />
+              </View>
+            </View>
+
+            <Pressable style={styles.fieldRow} onPress={openDatePicker}>
+              <View style={styles.fieldIcon}>
+                <Calendar size={18} color="#5b21b6" />
+              </View>
+              <View style={styles.fieldContent}>
+                <Text style={styles.fieldLabel}>Cumpleaños</Text>
+                <Text style={styles.fieldValue}>
+                  {birthday ? formatDate(birthday) : 'Añadir fecha de cumpleaños'}
+                </Text>
+              </View>
+              <ChevronRight size={18} color="#9ca3af" />
+            </Pressable>
+
+            {birthday && (
+              <Pressable style={styles.clearButton} onPress={clearBirthday}>
+                <Text style={styles.clearButtonText}>Limpiar cumpleaños</Text>
+              </Pressable>
+            )}
+
+            <View style={styles.fieldRow}>
+              <View style={styles.fieldIcon}>
+                <Mail size={18} color="#5b21b6" />
+              </View>
+              <View style={styles.fieldContent}>
+                <Text style={styles.fieldLabel}>Correo electrónico</Text>
+                <Text style={styles.fieldValue}>{email}</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Preferencias</Text>
+
+            <View style={[styles.fieldRow, styles.switchRow]}>
+              <View style={styles.fieldIcon}>
+                <Bell size={18} color="#5b21b6" />
+              </View>
+              <View style={styles.fieldContent}>
+                <Text style={styles.fieldLabel}>Recibir notificaciones</Text>
+                <Text style={styles.fieldDescription}>
+                  Mantente informado sobre eventos y visitas.
+                </Text>
+              </View>
+              <Switch
+                value={acceptsNotifications}
+                onValueChange={toggleNotifications}
+                trackColor={{ true: '#7c3aed', false: '#d1d5db' }}
+                thumbColor={acceptsNotifications ? '#ede9fe' : '#f9fafb'}
+              />
+            </View>
+          </View>
+
+          <View style={styles.footer}>
             <Pressable style={styles.saveButton} onPress={onSave} disabled={saving}>
               {saving ? (
                 <ActivityIndicator color="#fff" />
@@ -326,7 +239,7 @@ const EditProfileScreen = () => {
               )}
             </Pressable>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
 
         {showDatePicker && (
           <View style={styles.datePickerOverlay}>
@@ -402,12 +315,6 @@ const styles = StyleSheet.create({
     color: '#f3f4f6',
     fontSize: 15,
   },
-  flex: {
-    flex: 1,
-  },
-  scroll: {
-    flex: 1,
-  },
   scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 12,
@@ -478,10 +385,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    marginTop: 24,
     paddingHorizontal: 24,
     paddingTop: 16,
     backgroundColor: '#f5f3ff',

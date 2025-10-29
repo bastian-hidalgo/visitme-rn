@@ -2,10 +2,10 @@ import { useResidentContext } from '@/components/contexts/ResidentContext'
 import ActionButton from '@/components/resident/ActionButton'
 import InvitedCard from '@/components/resident/InvitedCard'
 import EmptyActionCard from '@/components/ui/EmptyActionCard'
-import type { Database } from '@/types/supabase'
 import { useUser } from '@/providers/user-provider'
-import { UserPlus } from 'lucide-react-native'
+import type { Database } from '@/types/supabase'
 import { useRouter } from 'expo-router'
+import { UserPlus } from 'lucide-react-native'
 import { MotiView } from 'moti'
 import React, { useCallback } from 'react'
 import { FlatList, StyleSheet, Text, View } from 'react-native'
@@ -43,7 +43,10 @@ export default function InvitedSlider() {
     >
       {/* 🔹 Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Tus Invitados</Text>
+        <View>
+          <Text style={styles.headerEyebrow}>Hora de las visitas</Text>
+          <Text style={styles.headerTitle}>Tus Invitados</Text>
+        </View>
 
         <ActionButton
           text="Invitar"
@@ -97,16 +100,23 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: 16,
   },
-  header: {
+   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
     color: '#111827',
+  },
+  headerEyebrow: {
+    color: '#6B7280',
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   separator: {
     width: 16,
