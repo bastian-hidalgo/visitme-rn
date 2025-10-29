@@ -14,6 +14,7 @@ import Toast from 'react-native-toast-message'
 
 import { useResidentContext } from '@/components/contexts/ResidentContext'
 import { decodeBase64ToArrayBuffer } from '@/lib/base64'
+import { ensureMediaLibraryPermission } from '@/lib/image-picker-permissions'
 import { supabase } from '@/lib/supabase'
 import type { Database } from '@/types/supabase'
 
@@ -83,35 +84,23 @@ export default function FeedbackPanel() {
       const ImagePicker = await import('expo-image-picker')
       const {
         launchImageLibraryAsync,
-        requestMediaLibraryPermissionsAsync,
-        getMediaLibraryPermissionsAsync,
-        PermissionStatus,
-        MediaTypeOptions,
       } = ImagePicker
 
-      const currentPermission = await getMediaLibraryPermissionsAsync?.()
-      const isPermissionPermanentlyDenied =
-        currentPermission &&
-        (currentPermission.status === PermissionStatus.DENIED || currentPermission.status === 'denied') &&
-        currentPermission.canAskAgain === false
+      const hasPermission = await ensureMediaLibraryPermission({
+        ImagePicker,
+        onDenied: () => {
+          Alert.alert(
+            'Permiso requerido',
+            'Necesitamos acceso a tus fotos para adjuntar una imagen.'
+          )
+        },
+      })
 
-      if (isPermissionPermanentlyDenied) {
-        Alert.alert(
-          'Permiso requerido',
-          'Necesitamos acceso a tus fotos para adjuntar una imagen.'
-        )
-        return
-      }
-
-      const { status } = await requestMediaLibraryPermissionsAsync()
-
-      if (status !== PermissionStatus.GRANTED && status !== 'granted') {
-        Alert.alert('Permiso requerido', 'Necesitamos acceso a tus fotos para adjuntar una imagen.')
+      if (!hasPermission) {
         return
       }
 
       const result = await launchImageLibraryAsync({
-        mediaTypes: MediaTypeOptions.Images,
         quality: 0.8,
         base64: true,
       })

@@ -5,6 +5,7 @@ import Toast from 'react-native-toast-message'
 
 import { updateOwnProfile } from '@/lib/api/users'
 import { decodeBase64ToArrayBuffer } from '@/lib/base64'
+import { ensureMediaLibraryPermission } from '@/lib/image-picker-permissions'
 import { supabase } from '@/lib/supabase'
 import { dayjs, now } from '@/lib/time'
 import { useUser } from '@/providers/user-provider'
@@ -50,36 +51,19 @@ export function useEditProfile() {
     try {
       // eslint-disable-next-line import/no-unresolved
       const ImagePicker = await import('expo-image-picker')
-      const {
-        launchImageLibraryAsync,
-        requestMediaLibraryPermissionsAsync,
-        getMediaLibraryPermissionsAsync,
-        PermissionStatus,
-        MediaTypeOptions,
-      } = ImagePicker
+      const { launchImageLibraryAsync } = ImagePicker
 
-      const currentPermission = await getMediaLibraryPermissionsAsync?.()
-      const isPermissionPermanentlyDenied =
-        currentPermission &&
-        (currentPermission.status === PermissionStatus.DENIED ||
-          currentPermission.status === 'denied') &&
-        currentPermission.canAskAgain === false
+      const hasPermission = await ensureMediaLibraryPermission({
+        ImagePicker,
+        onDenied: () => {
+          Alert.alert(
+            'Permiso requerido',
+            'Necesitamos acceso a tus fotos para actualizar tu avatar.'
+          )
+        },
+      })
 
-      if (isPermissionPermanentlyDenied) {
-        Alert.alert(
-          'Permiso requerido',
-          'Necesitamos acceso a tus fotos para actualizar tu avatar.'
-        )
-        return
-      }
-
-      const { status } = await requestMediaLibraryPermissionsAsync()
-
-      if (status !== PermissionStatus.GRANTED && status !== 'granted') {
-        Alert.alert(
-          'Permiso requerido',
-          'Necesitamos acceso a tus fotos para actualizar tu avatar.'
-        )
+      if (!hasPermission) {
         return
       }
 
@@ -87,7 +71,6 @@ export function useEditProfile() {
         allowsEditing: true,
         aspect: [1, 1] as [number, number],
         quality: 0.8,
-        mediaTypes: MediaTypeOptions.Images,
         base64: true,
       }
 
