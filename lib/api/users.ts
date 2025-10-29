@@ -1,7 +1,13 @@
 import { supabase } from '@/lib/supabase'
+import type { Database } from '@/types/supabase'
 
 const selectUserFields =
   'id, name, email, role, avatar_url, phone, accepts_notifications, birthday'
+
+type UserProfileRow = Pick<
+  Database['public']['Tables']['users']['Row'],
+  'id' | 'name' | 'email' | 'role' | 'avatar_url' | 'phone' | 'accepts_notifications' | 'birthday'
+>
 
 export type UpdateOwnProfileInput = {
   name?: string | null
@@ -15,7 +21,10 @@ export async function updateOwnAvatar(userId: string, avatarUrl: string) {
   return updateOwnProfile(userId, { avatarUrl })
 }
 
-export async function updateOwnProfile(userId: string, input: UpdateOwnProfileInput) {
+export async function updateOwnProfile(
+  userId: string,
+  input: UpdateOwnProfileInput,
+): Promise<UserProfileRow | null> {
   const updatePayload: Record<string, any> = {}
 
   if (typeof input.name !== 'undefined') {
@@ -49,5 +58,5 @@ export async function updateOwnProfile(userId: string, input: UpdateOwnProfileIn
     throw error
   }
 
-  return data
+  return data as UserProfileRow
 }

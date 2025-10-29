@@ -23,12 +23,14 @@ import {
   Phone,
   User as UserIcon,
 } from 'lucide-react-native'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useEditProfile } from '@/hooks/useEditProfile'
 import { dayjs, formatDate } from '@/lib/time'
 
-export default function EditProfileScreen() {
+const EditProfileScreen = () => {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const {
     initializing,
     saving,
@@ -84,161 +86,179 @@ export default function EditProfileScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <Stack.Screen
-        options={{
-          title: 'Mi cuenta',
-          headerTintColor: '#fff',
-          headerTransparent: true,
-          headerTitleStyle: { fontWeight: '600' },
-          headerShadowVisible: false,
-        }}
-      />
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <View style={styles.container}>
+        <Stack.Screen
+          options={{
+            title: 'Mi cuenta',
+            headerTintColor: '#fff',
+            headerTransparent: true,
+            headerTitleStyle: { fontWeight: '600' },
+            headerShadowVisible: false,
+          }}
+        />
 
-      <LinearGradient
-        colors={['#1f2937', '#312e81']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <View style={styles.avatarSection}>
-          <View style={styles.avatarWrapper}>
-            <Image
-              source={
-                avatarPreview
-                  ? { uri: avatarPreview }
-                  : require('@/assets/img/avatar.webp')
-              }
-              style={styles.avatar}
-            />
-            <Pressable style={styles.avatarButton} onPress={pickAvatar}>
-              <Camera size={18} color="#1f2937" />
+        <LinearGradient
+          colors={['#1f2937', '#312e81']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.header, { paddingTop: insets.top + 48 }]}
+        >
+          <View style={styles.avatarSection}>
+            <View style={styles.avatarWrapper}>
+              <Image
+                source={
+                  avatarPreview
+                    ? { uri: avatarPreview }
+                    : require('@/assets/img/avatar.webp')
+                }
+                style={styles.avatar}
+              />
+              <Pressable style={styles.avatarButton} onPress={pickAvatar}>
+                <Camera size={18} color="#1f2937" />
+              </Pressable>
+            </View>
+            <Text style={styles.headerSubtitle}>Actualiza tu información personal</Text>
+          </View>
+        </LinearGradient>
+
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingBottom: insets.bottom + 160,
+            },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Información personal</Text>
+
+            <View style={styles.fieldRow}>
+              <View style={styles.fieldIcon}>
+                <UserIcon size={18} color="#5b21b6" />
+              </View>
+              <View style={styles.fieldContent}>
+                <Text style={styles.fieldLabel}>Tu nombre</Text>
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Ingresa tu nombre"
+                  placeholderTextColor="#9ca3af"
+                  style={styles.textInput}
+                />
+              </View>
+            </View>
+
+            <View style={styles.fieldRow}>
+              <View style={styles.fieldIcon}>
+                <Phone size={18} color="#5b21b6" />
+              </View>
+              <View style={styles.fieldContent}>
+                <Text style={styles.fieldLabel}>Teléfono</Text>
+                <TextInput
+                  value={phone}
+                  onChangeText={setPhone}
+                  placeholder="+56 9 1234 5678"
+                  placeholderTextColor="#9ca3af"
+                  keyboardType="phone-pad"
+                  style={styles.textInput}
+                />
+              </View>
+            </View>
+
+            <Pressable style={styles.fieldRow} onPress={openDatePicker}>
+              <View style={styles.fieldIcon}>
+                <Calendar size={18} color="#5b21b6" />
+              </View>
+              <View style={styles.fieldContent}>
+                <Text style={styles.fieldLabel}>Cumpleaños</Text>
+                <Text style={styles.fieldValue}>
+                  {birthday ? formatDate(birthday) : 'Añadir fecha de cumpleaños'}
+                </Text>
+              </View>
+              <ChevronRight size={18} color="#9ca3af" />
             </Pressable>
-          </View>
-          <Text style={styles.headerSubtitle}>Actualiza tu información personal</Text>
-        </View>
-      </LinearGradient>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Información personal</Text>
+            {birthday && (
+              <Pressable style={styles.clearButton} onPress={clearBirthday}>
+                <Text style={styles.clearButtonText}>Limpiar cumpleaños</Text>
+              </Pressable>
+            )}
 
-          <View style={styles.fieldRow}>
-            <View style={styles.fieldIcon}>
-              <UserIcon size={18} color="#5b21b6" />
+            <View style={styles.fieldRow}>
+              <View style={styles.fieldIcon}>
+                <Mail size={18} color="#5b21b6" />
+              </View>
+              <View style={styles.fieldContent}>
+                <Text style={styles.fieldLabel}>Correo electrónico</Text>
+                <Text style={styles.fieldValue}>{email}</Text>
+              </View>
             </View>
-            <View style={styles.fieldContent}>
-              <Text style={styles.fieldLabel}>Tu nombre</Text>
-              <TextInput
-                value={name}
-                onChangeText={setName}
-                placeholder="Ingresa tu nombre"
-                placeholderTextColor="#9ca3af"
-                style={styles.textInput}
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Preferencias</Text>
+
+            <View style={[styles.fieldRow, styles.switchRow]}>
+              <View style={styles.fieldIcon}>
+                <Bell size={18} color="#5b21b6" />
+              </View>
+              <View style={styles.fieldContent}>
+                <Text style={styles.fieldLabel}>Recibir notificaciones</Text>
+                <Text style={styles.fieldDescription}>
+                  Mantente informado sobre eventos y visitas.
+                </Text>
+              </View>
+              <Switch
+                value={acceptsNotifications}
+                onValueChange={toggleNotifications}
+                trackColor={{ true: '#7c3aed', false: '#d1d5db' }}
+                thumbColor={acceptsNotifications ? '#ede9fe' : '#f9fafb'}
               />
             </View>
           </View>
+        </ScrollView>
 
-          <View style={styles.fieldRow}>
-            <View style={styles.fieldIcon}>
-              <Phone size={18} color="#5b21b6" />
-            </View>
-            <View style={styles.fieldContent}>
-              <Text style={styles.fieldLabel}>Teléfono</Text>
-              <TextInput
-                value={phone}
-                onChangeText={setPhone}
-                placeholder="+56 9 1234 5678"
-                placeholderTextColor="#9ca3af"
-                keyboardType="phone-pad"
-                style={styles.textInput}
-              />
-            </View>
-          </View>
-
-          <Pressable style={styles.fieldRow} onPress={openDatePicker}>
-            <View style={styles.fieldIcon}>
-              <Calendar size={18} color="#5b21b6" />
-            </View>
-            <View style={styles.fieldContent}>
-              <Text style={styles.fieldLabel}>Cumpleaños</Text>
-              <Text style={styles.fieldValue}>
-                {birthday ? formatDate(birthday) : 'Añadir fecha de cumpleaños'}
-              </Text>
-            </View>
-            <ChevronRight size={18} color="#9ca3af" />
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+          <Pressable style={styles.saveButton} onPress={onSave} disabled={saving}>
+            {saving ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.saveButtonText}>Guardar cambios</Text>
+            )}
           </Pressable>
-
-          {birthday && (
-            <Pressable style={styles.clearButton} onPress={clearBirthday}>
-              <Text style={styles.clearButtonText}>Limpiar cumpleaños</Text>
-            </Pressable>
-          )}
-
-          <View style={styles.fieldRow}>
-            <View style={styles.fieldIcon}>
-              <Mail size={18} color="#5b21b6" />
-            </View>
-            <View style={styles.fieldContent}>
-              <Text style={styles.fieldLabel}>Correo electrónico</Text>
-              <Text style={styles.fieldValue}>{email}</Text>
-            </View>
-          </View>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Preferencias</Text>
-
-          <View style={[styles.fieldRow, styles.switchRow]}>
-            <View style={styles.fieldIcon}>
-              <Bell size={18} color="#5b21b6" />
+        {showDatePicker && (
+          <View style={styles.datePickerOverlay}>
+            <Pressable style={styles.datePickerBackdrop} onPress={closeDatePicker} />
+            <View style={styles.datePickerContainer}>
+              <DateTimePicker
+                value={datePickerValue}
+                maximumDate={dayjs().toDate()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                locale="es-ES"
+                onChange={handleSelectBirthday}
+              />
             </View>
-            <View style={styles.fieldContent}>
-              <Text style={styles.fieldLabel}>Recibir notificaciones</Text>
-              <Text style={styles.fieldDescription}>
-                Mantente informado sobre eventos y visitas.
-              </Text>
-            </View>
-            <Switch
-              value={acceptsNotifications}
-              onValueChange={toggleNotifications}
-              trackColor={{ true: '#7c3aed', false: '#d1d5db' }}
-              thumbColor={acceptsNotifications ? '#ede9fe' : '#f9fafb'}
-            />
           </View>
-        </View>
-      </ScrollView>
-
-      <View style={styles.footer}>
-        <Pressable style={styles.saveButton} onPress={onSave} disabled={saving}>
-          {saving ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.saveButtonText}>Guardar cambios</Text>
-          )}
-        </Pressable>
+        )}
       </View>
-
-      {showDatePicker && (
-        <View style={styles.datePickerOverlay}>
-          <Pressable style={styles.datePickerBackdrop} onPress={closeDatePicker} />
-          <View style={styles.datePickerContainer}>
-            <DateTimePicker
-              value={datePickerValue}
-              maximumDate={dayjs().toDate()}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'inline' : 'default'}
-              locale="es-ES"
-              onChange={handleSelectBirthday}
-            />
-          </View>
-        </View>
-      )}
-    </View>
+    </SafeAreaView>
   )
 }
 
+export default EditProfileScreen
+
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#f5f3ff',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f3ff',
@@ -250,8 +270,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f3ff',
   },
   header: {
-    paddingTop: 100,
-    paddingBottom: 40,
+    paddingBottom: 64,
     paddingHorizontal: 24,
   },
   avatarSection: {
@@ -287,11 +306,14 @@ const styles = StyleSheet.create({
     color: '#f3f4f6',
     fontSize: 15,
   },
+  scroll: {
+    flex: 1,
+  },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingBottom: 120,
+    paddingTop: 180,
     gap: 20,
-    marginTop: -32,
+    marginTop: -96,
   },
   card: {
     backgroundColor: '#fff',
@@ -350,7 +372,7 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     marginLeft: 56,
-    marginTop: -8,
+    marginTop: 8,
   },
   clearButtonText: {
     color: '#7c3aed',
@@ -362,7 +384,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingTop: 16,
     backgroundColor: '#f5f3ff',
   },
   saveButton: {

@@ -53,20 +53,29 @@ export function useEditProfile() {
       return
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-    })
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      })
 
-    if (!result.canceled && result.assets.length > 0) {
-      setSelectedAvatar(result.assets[0])
+      if (result.canceled || result.assets.length === 0) {
+        return
+      }
+
+      const [asset] = result.assets
+
+      if (asset.type && asset.type !== 'image') {
+        Alert.alert('Archivo inválido', 'Selecciona una imagen para tu avatar.')
+        return
+      }
+
+      setSelectedAvatar(asset)
+    } catch (error) {
+      console.error('[useEditProfile] pickAvatar error', error)
+      Alert.alert('Error', 'No pudimos abrir tu galería. Inténtalo nuevamente más tarde.')
     }
-  }, [])
-
-  const removeLocalAvatar = useCallback(() => {
-    setSelectedAvatar(null)
   }, [])
 
   const handleSave = useCallback(async () => {
@@ -81,9 +90,15 @@ export function useEditProfile() {
         const response = await fetch(selectedAvatar.uri)
         const blob = await response.blob()
 
-        const extension = selectedAvatar.fileName?.split('.').pop()?.toLowerCase() || 'jpg'
-        const filePath = `avatars/${now().valueOf()}.${extension}`
-        const contentType = blob.type || `image/${extension === 'jpg' ? 'jpeg' : extension}`
+        const mimeType = selectedAvatar.mimeType || blob.type || 'image/jpeg'
+        const guessedExtensionFromFileName =
+          selectedAvatar.fileName?.split('.').pop()?.toLowerCase() || null
+        const guessedExtensionFromUri = selectedAvatar.uri.split('?')[0].split('.').pop()?.toLowerCase()
+        const rawExtension =
+          guessedExtensionFromFileName || guessedExtensionFromUri || mimeType.split('/').pop() || 'jpg'
+        const normalizedExtension = rawExtension === 'jpeg' ? 'jpg' : rawExtension
+        const filePath = `avatars/${now().valueOf()}.${normalizedExtension}`
+        const contentType = mimeType
 
         const { error: uploadError } = await supabase.storage
           .from('avatars')
@@ -197,7 +212,6 @@ export function useEditProfile() {
     toggleNotifications,
     avatarPreview,
     pickAvatar,
-    removeLocalAvatar,
     handleSave,
   }
 }
