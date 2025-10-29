@@ -4,6 +4,8 @@ import { Stack, useRouter } from 'expo-router'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  Dimensions,
+  findNodeHandle,
   Keyboard,
   KeyboardAvoidingView,
   Image,
@@ -15,7 +17,6 @@ import {
   Text,
   TextInput,
   View,
-  type LayoutChangeEvent,
 } from 'react-native'
 import {
   Bell,
@@ -35,8 +36,8 @@ const EditProfileScreen = () => {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const scrollViewRef = useRef<ScrollView>(null)
-  const sectionOffsets = useRef<Record<string, number>>({})
-  const fieldPositions = useRef<Record<string, number>>({})
+  const nameFieldRef = useRef<View>(null)
+  const phoneFieldRef = useRef<View>(null)
   const [keyboardHeight, setKeyboardHeight] = useState(0)
   const {
     initializing,
@@ -77,44 +78,55 @@ const EditProfileScreen = () => {
     }
   }
 
-  const registerSection = useCallback(
-    (section: string) => (event: LayoutChangeEvent) => {
-      sectionOffsets.current[section] = event.nativeEvent.layout.y
-    },
-    []
-  )
-
-  const registerField = useCallback(
-    (section: string, field: string) => (event: LayoutChangeEvent) => {
-      const sectionOffset = sectionOffsets.current[section] ?? 0
-      fieldPositions.current[field] = sectionOffset + event.nativeEvent.layout.y
-    },
-    []
-  )
-
   const focusField = useCallback(
-    (field: string) => {
-      const position = fieldPositions.current[field]
-      if (!scrollViewRef.current || typeof position !== 'number') {
+    (field: 'name' | 'phone') => {
+      const fieldRef = field === 'name' ? nameFieldRef.current : phoneFieldRef.current
+      const scrollNode = scrollViewRef.current
+
+      if (!fieldRef || !scrollNode) {
         return
       }
 
-      const keyboardCompensation = keyboardHeight > 0 ? keyboardHeight + 100 : 200
+      const buffer = 32
+      const runMeasure = () => {
+        const scrollHandle =
+          typeof scrollNode.getInnerViewNode === 'function'
+            ? scrollNode.getInnerViewNode()
+            : findNodeHandle(scrollNode)
 
-      const scrollTo = () => {
-        scrollViewRef.current?.scrollTo({
-          y: Math.max(0, position - keyboardCompensation),
-          animated: true,
-        })
+        if (!scrollHandle) {
+          return
+        }
+
+        fieldRef.measureLayout(
+          scrollHandle,
+          (_x, y, _width, height) => {
+            const windowHeight = Dimensions.get('window').height
+            const availableHeight =
+              windowHeight - keyboardHeight - insets.bottom - buffer
+
+            let target = y - buffer
+
+            if (keyboardHeight > 0 && y + height > availableHeight) {
+              target = y + height - availableHeight
+            }
+
+            scrollNode.scrollTo({
+              y: Math.max(0, target),
+              animated: true,
+            })
+          },
+          () => {}
+        )
       }
 
       if (Platform.OS === 'android') {
-        setTimeout(scrollTo, keyboardHeight > 0 ? 80 : 180)
+        setTimeout(runMeasure, keyboardHeight > 0 ? 60 : 160)
       } else {
-        scrollTo()
+        runMeasure()
       }
     },
-    [keyboardHeight]
+    [insets.bottom, keyboardHeight]
   )
 
   const onSave = async () => {
@@ -202,10 +214,10 @@ const EditProfileScreen = () => {
             keyboardDismissMode="interactive"
             showsVerticalScrollIndicator={false}
           >
-            <View style={styles.card} onLayout={registerSection('personal')}>
+            <View style={styles.card}>
               <Text style={styles.sectionTitle}>Información personal</Text>
 
-              <View style={styles.fieldRow} onLayout={registerField('personal', 'name')}>
+              <View ref={nameFieldRef} style={styles.fieldRow}>
                 <View style={styles.fieldIcon}>
                   <UserIcon size={18} color="#5b21b6" />
                 </View>
@@ -222,7 +234,7 @@ const EditProfileScreen = () => {
                 </View>
               </View>
 
-              <View style={styles.fieldRow} onLayout={registerField('personal', 'phone')}>
+              <View ref={phoneFieldRef} style={styles.fieldRow}>
                 <View style={styles.fieldIcon}>
                   <Phone size={18} color="#5b21b6" />
                 </View>
@@ -270,7 +282,7 @@ const EditProfileScreen = () => {
               </View>
             </View>
 
-            <View style={styles.card} onLayout={registerSection('preferences')}>
+            <View style={styles.card}>
               <Text style={styles.sectionTitle}>Preferencias</Text>
 
               <View style={[styles.fieldRow, styles.switchRow]}>
@@ -350,7 +362,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f3ff',
   },
   header: {
-    paddingBottom: 28,
+    paddingBottom: 16,
     paddingHorizontal: 24,
   },
   avatarSection: {
@@ -394,9 +406,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 32,
+    paddingTop: 12,
     gap: 16,
-    marginTop: -32,
   },
   card: {
     backgroundColor: '#fff',
