@@ -127,14 +127,14 @@ export default function LoginScreen() {
         <View style={[styles.background, { backgroundColor: baseBackgroundColor, minHeight: windowHeight }]}>
           <View pointerEvents="none" style={styles.decorations}>
             <AnimatedImage
-              source={require('@/assets/backgrounds/loading-illustration.webp')}
+              source={require('@/assets/images/background.png')}
               style={[styles.backgroundImage, { transform: [{ scale: 1.16 }, { translateY: parallaxOffset }] }]}
               contentFit="cover"
               contentPosition="center"
             />
           </View>
           <View style={[styles.contentWrapper, { minHeight: windowHeight }]}>
-            <ThemedView lightColor="#ffffff" darkColor="#111827" style={[styles.card, isDarkMode && styles.cardDark]}>
+            <ThemedView lightColor="rgba(255, 255, 255, 0.5)" darkColor="rgba(255, 255, 255, 0.1)" style={[styles.card, isDarkMode && styles.cardDark]}>
               <View style={styles.branding}>
                 <Image source={require('@/assets/logo.png')} style={styles.brandIcon} contentFit="contain" />
               </View>

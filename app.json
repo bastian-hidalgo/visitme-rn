@@ -44,7 +44,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Permite a VisitMe acceder a tus fotos para actualizar tu avatar."
+          "photosPermission": "Permite a Visite acceder a tus fotos."
         }
       ]
     ],

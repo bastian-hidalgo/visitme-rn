@@ -1,7 +1,6 @@
 import { useEditProfile } from '@/hooks/useEditProfile'
 import { dayjs, formatDate } from '@/lib/time'
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
-import { LinearGradient } from 'expo-linear-gradient'
 import { Stack, useRouter } from 'expo-router'
 import {
   Bell,
@@ -15,8 +14,7 @@ import {
 import React, { useCallback, useMemo, useRef } from 'react'
 import {
   ActivityIndicator,
-  Image,
-  type LayoutChangeEvent,
+  Image, ImageBackground, type LayoutChangeEvent,
   Platform,
   Pressable,
   StyleSheet,
@@ -107,10 +105,9 @@ const EditProfileScreen = () => {
           }}
         />
 
-        <LinearGradient
-          colors={['#1f2937', '#312e81']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+        <ImageBackground
+          source={require('@/assets/images/background.png')}
+          resizeMode="cover"
           style={[styles.header, { paddingTop: insets.top + 20 }]}
         >
           <View style={styles.avatarSection}>
@@ -129,7 +126,7 @@ const EditProfileScreen = () => {
             </View>
             <Text style={styles.headerSubtitle}>Actualiza tu información personal</Text>
           </View>
-        </LinearGradient>
+        </ImageBackground>
 
         <KeyboardAwareScrollView
           ref={scrollViewRef}
@@ -385,7 +382,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   footer: {
-    marginTop: 24,
+    marginTop: 0,
     paddingHorizontal: 24,
     paddingTop: 16,
     backgroundColor: '#f5f3ff',
