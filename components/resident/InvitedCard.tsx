@@ -132,7 +132,6 @@ const styles = StyleSheet.create({
     width: 220,
     minHeight: 220,
     justifyContent: 'space-between',
-    marginHorizontal: 6,
     borderWidth: 1,
     borderColor: '#e0e7ff',
     shadowColor: '#111827',

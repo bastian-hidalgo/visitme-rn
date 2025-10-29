@@ -197,7 +197,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#fff',
     marginVertical: 8,
-    marginHorizontal: 6,
     elevation: 4,
     shadowColor: '#000',
     shadowOpacity: 0.15,
