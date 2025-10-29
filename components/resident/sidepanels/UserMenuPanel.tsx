@@ -39,6 +39,11 @@ export default function UserMenuPanel({ isOpen, onClose, progress }: UserMenuPan
     setTimeout(() => router.push(path as any), 250)
   }
 
+  const handleOpenFeedback = () => {
+    onClose()
+    setTimeout(() => openFeedbackPanel(), 250)
+  }
+
   const MENU_ITEMS = [
     {
       id: 'profile',
@@ -47,10 +52,10 @@ export default function UserMenuPanel({ isOpen, onClose, progress }: UserMenuPan
       onPress: () => handleNavigate('/profile/edit-profile'),
     },
     {
-      id: 'suggest',
-      text: 'Realizar una sugerencia',
+      id: 'feedback',
+      text: 'Enviar comentario',
       icon: <Lightbulb size={18} color="#fff" />,
-      onPress: () => openFeedbackPanel(),
+      onPress: handleOpenFeedback,
     },
     ...(hasMultipleCommunities
       ? [{ id: 'change', text: 'Cambiar comunidad', icon: <ArrowLeftRight size={18} color="#fff" />, onPress: () => handleNavigate('/choose-community') }]
