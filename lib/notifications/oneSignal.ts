@@ -64,7 +64,26 @@ export const updatePushSubscription = (enabled: boolean) => {
   if (!initialized) initializeOneSignal()
 
   try {
-    OneSignal.User.pushSubscription.optIn = enabled
+    const pushSubscription = (OneSignal as unknown as {
+      User?: {
+        pushSubscription?: {
+          optIn?: () => unknown
+          optOut?: () => unknown
+        }
+      }
+    }).User?.pushSubscription
+
+    if (!pushSubscription) {
+      console.warn('[OneSignal] pushSubscription no disponible')
+      return
+    }
+
+    if (enabled) {
+      pushSubscription.optIn?.()
+    } else {
+      pushSubscription.optOut?.()
+    }
+
     console.log(`[OneSignal] Push ${enabled ? 'activadas' : 'desactivadas'}`)
   } catch (error) {
     console.error('[OneSignal] Error al actualizar la suscripción push:', error)
