@@ -7,10 +7,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import React, { useEffect, useState } from 'react'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 import Toast from 'react-native-toast-message'
+import { promptForPushPermission } from '@/lib/notifications/oneSignal'
 
 export default function ResidentPage() {
   const { session, isLoading: authLoading } = useSupabaseAuth()
-  const { id, communitySlug: userCommunitySlug, loading: userLoading } = useUser()
+  const { id, communitySlug: userCommunitySlug, loading: userLoading, acceptsNotifications } = useUser()
   const router = useRouter()
   const params = useLocalSearchParams()
   const [allowed, setAllowed] = useState(false)
@@ -62,6 +63,33 @@ export default function ResidentPage() {
     router,
     userCommunitySlug,
   ])
+
+  useEffect(() => {
+    if (!allowed || !id || !acceptsNotifications) return
+
+    let isMounted = true
+    const storageKey = `onesignal_prompted_${id}`
+
+    const maybePromptPermission = async () => {
+      try {
+        const hasPrompted = await AsyncStorage.getItem(storageKey)
+        if (hasPrompted) return
+
+        const granted = await promptForPushPermission()
+
+        if (!isMounted) return
+        await AsyncStorage.setItem(storageKey, granted ? 'granted' : 'denied')
+      } catch (error) {
+        console.error('[ResidentPage] Failed to prompt for notifications', error)
+      }
+    }
+
+    void maybePromptPermission()
+
+    return () => {
+      isMounted = false
+    }
+  }, [allowed, id, acceptsNotifications])
 
   if (authLoading || userLoading || !allowed) {
     return (

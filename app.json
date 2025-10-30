@@ -48,6 +48,12 @@
         {
           "photosPermission": "Permite a Visite acceder a tus fotos."
         }
+      ],
+      [
+        "onesignal-expo-plugin",
+        {
+          "mode": "development"
+        }
       ]
     ],
     "experiments": {
