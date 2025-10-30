@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "700723059545",
+    "project_id": "visitme-rn",
+    "storage_bucket": "visitme-rn.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:700723059545:android:36bf2c114193d1fda30a48",
+        "android_client_info": {
+          "package_name": "cl.visitme.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCCEDDxBevnelnX1FxJUfC6MyxfQena0Xs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
