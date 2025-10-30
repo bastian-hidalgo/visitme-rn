@@ -21,8 +21,14 @@ export default function ResidentPage() {
 
   useEffect(() => {
     if (authLoading || userLoading) return
-    if (!session || !id) {
+
+    if (!session) {
       router.replace('/login')
+      return
+    }
+
+    if (!id) {
+      setAllowed(false)
       return
     }
 

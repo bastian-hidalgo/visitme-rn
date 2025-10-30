@@ -22,12 +22,19 @@ export default function NewReservationPage() {
 
   useEffect(() => {
     if (authLoading || userLoading) return
-    if (!session || !id) {
+    if (!session) {
       router.replace('/login')
       return
     }
 
+    if (!id) {
+      setAllowed(false)
+      return
+    }
+
     const checkCommunity = async () => {
+      setAllowed(false)
+
       const selected =
         (await AsyncStorage.getItem('selected_community')) || userCommunitySlug
 
