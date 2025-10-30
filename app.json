@@ -50,7 +50,7 @@
         }
       ],
       [
-        "@onesignal/expo-plugin",
+        "onesignal-expo-plugin",
         {
           "mode": "development"
         }

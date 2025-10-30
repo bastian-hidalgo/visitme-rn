@@ -1,80 +1,91 @@
-import OneSignal from '@onesignal/react-native'
+import OneSignal from 'react-native-onesignal'
 
+// Solo inicializamos una vez
 let initialized = false
-let hasWarnedAppId = false
 
+// Se obtiene el App ID desde tu .env
 const ONESIGNAL_APP_ID = process.env.EXPO_PUBLIC_ONESIGNAL_APP_ID
 
-const ensureInitialized = () => {
-  if (initialized) return true
+// Inicializa OneSignal de forma segura
+export const initializeOneSignal = () => {
+  if (initialized) return
 
   if (!ONESIGNAL_APP_ID) {
-    if (!hasWarnedAppId) {
-      console.warn('[OneSignal] EXPO_PUBLIC_ONESIGNAL_APP_ID is not defined')
-      hasWarnedAppId = true
-    }
-    return false
+    console.warn('[OneSignal] Falta EXPO_PUBLIC_ONESIGNAL_APP_ID en tu entorno (.env)')
+    return
   }
 
   try {
+    // Inicialización principal
     OneSignal.initialize(ONESIGNAL_APP_ID)
+
+    // Recomendado: solicitar permisos automáticamente la primera vez
+    OneSignal.Notifications.requestPermission(true)
+
+    // Configurar comportamiento al abrir una notificación
+    OneSignal.Notifications.addEventListener('click', event => {
+      console.log('[OneSignal] Notificación abierta:', event.notification)
+      // Aquí podrías hacer navegación o tracking
+    })
+
+    // Configurar listener cuando se recibe una notificación
+    OneSignal.Notifications.addEventListener('foregroundWillDisplay', event => {
+      console.log('[OneSignal] Notificación recibida en foreground:', event.notification)
+      // Muestra la notificación (por defecto la suprime)
+      event.getNotification().display()
+    })
+
     initialized = true
-    return true
+    console.log('[OneSignal] Inicializado correctamente')
   } catch (error) {
-    console.error('[OneSignal] Failed to initialize SDK', error)
-    return false
+    console.error('[OneSignal] Error al inicializar SDK:', error)
   }
 }
 
-export const initializeOneSignal = () => ensureInitialized()
-
+// Inicia sesión con un usuario (para segmentar notificaciones)
 export const loginOneSignalUser = (userId: string | null) => {
-  if (!ensureInitialized()) return
+  if (!initialized) initializeOneSignal()
 
   try {
     if (userId) {
       OneSignal.login(userId)
+      console.log(`[OneSignal] Usuario logueado: ${userId}`)
     } else {
       OneSignal.logout()
+      console.log('[OneSignal] Usuario deslogueado')
     }
   } catch (error) {
-    console.error('[OneSignal] Failed to (un)register user', error)
+    console.error('[OneSignal] Error en login/logout del usuario:', error)
   }
 }
 
+// Actualiza si el usuario tiene activadas las notificaciones
 export const updatePushSubscription = (enabled: boolean) => {
-  if (!ensureInitialized()) return
+  if (!initialized) initializeOneSignal()
 
   try {
-    const pushSubscription = OneSignal.User?.pushSubscription
-
-    if (pushSubscription?.optIn && pushSubscription.optOut) {
-      if (enabled) {
-        pushSubscription.optIn()
-      } else {
-        pushSubscription.optOut()
-      }
-      return
-    }
-
-    OneSignal.Notifications.disablePush(!enabled)
+    OneSignal.User.pushSubscription.optIn = enabled
+    console.log(`[OneSignal] Push ${enabled ? 'activadas' : 'desactivadas'}`)
   } catch (error) {
-    console.error('[OneSignal] Failed to update push subscription', error)
+    console.error('[OneSignal] Error al actualizar la suscripción push:', error)
   }
 }
 
-export const promptForPushPermission = async () => {
-  if (!ensureInitialized()) return false
+// Solicita permisos de notificación manualmente
+export const promptForPushPermission = async (): Promise<boolean> => {
+  if (!initialized) initializeOneSignal()
 
   try {
     const granted = await OneSignal.Notifications.requestPermission(true)
+    console.log('[OneSignal] Permiso de notificación:', granted)
     return Boolean(granted)
   } catch (error) {
-    console.error('[OneSignal] Failed to request notification permission', error)
+    console.error('[OneSignal] Error al solicitar permiso:', error)
     return false
   }
 }
 
+// Cierra sesión del usuario actual
 export const logoutOneSignalUser = () => {
   loginOneSignalUser(null)
 }
