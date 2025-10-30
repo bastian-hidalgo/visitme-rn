@@ -1,4 +1,4 @@
-import { PropsWithChildren, createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import * as Linking from 'expo-linking';
 import type { Session } from '@supabase/supabase-js';
 
@@ -7,6 +7,8 @@ import { supabase } from '@/lib/supabase';
 type SupabaseAuthContextValue = {
   session: Session | null;
   isLoading: boolean;
+  authRestrictionMessage: string | null;
+  clearAuthRestrictionMessage: () => void;
 };
 
 const SupabaseAuthContext = createContext<SupabaseAuthContextValue | undefined>(undefined);
@@ -22,6 +24,60 @@ const getParamValue = (value: string | string[] | null | undefined) => {
 export function SupabaseAuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isApplyingSession, setIsApplyingSession] = useState(false);
+  const [authRestrictionMessage, setAuthRestrictionMessage] = useState<string | null>(null);
+
+  const clearAuthRestrictionMessage = useCallback(() => {
+    setAuthRestrictionMessage(null);
+  }, []);
+
+  const handleSessionChange = useCallback(
+    async (incomingSession: Session | null) => {
+      setIsApplyingSession(true);
+
+      try {
+        if (!incomingSession?.user) {
+          setSession(null);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', incomingSession.user.id)
+          .maybeSingle();
+
+        if (error || !data?.role) {
+          setAuthRestrictionMessage(
+            'No pudimos verificar tu rol. Intenta nuevamente más tarde o contacta a tu administrador.',
+          );
+          setSession(null);
+          await supabase.auth.signOut();
+          return;
+        }
+
+        if (data.role.toLowerCase() !== 'resident') {
+          setAuthRestrictionMessage('Esta aplicación es exclusiva para residentes. Tu rol no tiene acceso.');
+          setSession(null);
+          await supabase.auth.signOut();
+          return;
+        }
+
+        setAuthRestrictionMessage(null);
+        setSession(incomingSession);
+      } catch (error) {
+        console.error('Error verifying user role', error);
+        setAuthRestrictionMessage(
+          'No pudimos verificar tu rol. Intenta nuevamente más tarde o contacta a tu administrador.',
+        );
+        setSession(null);
+        await supabase.auth.signOut();
+      } finally {
+        setIsApplyingSession(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -29,7 +85,7 @@ export function SupabaseAuthProvider({ children }: PropsWithChildren) {
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        setSession(session);
+        await handleSessionChange(session);
       } catch (error) {
         console.error('Error obtaining Supabase session', error);
       } finally {
@@ -42,7 +98,7 @@ export function SupabaseAuthProvider({ children }: PropsWithChildren) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
+      void handleSessionChange(newSession);
     });
 
     const handleDeepLink = async (url: string | null) => {
@@ -81,9 +137,17 @@ export function SupabaseAuthProvider({ children }: PropsWithChildren) {
       linkingSubscription.remove();
       subscription.unsubscribe();
     };
-  }, []);
+  }, [handleSessionChange]);
 
-  const value = useMemo(() => ({ session, isLoading }), [session, isLoading]);
+  const value = useMemo(
+    () => ({
+      session,
+      isLoading: isLoading || isApplyingSession,
+      authRestrictionMessage,
+      clearAuthRestrictionMessage,
+    }),
+    [session, isLoading, isApplyingSession, authRestrictionMessage, clearAuthRestrictionMessage],
+  );
 
   return <SupabaseAuthContext.Provider value={value}>{children}</SupabaseAuthContext.Provider>;
 }
