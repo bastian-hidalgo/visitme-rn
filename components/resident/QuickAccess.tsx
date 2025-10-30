@@ -38,10 +38,14 @@ export default function QuickAccessBottom({ onNavigate }: Props) {
               setActive(action.id)
               onNavigate(action.id)
             }}
-            animate={({ pressed }) => ({
-              scale: pressed ? 0.96 : 1,
-              opacity: pressed ? 0.8 : 1,
-            })}
+            animate={({ pressed }) => {
+              'worklet'
+
+              return {
+                scale: pressed ? 0.96 : 1,
+                opacity: pressed ? 0.8 : 1,
+              }
+            }}
           >
             {/* 🔹 Contenedor principal con retraso al cerrar */}
             <MotiView
