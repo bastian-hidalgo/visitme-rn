@@ -8,7 +8,7 @@ import { FontAwesome } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as Linking from 'expo-linking';
 import { Redirect } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -33,7 +33,7 @@ const getMagicLinkRedirectUrl = () => {
 };
 
 export default function LoginScreen() {
-  const { session, isLoading } = useSupabaseAuth();
+  const { session, isLoading, authRestrictionMessage, clearAuthRestrictionMessage } = useSupabaseAuth();
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme ?? 'light'];
   const [email, setEmail] = useState('');
@@ -43,6 +43,13 @@ export default function LoginScreen() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
   const { height: windowHeight } = useWindowDimensions();
+
+  useEffect(() => {
+    if (authRestrictionMessage) {
+      setStatusMessage(null);
+      setErrorMessage(authRestrictionMessage);
+    }
+  }, [authRestrictionMessage]);
 
   if (isLoading) {
     return (
@@ -67,6 +74,7 @@ export default function LoginScreen() {
   });
 
   const handleSubmit = async () => {
+    clearAuthRestrictionMessage();
     if (!email.trim()) {
       setErrorMessage('Ingresa un correo electrónico válido.');
       setStatusMessage(null);
@@ -94,6 +102,7 @@ export default function LoginScreen() {
     try {
       setIsGoogleLoading(true);
       setErrorMessage(null);
+      clearAuthRestrictionMessage();
       setStatusMessage(null);
       const redirectTo = Linking.createURL('/');
       const { error } = await supabase.auth.signInWithOAuth({
