@@ -64,14 +64,21 @@ export const updatePushSubscription = (enabled: boolean) => {
   if (!initialized) initializeOneSignal()
 
   try {
-    const pushSubscription = (OneSignal as unknown as {
+    const oneSignal = OneSignal as unknown as {
       User?: {
         pushSubscription?: {
           optIn?: () => unknown
           optOut?: () => unknown
         }
       }
-    }).User?.pushSubscription
+    } | undefined
+
+    const pushSubscription = oneSignal?.User?.pushSubscription
+
+    if (!oneSignal?.User) {
+      console.warn('[OneSignal] SDK no disponible todavía para actualizar pushSubscription')
+      return
+    }
 
     if (!pushSubscription) {
       console.warn('[OneSignal] pushSubscription no disponible')
