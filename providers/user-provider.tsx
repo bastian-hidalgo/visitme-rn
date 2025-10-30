@@ -1,3 +1,4 @@
+import { logoutOneSignalUser } from '@/lib/notifications/oneSignal'
 import { supabase } from '@/lib/supabase'
 import { useSupabaseAuth } from '@/providers/supabase-auth-provider'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -95,6 +96,7 @@ export const UserProvider = ({ children }: UserProviderProps) => {
     setLoading(true)
     try {
       await supabase.auth.signOut()
+      logoutOneSignalUser()
       await AsyncStorage.multiRemove([
         LOCAL_STORAGE_KEY,
         COMMUNITY_NAME_KEY,
