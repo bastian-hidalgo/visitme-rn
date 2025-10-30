@@ -1,4 +1,4 @@
-import OneSignal from 'react-native-onesignal'
+import OneSignal from '@onesignal/react-native'
 
 let initialized = false
 let hasWarnedAppId = false
@@ -17,7 +17,7 @@ const ensureInitialized = () => {
   }
 
   try {
-    OneSignal.initialize?.(ONESIGNAL_APP_ID)
+    OneSignal.initialize(ONESIGNAL_APP_ID)
     initialized = true
     return true
   } catch (error) {
@@ -33,9 +33,9 @@ export const loginOneSignalUser = (userId: string | null) => {
 
   try {
     if (userId) {
-      OneSignal.login?.(userId)
+      OneSignal.login(userId)
     } else {
-      OneSignal.logout?.()
+      OneSignal.logout()
     }
   } catch (error) {
     console.error('[OneSignal] Failed to (un)register user', error)
@@ -57,9 +57,7 @@ export const updatePushSubscription = (enabled: boolean) => {
       return
     }
 
-    if (OneSignal.Notifications?.disablePush) {
-      OneSignal.Notifications.disablePush(!enabled)
-    }
+    OneSignal.Notifications.disablePush(!enabled)
   } catch (error) {
     console.error('[OneSignal] Failed to update push subscription', error)
   }
@@ -69,7 +67,7 @@ export const promptForPushPermission = async () => {
   if (!ensureInitialized()) return false
 
   try {
-    const granted = await OneSignal.Notifications?.requestPermission?.(true)
+    const granted = await OneSignal.Notifications.requestPermission(true)
     return Boolean(granted)
   } catch (error) {
     console.error('[OneSignal] Failed to request notification permission', error)
