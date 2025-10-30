@@ -1,11 +1,13 @@
 import { Platform } from 'react-native'
 import { OneSignal } from 'react-native-onesignal'
 
+import { env } from '@/constants/env'
+
 // Solo inicializamos una vez
 let initialized = false
 
 // Se obtiene el App ID desde tu .env
-const ONESIGNAL_APP_ID = process.env.EXPO_PUBLIC_ONESIGNAL_APP_ID
+const ONESIGNAL_APP_ID = env.oneSignalAppId
 
 type OneSignalNotifications = {
   requestPermission?: (requestOptions?: boolean) => Promise<boolean> | boolean

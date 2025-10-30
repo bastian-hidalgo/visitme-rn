@@ -1,7 +1,8 @@
+import { env } from '@/constants/env'
 import { dayjs } from '@/lib/time'
 import { useState } from 'react'
 
-const DATE_INPUT_FORMAT = process.env.EXPO_PUBLIC_DATETIME_FORMAT || 'YYYY-MM-DD HH:mm'
+const DATE_INPUT_FORMAT = env.datetimeFormat || 'YYYY-MM-DD HH:mm'
 
 export function useInvitationForm() {
   const [form, setForm] = useState({
