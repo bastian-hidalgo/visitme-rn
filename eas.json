@@ -5,13 +5,25 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_USE_CPP": "0",
+        "EXPO_NO_CMAKE_BUILD": "1"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_USE_CPP": "0",
+        "EXPO_NO_CMAKE_BUILD": "1"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_USE_CPP": "0",
+        "EXPO_NO_CMAKE_BUILD": "1"
+      }
     }
   },
   "submit": {
