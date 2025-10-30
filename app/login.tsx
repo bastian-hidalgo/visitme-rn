@@ -1,14 +1,17 @@
+import GoogleLoginButton, {
+  type GoogleLoginButtonStatus,
+  type GoogleLoginStatusChangeDetails,
+} from '@/components/auth/GoogleLoginButton';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { supabase } from '@/lib/supabase';
 import { useSupabaseAuth } from '@/providers/supabase-auth-provider';
-import { FontAwesome } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as Linking from 'expo-linking';
 import { Redirect } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -51,28 +54,6 @@ export default function LoginScreen() {
     }
   }, [authRestrictionMessage]);
 
-  if (isLoading) {
-    return (
-      <ThemedView style={styles.loadingContainer}>
-        <ActivityIndicator />
-      </ThemedView>
-    );
-  }
-
-  if (!isLoading && session) {
-    return <Redirect href="/(tabs)" />;
-  }
-
-  const isBusy = isMagicLinkLoading || isGoogleLoading;
-  const isDarkMode = colorScheme === 'dark';
-  const baseBackgroundColor = isDarkMode ? '#0f172a' : '#f5f3ff';
-
-  const parallaxOffset = scrollY.interpolate({
-    inputRange: [-180, 0, 240],
-    outputRange: [-90, 0, 60],
-    extrapolate: 'clamp',
-  });
-
   const handleSubmit = async () => {
     clearAuthRestrictionMessage();
     if (!email.trim()) {
@@ -98,24 +79,59 @@ export default function LoginScreen() {
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    try {
-      setIsGoogleLoading(true);
-      setErrorMessage(null);
-      clearAuthRestrictionMessage();
-      setStatusMessage(null);
-      const redirectTo = Linking.createURL('/');
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo },
-      });
-      if (error) throw error;
-    } catch {
-      setErrorMessage('No pudimos iniciar sesión con Google. Intenta nuevamente.');
-    } finally {
+  const handleGoogleStatusChange = useCallback(
+    (status: GoogleLoginButtonStatus, details?: GoogleLoginStatusChangeDetails) => {
+      if (status === 'loading') {
+        setIsGoogleLoading(true);
+        setStatusMessage(null);
+        setErrorMessage(null);
+        clearAuthRestrictionMessage();
+        return;
+      }
+
       setIsGoogleLoading(false);
-    }
-  };
+
+      if (status === 'error') {
+        const message = details?.errorMessage ?? 'No pudimos iniciar sesión con Google. Intenta nuevamente.';
+        setErrorMessage(message);
+        setStatusMessage(null);
+        return;
+      }
+
+      if (status === 'success') {
+        setStatusMessage('Autenticación con Google exitosa. Redirigiendo…');
+        setErrorMessage(null);
+      }
+    },
+    [clearAuthRestrictionMessage],
+  );
+
+  const handleGoogleSuccess = useCallback(() => {
+    setStatusMessage('Autenticación con Google exitosa. Redirigiendo…');
+    setErrorMessage(null);
+  }, []);
+
+  if (isLoading) {
+    return (
+      <ThemedView style={styles.loadingContainer}>
+        <ActivityIndicator />
+      </ThemedView>
+    );
+  }
+
+  if (!isLoading && session) {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  const isBusy = isMagicLinkLoading || isGoogleLoading;
+  const isDarkMode = colorScheme === 'dark';
+  const baseBackgroundColor = isDarkMode ? '#0f172a' : '#f5f3ff';
+
+  const parallaxOffset = scrollY.interpolate({
+    inputRange: [-180, 0, 240],
+    outputRange: [-90, 0, 60],
+    extrapolate: 'clamp',
+  });
 
   return (
     <KeyboardAvoidingView
@@ -153,42 +169,11 @@ export default function LoginScreen() {
                   Ingresa tu correo y te enviaremos un enlace mágico para iniciar sesión.
                 </ThemedText>
               </View>
-              <Pressable
-                onPress={handleGoogleSignIn}
-                style={[
-                  styles.googleButton,
-                  {
-                    borderColor: isDarkMode ? '#1f2937' : '#E5E7EB',
-                    backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
-                  },
-                  isBusy && styles.disabledButton,
-                ]}
+              <GoogleLoginButton
+                onStatusChange={handleGoogleStatusChange}
+                onSuccess={handleGoogleSuccess}
                 disabled={isBusy}
-              >
-                {isGoogleLoading ? (
-                  <ActivityIndicator color={isDarkMode ? '#E5E7EB' : '#11181C'} />
-                ) : (
-                  <View style={styles.googleContent}>
-                    <View
-                      style={[
-                        styles.googleIconWrapper,
-                        {
-                          backgroundColor: isDarkMode ? '#111827' : '#ffffff',
-                          borderColor: isDarkMode ? '#334155' : '#E5E7EB',
-                        },
-                      ]}
-                    >
-                      <FontAwesome name="google" size={18} color={isDarkMode ? '#E5E7EB' : '#11181C'} />
-                    </View>
-                    <ThemedText
-                      type="defaultSemiBold"
-                      style={[styles.googleText, isDarkMode && styles.googleTextDark]}
-                    >
-                      Continuar con Google
-                    </ThemedText>
-                  </View>
-                )}
-              </Pressable>
+              />
               <View style={styles.formControl}>
                 <ThemedText type="defaultSemiBold" style={[styles.label, isDarkMode && styles.labelDark]}>
                   Correo electrónico
@@ -276,11 +261,6 @@ const styles = StyleSheet.create({
   title: { textAlign: 'center' },
   subtitle: { textAlign: 'center', color: '#4B5563' },
   subtitleDark: { color: '#CBD5F5' },
-  googleButton: { borderRadius: 16, borderWidth: 1, paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
-  googleContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  googleIconWrapper: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  googleText: { color: '#11181C' },
-  googleTextDark: { color: '#E5E7EB' },
   formControl: { gap: 12 },
   label: { color: '#374151' },
   labelDark: { color: '#CBD5F5' },

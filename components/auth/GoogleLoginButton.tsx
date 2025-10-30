@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+// eslint-disable-next-line import/no-unresolved
 import * as Google from 'expo-auth-session/providers/google';
 import type { AuthTokenResponse } from '@supabase/supabase-js';
 import { Image } from 'expo-image';
@@ -9,15 +10,22 @@ import { supabase } from '@/lib/supabase';
 
 WebBrowser.maybeCompleteAuthSession();
 
-type GoogleLoginButtonStatus = 'idle' | 'loading' | 'success' | 'error';
+export type GoogleLoginButtonStatus = 'idle' | 'loading' | 'success' | 'error';
+
+export type GoogleLoginStatusChangeDetails = {
+  errorMessage?: string | null;
+  data?: AuthTokenResponse['data'] | null;
+};
 
 type GoogleLoginButtonProps = {
   onSuccess?: (data: AuthTokenResponse['data']) => void;
+  onStatusChange?: (status: GoogleLoginButtonStatus, details?: GoogleLoginStatusChangeDetails) => void;
+  disabled?: boolean;
 };
 
 const googleLogo = require('@/assets/images/google-logo.svg');
 
-export default function GoogleLoginButton({ onSuccess }: GoogleLoginButtonProps) {
+export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled }: GoogleLoginButtonProps) {
   const [status, setStatus] = useState<GoogleLoginButtonStatus>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -58,13 +66,16 @@ export default function GoogleLoginButton({ onSuccess }: GoogleLoginButtonProps)
 
     setStatus('loading');
     setErrorMessage(null);
+    onStatusChange?.('loading');
 
     try {
       const authResult = await promptAsync();
 
       if (!authResult) {
+        const message = 'No se pudo iniciar sesión con Google. Intenta nuevamente.';
         setStatus('error');
-        setErrorMessage('No se pudo iniciar sesión con Google. Intenta nuevamente.');
+        setErrorMessage(message);
+        onStatusChange?.('error', { errorMessage: message });
         return;
       }
 
@@ -75,6 +86,7 @@ export default function GoogleLoginButton({ onSuccess }: GoogleLoginButtonProps)
             : 'No se pudo completar el inicio de sesión con Google.';
         setStatus('error');
         setErrorMessage(message);
+        onStatusChange?.('error', { errorMessage: message });
         return;
       }
 
@@ -83,8 +95,10 @@ export default function GoogleLoginButton({ onSuccess }: GoogleLoginButtonProps)
       console.log('Google id_token', idToken);
 
       if (!idToken) {
+        const message = 'Google no entregó un token válido. Intenta nuevamente.';
         setStatus('error');
-        setErrorMessage('Google no entregó un token válido. Intenta nuevamente.');
+        setErrorMessage(message);
+        onStatusChange?.('error', { errorMessage: message });
         return;
       }
 
@@ -96,31 +110,43 @@ export default function GoogleLoginButton({ onSuccess }: GoogleLoginButtonProps)
       console.log('Supabase signInWithIdToken result', { data, error });
 
       if (error) {
+        const message = error.message ?? 'Ocurrió un error con Supabase.';
         setStatus('error');
-        setErrorMessage(error.message ?? 'Ocurrió un error con Supabase.');
+        setErrorMessage(message);
+        onStatusChange?.('error', { errorMessage: message });
         return;
       }
 
       setStatus('success');
       onSuccess?.(data);
+      onStatusChange?.('success', { data });
     } catch (error) {
       console.error('Error during Google sign-in', error);
       setStatus('error');
-      setErrorMessage('Ocurrió un error inesperado. Intenta nuevamente.');
+      const message = 'Ocurrió un error inesperado. Intenta nuevamente.';
+      setErrorMessage(message);
+      onStatusChange?.('error', { errorMessage: message });
     }
-  }, [promptAsync, request, onSuccess]);
+  }, [promptAsync, request, onStatusChange, onSuccess]);
+
+  useEffect(() => {
+    onStatusChange?.('idle');
+  }, [onStatusChange]);
 
   return (
     <View style={styles.container}>
       <Pressable
         accessibilityRole="button"
-        disabled={!request || isLoading}
+        disabled={!request || isLoading || disabled}
         onPress={handleGoogleSignIn}
-        style={({ pressed }) => [
-          styles.button,
-          (isLoading || !request) && styles.buttonDisabled,
-          pressed && !isLoading && request && styles.buttonPressed,
-        ]}
+        style={({ pressed }) => {
+          const isDisabled = !request || isLoading || disabled;
+          return [
+            styles.button,
+            isDisabled && styles.buttonDisabled,
+            pressed && !isDisabled && styles.buttonPressed,
+          ];
+        }}
       >
         {isLoading ? (
           <ActivityIndicator color="#0F172A" />
