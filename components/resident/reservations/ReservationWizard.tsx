@@ -22,6 +22,7 @@ import {
   Text,
   View,
 } from 'react-native'
+import SoundPlayer from 'react-native-sound-player'
 import Toast from 'react-native-toast-message'
 
 const WINDOW_WIDTH = Dimensions.get('window').width
@@ -147,7 +148,6 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
   const stepper = useStepperize<StepId>({ steps: STEP_DEFINITIONS, initialStep: 'space' })
 
   const carouselRef = useRef<FlatList<CommonSpace>>(null)
-  const notificationSoundRef = useRef<any>(null)
 
   const selectedDepartment = useMemo(
     () => departments.find((item) => item.id === selectedDepartmentId) ?? null,
@@ -204,65 +204,27 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
     setSelectedBlock(null)
   }, [])
 
-  const loadNotificationSound = useCallback(async () => {
+  useEffect(() => {
     try {
-      const { Audio } = await import('expo-av')
-      const result = await Audio.Sound.createAsync(
-        require('../../../assets/sounds/notification.mp3'),
-        { shouldPlay: false },
-      )
-
-      return result.sound
-    } catch (error) {
-      console.warn('No se pudo cargar el sonido de notificación', error)
-      return null
+      SoundPlayer.loadSoundFile('notification', 'mp3')
+    } catch (err) {
+      console.warn('Error al cargar sonido de notificación', err)
     }
   }, [])
 
-  const ensureNotificationSound = useCallback(async () => {
-    if (notificationSoundRef.current) return notificationSoundRef.current
-    const sound = await loadNotificationSound()
-    if (sound) {
-      notificationSoundRef.current = sound
-    }
-    return sound
-  }, [loadNotificationSound])
-
-  useEffect(() => {
-    if (!success) return
-
-    let isActive = true
-
-    const prepareAndPlay = async () => {
-      const sound = await ensureNotificationSound()
-      if (!sound || !isActive) return
-      try {
-        if (sound.replayAsync) {
-          await sound.replayAsync()
-        } else {
-          await sound.setPositionAsync(0)
-          await sound.playAsync()
-        }
-      } catch (error) {
-        console.warn('No se pudo reproducir el sonido de notificación', error)
-      }
-    }
-
-    prepareAndPlay()
-
-    return () => {
-      isActive = false
-    }
-  }, [ensureNotificationSound, success])
-
-  useEffect(() => {
-    return () => {
-      if (notificationSoundRef.current) {
-        notificationSoundRef.current.unloadAsync().catch(() => null)
-        notificationSoundRef.current = null
-      }
+  const playNotificationSound = useCallback(() => {
+    try {
+      SoundPlayer.playSoundFile('notification', 'mp3')
+    } catch (err) {
+      console.warn('No se pudo reproducir el sonido de notificación', err)
     }
   }, [])
+
+  useEffect(() => {
+    if (success) {
+      playNotificationSound()
+    }
+  }, [success, playNotificationSound])
 
   const loadAvailability = useCallback(
     async (spaceId: string) => {
@@ -527,20 +489,6 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
     }
   }
 
-  const playNotificationSound = useCallback(async () => {
-    try {
-      const sound = await ensureNotificationSound()
-      if (!sound) return
-      if (sound.replayAsync) {
-        await sound.replayAsync()
-      } else {
-        await sound.setPositionAsync(0)
-        await sound.playAsync()
-      }
-    } catch (error) {
-      console.warn('No se pudo reproducir el sonido de notificación', error)
-    }
-  }, [ensureNotificationSound])
 
   const handleExit = useCallback(() => {
     onExit?.()
