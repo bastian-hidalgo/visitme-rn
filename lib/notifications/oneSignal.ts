@@ -1,5 +1,5 @@
-import OneSignal from 'react-native-onesignal'
 import { Platform } from 'react-native'
+import { OneSignal } from 'react-native-onesignal'
 
 // Solo inicializamos una vez
 let initialized = false
@@ -55,7 +55,9 @@ const getOneSignal = (): OneSignalModule | undefined => {
 
 // Inicializa OneSignal de forma segura
 export const initializeOneSignal = () => {
+  console.log('[OneSignal] Intentando inicializar...')
   if (initialized) return
+  console.log('[OneSignal] No estaba inicializado, procediendo...')
 
   if (!ONESIGNAL_APP_ID) {
     console.warn('[OneSignal] Falta EXPO_PUBLIC_ONESIGNAL_APP_ID en tu entorno (.env)')
@@ -164,4 +166,36 @@ export const promptForPushPermission = async (): Promise<boolean> => {
 // Cierra sesión del usuario actual
 export const logoutOneSignalUser = () => {
   loginOneSignalUser(null)
+}
+
+export const syncOneSignalEmail = (email: string | null) => {
+  const oneSignal = getOneSignal()
+  if (!oneSignal) return
+
+  try {
+    if (email) {
+      OneSignal.User.addEmail(email)
+      console.log(`[OneSignal] Email sincronizado: ${email}`)
+    } else {
+      OneSignal.User.removeEmail()
+      console.log('[OneSignal] Email removido de OneSignal')
+    }
+  } catch (error) {
+    console.error('[OneSignal] Error al sincronizar email:', error)
+  }
+}
+
+// Sincroniza tags personalizados (por ejemplo rol, comunidad, etc.)
+export const syncOneSignalTags = (tags: Record<string, string | number | boolean>) => {
+  const oneSignal = getOneSignal()
+  if (!oneSignal) return
+
+  try {
+    for (const [key, value] of Object.entries(tags)) {
+      OneSignal.User.addTag(key, String(value))
+    }
+    console.log('[OneSignal] Tags sincronizados:', tags)
+  } catch (error) {
+    console.error('[OneSignal] Error al sincronizar tags:', error)
+  }
 }
