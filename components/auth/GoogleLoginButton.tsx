@@ -54,10 +54,11 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
   })
 
   useEffect(() => {
-    // Configurar SDK nativo al iniciar
     if (Platform.OS === 'android') {
+      console.log('VISITME::GOOGLE → Inicializando GoogleSignin SDK...')
+      console.log('VISITME::GOOGLE → webClientId usado:', clientIds.webClientId)
       GoogleSignin.configure({
-        webClientId: clientIds.webClientId, // importante: usar el webClientId
+        webClientId: clientIds.webClientId, // Debe ser el WebClientId, NO el Android
         offlineAccess: true,
       })
     }
@@ -70,50 +71,62 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
       onStatusChange?.('loading')
 
       if (Platform.OS === 'android') {
-        console.log('🔹 Intentando login nativo (GoogleSignin)')
-        await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true })
+        console.log('VISITME::GOOGLE → Intentando login nativo con GoogleSignin...')
+        const playServices = await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true })
+        console.log('VISITME::GOOGLE → Play Services disponibles:', playServices)
+
         const userInfo = await GoogleSignin.signIn()
-        const idToken = userInfo.idToken
-        console.log('🪪 idToken obtenido nativamente:', idToken?.slice(0, 20) + '...')
+        console.log('VISITME::GOOGLE → userInfo:', JSON.stringify(userInfo, null, 2))
 
-        if (!idToken) throw new Error('No se obtuvo idToken del login nativo')
+        const idToken = userInfo?.idToken
+        if (!idToken) throw new Error('VISITME::GOOGLE ❌ No se obtuvo idToken del login nativo.')
 
+        console.log('VISITME::GOOGLE → idToken (primeros 25 chars):', idToken.slice(0, 25) + '...')
+
+        console.log('VISITME::GOOGLE → Enviando token a Supabase...')
         const { data, error } = await supabase.auth.signInWithIdToken({
           provider: 'google',
           token: idToken,
         })
 
-        if (error) throw new Error(error.message)
+        console.log('VISITME::GOOGLE → Respuesta Supabase:', { data, error })
 
+        if (error) throw new Error('Supabase error: ' + error.message)
+
+        console.log('VISITME::GOOGLE ✅ Login exitoso con Supabase.')
         setStatus('success')
         onSuccess?.(data)
         onStatusChange?.('success')
         return
       }
 
-      // 🔸 En iOS y web usamos AuthSession
-      console.log('🔹 Intentando login con AuthSession (iOS/Web)')
+      console.log('VISITME::GOOGLE → Intentando login con AuthSession (iOS/Web)...')
       const result = await promptAsync()
 
+      console.log('VISITME::GOOGLE → Resultado AuthSession:', result)
       if (result.type !== 'success') {
         throw new Error(result.type === 'cancel' ? 'Inicio cancelado' : 'Error en login con Google')
       }
 
       const idToken = result.authentication?.idToken
-      if (!idToken) throw new Error('No se obtuvo idToken de Google')
+      if (!idToken) throw new Error('VISITME::GOOGLE ❌ No se obtuvo idToken (iOS/web)')
 
+      console.log('VISITME::GOOGLE → Enviando token de AuthSession a Supabase...')
       const { data, error } = await supabase.auth.signInWithIdToken({
         provider: 'google',
         token: idToken,
       })
 
-      if (error) throw new Error(error.message)
+      console.log('VISITME::GOOGLE → Respuesta Supabase:', { data, error })
 
+      if (error) throw new Error('Supabase error: ' + error.message)
+
+      console.log('VISITME::GOOGLE ✅ Login exitoso con Supabase (AuthSession).')
       setStatus('success')
       onSuccess?.(data)
       onStatusChange?.('success')
     } catch (err: any) {
-      console.error('💥 Error en handleSignIn:', err)
+      console.error('VISITME::GOOGLE 💥 Error en handleSignIn:', err)
       setStatus('error')
       setErrorMessage(err.message)
       onStatusChange?.('error', { errorMessage: err.message })
