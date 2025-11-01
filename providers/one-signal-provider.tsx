@@ -1,9 +1,19 @@
-import { initializeOneSignal, loginOneSignalUser, syncOneSignalEmail, syncOneSignalTags, updatePushSubscription } from '@/lib/notifications/oneSignal'
-import { PropsWithChildren, useEffect } from 'react'
+import {
+  initializeOneSignal,
+  loginOneSignalUser,
+  promptForPushPermission,
+  syncOneSignalEmail,
+  syncOneSignalTags,
+  updatePushSubscription,
+} from '@/lib/notifications/oneSignal'
+import { usePathname } from 'expo-router'
+import { PropsWithChildren, useEffect, useRef } from 'react'
 import { useUser } from './user-provider'
 
 export function OneSignalProvider({ children }: PropsWithChildren) {
   const { id, email, role, communitySlug, acceptsNotifications, loading } = useUser()
+  const pathname = usePathname()
+  const permissionRequestedRef = useRef(false)
 
   useEffect(() => {
     initializeOneSignal()
@@ -24,11 +34,29 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
 
     if (!id) {
       updatePushSubscription(false)
+      permissionRequestedRef.current = false
       return
     }
 
     updatePushSubscription(acceptsNotifications)
+
+    if (!acceptsNotifications) {
+      permissionRequestedRef.current = false
+    }
   }, [acceptsNotifications, id, loading])
+
+  useEffect(() => {
+    if (loading) return
+    if (!id) return
+    if (!acceptsNotifications) return
+
+    const isOnDashboard = pathname?.startsWith('/(tabs)')
+    if (!isOnDashboard) return
+    if (permissionRequestedRef.current) return
+
+    permissionRequestedRef.current = true
+    promptForPushPermission()
+  }, [acceptsNotifications, id, loading, pathname])
 
   // 🔹 Sincronizar email y tags
   useEffect(() => {
