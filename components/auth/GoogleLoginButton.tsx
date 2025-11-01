@@ -3,8 +3,8 @@ import { supabase } from '@/lib/supabase'
 import type { AuthTokenResponse } from '@supabase/supabase-js'
 import * as AuthSession from 'expo-auth-session'
 import * as Google from 'expo-auth-session/providers/google'
-import { Image } from 'expo-image'
 import Constants from 'expo-constants'
+import { Image } from 'expo-image'
 import * as WebBrowser from 'expo-web-browser'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
@@ -39,50 +39,39 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
     []
   )
 
-  const platformClientId =
-    Platform.OS === 'android'
-      ? clientIds.androidClientId
-      : Platform.OS === 'ios'
-      ? clientIds.iosClientId
-      : clientIds.webClientId
-
   const shouldUseProxy = useMemo(() => {
-    if (Platform.OS === 'web') {
-      return false
-    }
-
+    // ❌ Nunca uses proxy en APK, solo en Expo Go
+    if (Platform.OS === 'web') return false
     return Constants.appOwnership === 'expo'
   }, [])
 
-  // 👇 redirectUri explícito para cada entorno (Expo Go vs standalone)
   const redirectUri = useMemo(
     () =>
       AuthSession.makeRedirectUri({
-        scheme: 'visitmeapp', // coincide con app.json
+        scheme: 'visitmeapp',
         path: 'oauthredirect',
-        useProxy: shouldUseProxy,
+        useProxy: false, // ✅ obligatorio para APK real
       }),
-    [shouldUseProxy]
+    []
   )
 
   console.log('🎯 redirectUri usado:', redirectUri)
 
-  const [request, , promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: platformClientId,
+  // ✅ Pedimos scopes para obtener id_token (requisito para Supabase)
+  const [request, , promptAsync] = Google.useAuthRequest({
     androidClientId: clientIds.androidClientId,
     iosClientId: clientIds.iosClientId,
-    webClientId: clientIds.webClientId,
     redirectUri,
+    scopes: ['openid', 'email', 'profile'],
     prompt: 'select_account',
   })
 
   useEffect(() => {
     console.log('📱 Plataforma:', Platform.OS)
     console.log('🌐 Client IDs:', clientIds)
-    console.log('🎯 Client ID seleccionado:', platformClientId)
     console.log('🔁 Redirect URI detectado:', request?.redirectUri)
     console.log('🧭 ¿Usando proxy de AuthSession?:', shouldUseProxy)
-  }, [request, clientIds, platformClientId, shouldUseProxy])
+  }, [request, clientIds, shouldUseProxy])
 
   const isLoading = status === 'loading'
 
@@ -98,24 +87,14 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
 
     try {
       console.log('🚀 Iniciando login con Google...')
-      const authResult = await promptAsync({
-        useProxy: shouldUseProxy,
-      })
+      const authResult = await promptAsync({ useProxy: false }) // ✅ nunca uses proxy en build nativo
       console.log('📩 Resultado de promptAsync:', authResult)
 
-      if (!authResult) {
-        const message = 'No se pudo iniciar sesión con Google. Intenta nuevamente.'
-        console.error('❌ authResult vacío o indefinido')
-        setStatus('error')
-        setErrorMessage(message)
-        onStatusChange?.('error', { errorMessage: message })
-        return
-      }
-
-      if (authResult.type !== 'success') {
-        console.warn('⚠️ authResult.type:', authResult.type)
+      if (!authResult || authResult.type !== 'success') {
         const message =
-          authResult.type === 'dismiss' || authResult.type === 'cancel'
+          !authResult
+            ? 'No se pudo iniciar sesión con Google. Intenta nuevamente.'
+            : authResult.type === 'dismiss' || authResult.type === 'cancel'
             ? 'Inicio de sesión cancelado.'
             : 'No se pudo completar el inicio de sesión con Google.'
         setStatus('error')
@@ -126,14 +105,12 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
 
       const idToken = authResult.authentication?.idToken
       const accessToken = authResult.authentication?.accessToken
+
       console.log('🔑 Google id_token:', idToken ? `${idToken.slice(0, 25)}...` : 'No disponible')
 
-      if (!idToken || !accessToken) {
-        const message = 'Google no entregó credenciales válidas. Intenta nuevamente.'
-        console.error('❌ Faltan credenciales en la respuesta de Google', {
-          hasIdToken: Boolean(idToken),
-          hasAccessToken: Boolean(accessToken),
-        })
+      if (!idToken) {
+        const message = 'Google no entregó un id_token válido.'
+        console.error('❌ Faltan credenciales', { hasIdToken: Boolean(idToken), hasAccessToken: Boolean(accessToken) })
         setStatus('error')
         setErrorMessage(message)
         onStatusChange?.('error', { errorMessage: message })
@@ -169,7 +146,7 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
       setErrorMessage(message)
       onStatusChange?.('error', { errorMessage: message })
     }
-  }, [promptAsync, request, onStatusChange, onSuccess, shouldUseProxy])
+  }, [promptAsync, request, onStatusChange, onSuccess])
 
   useEffect(() => {
     onStatusChange?.('idle')
@@ -207,10 +184,7 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
 }
 
 const styles = StyleSheet.create({
-  container: {
-    width: '100%',
-    gap: 8,
-  },
+  container: { width: '100%', gap: 8 },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -223,27 +197,10 @@ const styles = StyleSheet.create({
     borderColor: '#CBD5F5',
     backgroundColor: '#FFFFFF',
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonPressed: {
-    backgroundColor: '#F1F5F9',
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-  logo: {
-    width: 20,
-    height: 20,
-  },
-  errorText: {
-    fontSize: 14,
-    color: '#DC2626',
-  },
-  successText: {
-    fontSize: 14,
-    color: '#15803D',
-  },
+  buttonDisabled: { opacity: 0.6 },
+  buttonPressed: { backgroundColor: '#F1F5F9' },
+  label: { fontSize: 16, fontWeight: '600', color: '#0F172A' },
+  logo: { width: 20, height: 20 },
+  errorText: { fontSize: 14, color: '#DC2626' },
+  successText: { fontSize: 14, color: '#15803D' },
 })

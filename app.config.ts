@@ -1,5 +1,5 @@
-import type { ConfigContext, ExpoConfig } from 'expo/config'
 import { loadProjectEnv, logLoadedEnv } from '@expo/env'
+import type { ConfigContext, ExpoConfig } from 'expo/config'
 
 const projectRoot = process.cwd()
 
@@ -76,15 +76,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     plugins: [
       'expo-router',
-      [
-        'expo-auth-session',
-        {
-          androidStandaloneAppClientId: publicEnv.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-          iosStandaloneAppClientId: publicEnv.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-          webClientId: publicEnv.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-          redirectScheme: 'visitmeapp',
-        },
-      ],
       [
         'expo-splash-screen',
         {
