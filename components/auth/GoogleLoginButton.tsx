@@ -1,6 +1,6 @@
 import { env } from '@/constants/env'
 import { supabase } from '@/lib/supabase'
-import type { AuthTokenResponse } from '@supabase/supabase-js'
+import { GoogleSignin } from '@react-native-google-signin/google-signin'
 import * as AuthSession from 'expo-auth-session'
 import * as Google from 'expo-auth-session/providers/google'
 import Constants from 'expo-constants'
@@ -11,20 +11,15 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from '
 
 WebBrowser.maybeCompleteAuthSession()
 
+const googleLogo = require('@/assets/images/google-logo.svg')
+
 export type GoogleLoginButtonStatus = 'idle' | 'loading' | 'success' | 'error'
 
-export type GoogleLoginStatusChangeDetails = {
-  errorMessage?: string | null
-  data?: AuthTokenResponse['data'] | null
-}
-
 type GoogleLoginButtonProps = {
-  onSuccess?: (data: AuthTokenResponse['data']) => void
-  onStatusChange?: (status: GoogleLoginButtonStatus, details?: GoogleLoginStatusChangeDetails) => void
+  onSuccess?: (data: any) => void
+  onStatusChange?: (status: GoogleLoginButtonStatus, details?: { errorMessage?: string | null }) => void
   disabled?: boolean
 }
-
-const googleLogo = require('@/assets/images/google-logo.svg')
 
 export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled }: GoogleLoginButtonProps) {
   const [status, setStatus] = useState<GoogleLoginButtonStatus>('idle')
@@ -32,142 +27,111 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
 
   const clientIds = useMemo(
     () => ({
-      androidClientId: env.googleAndroidClientId ?? undefined,
-      iosClientId: env.googleIosClientId ?? undefined,
-      webClientId: env.googleWebClientId ?? undefined,
+      androidClientId: env.googleAndroidClientId,
+      iosClientId: env.googleIosClientId,
+      webClientId: env.googleWebClientId,
     }),
     []
   )
-
-  const shouldUseProxy = useMemo(() => {
-    // ❌ Nunca uses proxy en APK, solo en Expo Go
-    if (Platform.OS === 'web') return false
-    return Constants.appOwnership === 'expo'
-  }, [])
 
   const redirectUri = useMemo(
     () =>
       AuthSession.makeRedirectUri({
         scheme: 'visitmeapp',
         path: 'oauthredirect',
-        useProxy: false, // ✅ obligatorio para APK real
+        useProxy: Constants.appOwnership === 'expo',
       }),
     []
   )
 
-  console.log('🎯 redirectUri usado:', redirectUri)
-
-  // ✅ Pedimos scopes para obtener id_token (requisito para Supabase)
   const [request, , promptAsync] = Google.useAuthRequest({
     androidClientId: clientIds.androidClientId,
     iosClientId: clientIds.iosClientId,
+    webClientId: clientIds.webClientId,
     redirectUri,
     scopes: ['openid', 'email', 'profile'],
     prompt: 'select_account',
   })
 
   useEffect(() => {
-    console.log('📱 Plataforma:', Platform.OS)
-    console.log('🌐 Client IDs:', clientIds)
-    console.log('🔁 Redirect URI detectado:', request?.redirectUri)
-    console.log('🧭 ¿Usando proxy de AuthSession?:', shouldUseProxy)
-  }, [request, clientIds, shouldUseProxy])
-
-  const isLoading = status === 'loading'
-
-  const handleGoogleSignIn = useCallback(async () => {
-    if (!request) {
-      console.warn('⚠️ No hay request disponible para Google Sign-In')
-      return
+    // Configurar SDK nativo al iniciar
+    if (Platform.OS === 'android') {
+      GoogleSignin.configure({
+        webClientId: clientIds.webClientId, // importante: usar el webClientId
+        offlineAccess: true,
+      })
     }
+  }, [])
 
-    setStatus('loading')
-    setErrorMessage(null)
-    onStatusChange?.('loading')
-
+  const handleSignIn = useCallback(async () => {
     try {
-      console.log('🚀 Iniciando login con Google...')
-      const authResult = await promptAsync({ useProxy: false }) // ✅ nunca uses proxy en build nativo
-      console.log('📩 Resultado de promptAsync:', authResult)
+      setStatus('loading')
+      setErrorMessage(null)
+      onStatusChange?.('loading')
 
-      if (!authResult || authResult.type !== 'success') {
-        const message =
-          !authResult
-            ? 'No se pudo iniciar sesión con Google. Intenta nuevamente.'
-            : authResult.type === 'dismiss' || authResult.type === 'cancel'
-            ? 'Inicio de sesión cancelado.'
-            : 'No se pudo completar el inicio de sesión con Google.'
-        setStatus('error')
-        setErrorMessage(message)
-        onStatusChange?.('error', { errorMessage: message })
+      if (Platform.OS === 'android') {
+        console.log('🔹 Intentando login nativo (GoogleSignin)')
+        await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true })
+        const userInfo = await GoogleSignin.signIn()
+        const idToken = userInfo.idToken
+        console.log('🪪 idToken obtenido nativamente:', idToken?.slice(0, 20) + '...')
+
+        if (!idToken) throw new Error('No se obtuvo idToken del login nativo')
+
+        const { data, error } = await supabase.auth.signInWithIdToken({
+          provider: 'google',
+          token: idToken,
+        })
+
+        if (error) throw new Error(error.message)
+
+        setStatus('success')
+        onSuccess?.(data)
+        onStatusChange?.('success')
         return
       }
 
-      const idToken = authResult.authentication?.idToken
-      const accessToken = authResult.authentication?.accessToken
+      // 🔸 En iOS y web usamos AuthSession
+      console.log('🔹 Intentando login con AuthSession (iOS/Web)')
+      const result = await promptAsync()
 
-      console.log('🔑 Google id_token:', idToken ? `${idToken.slice(0, 25)}...` : 'No disponible')
-
-      if (!idToken) {
-        const message = 'Google no entregó un id_token válido.'
-        console.error('❌ Faltan credenciales', { hasIdToken: Boolean(idToken), hasAccessToken: Boolean(accessToken) })
-        setStatus('error')
-        setErrorMessage(message)
-        onStatusChange?.('error', { errorMessage: message })
-        return
+      if (result.type !== 'success') {
+        throw new Error(result.type === 'cancel' ? 'Inicio cancelado' : 'Error en login con Google')
       }
 
-      console.log('📡 Enviando token a Supabase...')
+      const idToken = result.authentication?.idToken
+      if (!idToken) throw new Error('No se obtuvo idToken de Google')
+
       const { data, error } = await supabase.auth.signInWithIdToken({
         provider: 'google',
         token: idToken,
-        access_token: accessToken,
       })
 
-      console.log('📬 Respuesta de Supabase:', { data, error })
+      if (error) throw new Error(error.message)
 
-      if (error) {
-        const message = error.message ?? 'Ocurrió un error con Supabase.'
-        console.error('❌ Error desde Supabase:', message)
-        setStatus('error')
-        setErrorMessage(message)
-        onStatusChange?.('error', { errorMessage: message })
-        return
-      }
-
-      console.log('✅ Login exitoso con Supabase:', data)
       setStatus('success')
       onSuccess?.(data)
-      onStatusChange?.('success', { data })
-    } catch (error) {
-      console.error('💥 Error inesperado durante Google Sign-In:', error)
+      onStatusChange?.('success')
+    } catch (err: any) {
+      console.error('💥 Error en handleSignIn:', err)
       setStatus('error')
-      const message = 'Ocurrió un error inesperado. Intenta nuevamente.'
-      setErrorMessage(message)
-      onStatusChange?.('error', { errorMessage: message })
+      setErrorMessage(err.message)
+      onStatusChange?.('error', { errorMessage: err.message })
     }
-  }, [promptAsync, request, onStatusChange, onSuccess])
-
-  useEffect(() => {
-    onStatusChange?.('idle')
-  }, [onStatusChange])
+  }, [promptAsync, onStatusChange, onSuccess])
 
   return (
     <View style={styles.container}>
       <Pressable
-        accessibilityRole="button"
-        disabled={!request || isLoading || disabled}
-        onPress={handleGoogleSignIn}
-        style={({ pressed }) => {
-          const isDisabled = !request || isLoading || disabled
-          return [
-            styles.button,
-            isDisabled && styles.buttonDisabled,
-            pressed && !isDisabled && styles.buttonPressed,
-          ]
-        }}
+        disabled={isLoading(status) || disabled}
+        onPress={handleSignIn}
+        style={({ pressed }) => [
+          styles.button,
+          pressed && styles.buttonPressed,
+          (isLoading(status) || disabled) && styles.buttonDisabled,
+        ]}
       >
-        {isLoading ? (
+        {isLoading(status) ? (
           <ActivityIndicator color="#0F172A" />
         ) : (
           <>
@@ -177,11 +141,13 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
         )}
       </Pressable>
 
-      {status === 'error' && errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
-      {status === 'success' && !errorMessage ? <Text style={styles.successText}>¡Autenticado correctamente!</Text> : null}
+      {status === 'error' && errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+      {status === 'success' && <Text style={styles.successText}>¡Autenticado correctamente!</Text>}
     </View>
   )
 }
+
+const isLoading = (status: GoogleLoginButtonStatus) => status === 'loading'
 
 const styles = StyleSheet.create({
   container: { width: '100%', gap: 8 },
@@ -197,8 +163,8 @@ const styles = StyleSheet.create({
     borderColor: '#CBD5F5',
     backgroundColor: '#FFFFFF',
   },
-  buttonDisabled: { opacity: 0.6 },
   buttonPressed: { backgroundColor: '#F1F5F9' },
+  buttonDisabled: { opacity: 0.6 },
   label: { fontSize: 16, fontWeight: '600', color: '#0F172A' },
   logo: { width: 20, height: 20 },
   errorText: { fontSize: 14, color: '#DC2626' },
