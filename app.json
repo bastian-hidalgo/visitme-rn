@@ -36,11 +36,10 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/splash.png",
-          "resizeMode": "contain",
+          "resizeMode": "cover",
           "backgroundColor": "#FFFFFF",
-          "imageResizeMode": "cover",
-          "imageScale": 1,
           "enableFullScreen": true,
+          "statusBarTranslucent": true,
           "dark": {
             "backgroundColor": "#000000"
           }
