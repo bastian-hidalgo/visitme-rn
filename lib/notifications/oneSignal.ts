@@ -55,6 +55,40 @@ const getOneSignal = (): OneSignalModule | undefined => {
   return oneSignal
 }
 
+type PromiseLikeWithCatch = PromiseLike<unknown> & {
+  catch: (onRejected: (reason: unknown) => unknown) => unknown
+}
+
+const isPromiseLikeWithCatch = (value: unknown): value is PromiseLikeWithCatch => {
+  if (!value || typeof value !== 'object') return false
+
+  const candidate = value as PromiseLikeWithCatch
+  return typeof candidate.then === 'function' && typeof candidate.catch === 'function'
+}
+
+const safelyInvoke = <Args extends unknown[], ReturnValue>(
+  fn: ((...args: Args) => ReturnValue) | undefined,
+  args: Args,
+  context: string,
+) => {
+  if (!fn) return undefined
+
+  try {
+    const result = fn(...args)
+
+    if (isPromiseLikeWithCatch(result)) {
+      result.catch(error => {
+        warnOnce(`[OneSignal] ${context} rechazó la promesa: ${String(error)}`)
+      })
+    }
+
+    return result
+  } catch (error) {
+    warnOnce(`[OneSignal] Error al ejecutar ${context}: ${String(error)}`)
+    return undefined
+  }
+}
+
 // Inicializa OneSignal de forma segura
 export const initializeOneSignal = () => {
   console.log('[OneSignal] Intentando inicializar...')
@@ -73,21 +107,27 @@ export const initializeOneSignal = () => {
     // Inicialización principal
     oneSignal.initialize?.(ONESIGNAL_APP_ID)
 
+    const notifications = oneSignal.Notifications
+
     // Recomendado: solicitar permisos automáticamente la primera vez
-    oneSignal.Notifications?.requestPermission?.(true)
+    safelyInvoke(notifications?.requestPermission?.bind(notifications), [true], 'Notifications.requestPermission')
 
     // Configurar comportamiento al abrir una notificación
-    oneSignal.Notifications?.addEventListener?.('click', event => {
+    safelyInvoke(notifications?.addEventListener?.bind(notifications), ['click', event => {
       console.log('[OneSignal] Notificación abierta:', event?.notification)
       // Aquí podrías hacer navegación o tracking
-    })
+    }], "Notifications.addEventListener('click')")
 
     // Configurar listener cuando se recibe una notificación
-    oneSignal.Notifications?.addEventListener?.('foregroundWillDisplay', event => {
-      console.log('[OneSignal] Notificación recibida en foreground:', event?.notification)
-      // Muestra la notificación (por defecto la suprime)
-      event?.getNotification?.()?.display?.()
-    })
+    safelyInvoke(
+      notifications?.addEventListener?.bind(notifications),
+      ['foregroundWillDisplay', event => {
+        console.log('[OneSignal] Notificación recibida en foreground:', event?.notification)
+        // Muestra la notificación (por defecto la suprime)
+        event?.getNotification?.()?.display?.()
+      }],
+      "Notifications.addEventListener('foregroundWillDisplay')",
+    )
 
     initialized = true
     console.log('[OneSignal] Inicializado correctamente')
