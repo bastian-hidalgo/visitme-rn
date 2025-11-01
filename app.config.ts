@@ -77,6 +77,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins: [
       'expo-router',
       [
+        'expo-auth-session',
+        {
+          androidStandaloneAppClientId: publicEnv.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+          iosStandaloneAppClientId: publicEnv.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+          webClientId: publicEnv.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+          redirectScheme: 'visitmeapp',
+        },
+      ],
+      [
         'expo-splash-screen',
         {
           image: './assets/images/splash.png',

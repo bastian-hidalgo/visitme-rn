@@ -4,6 +4,7 @@ import type { AuthTokenResponse } from '@supabase/supabase-js'
 import * as AuthSession from 'expo-auth-session'
 import * as Google from 'expo-auth-session/providers/google'
 import { Image } from 'expo-image'
+import Constants from 'expo-constants'
 import * as WebBrowser from 'expo-web-browser'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
@@ -45,12 +46,24 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
       ? clientIds.iosClientId
       : clientIds.webClientId
 
-  // 👇 redirectUri explícito para EAS build
-  const redirectUri = AuthSession.makeRedirectUri({
-    scheme: 'visitmeapp', // coincide con app.json
-    path: 'oauthredirect',
-    useProxy: true,
-  })
+  const shouldUseProxy = useMemo(() => {
+    if (Platform.OS === 'web') {
+      return false
+    }
+
+    return Constants.appOwnership === 'expo'
+  }, [])
+
+  // 👇 redirectUri explícito para cada entorno (Expo Go vs standalone)
+  const redirectUri = useMemo(
+    () =>
+      AuthSession.makeRedirectUri({
+        scheme: 'visitmeapp', // coincide con app.json
+        path: 'oauthredirect',
+        useProxy: shouldUseProxy,
+      }),
+    [shouldUseProxy]
+  )
 
   console.log('🎯 redirectUri usado:', redirectUri)
 
@@ -68,7 +81,8 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
     console.log('🌐 Client IDs:', clientIds)
     console.log('🎯 Client ID seleccionado:', platformClientId)
     console.log('🔁 Redirect URI detectado:', request?.redirectUri)
-  }, [request, clientIds, platformClientId])
+    console.log('🧭 ¿Usando proxy de AuthSession?:', shouldUseProxy)
+  }, [request, clientIds, platformClientId, shouldUseProxy])
 
   const isLoading = status === 'loading'
 
@@ -84,7 +98,9 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
 
     try {
       console.log('🚀 Iniciando login con Google...')
-      const authResult = await promptAsync()
+      const authResult = await promptAsync({
+        useProxy: shouldUseProxy,
+      })
       console.log('📩 Resultado de promptAsync:', authResult)
 
       if (!authResult) {
@@ -109,11 +125,15 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
       }
 
       const idToken = authResult.authentication?.idToken
+      const accessToken = authResult.authentication?.accessToken
       console.log('🔑 Google id_token:', idToken ? `${idToken.slice(0, 25)}...` : 'No disponible')
 
-      if (!idToken) {
-        const message = 'Google no entregó un token válido. Intenta nuevamente.'
-        console.error('❌ No se obtuvo idToken del resultado')
+      if (!idToken || !accessToken) {
+        const message = 'Google no entregó credenciales válidas. Intenta nuevamente.'
+        console.error('❌ Faltan credenciales en la respuesta de Google', {
+          hasIdToken: Boolean(idToken),
+          hasAccessToken: Boolean(accessToken),
+        })
         setStatus('error')
         setErrorMessage(message)
         onStatusChange?.('error', { errorMessage: message })
@@ -124,6 +144,7 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
       const { data, error } = await supabase.auth.signInWithIdToken({
         provider: 'google',
         token: idToken,
+        access_token: accessToken,
       })
 
       console.log('📬 Respuesta de Supabase:', { data, error })
@@ -148,7 +169,7 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
       setErrorMessage(message)
       onStatusChange?.('error', { errorMessage: message })
     }
-  }, [promptAsync, request, onStatusChange, onSuccess])
+  }, [promptAsync, request, onStatusChange, onSuccess, shouldUseProxy])
 
   useEffect(() => {
     onStatusChange?.('idle')
