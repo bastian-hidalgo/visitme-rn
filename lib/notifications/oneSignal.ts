@@ -73,9 +73,6 @@ export const initializeOneSignal = () => {
     // Inicialización principal
     oneSignal.initialize?.(ONESIGNAL_APP_ID)
 
-    // Recomendado: solicitar permisos automáticamente la primera vez
-    oneSignal.Notifications?.requestPermission?.(true)
-
     // Configurar comportamiento al abrir una notificación
     oneSignal.Notifications?.addEventListener?.('click', event => {
       console.log('[OneSignal] Notificación abierta:', event?.notification)
