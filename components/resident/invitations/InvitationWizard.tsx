@@ -1,4 +1,5 @@
 import { useResidentContext } from '@/components/contexts/ResidentContext'
+import { env } from '@/constants/env'
 import { useStepperize } from '@/lib/stepperize'
 import { dayjs, now } from '@/lib/time'
 import { useUser } from '@/providers/user-provider'
@@ -52,8 +53,8 @@ const VISIT_TYPE_OPTIONS = [
   { value: 'vehicular', label: 'Visita vehicular', description: 'Invitados que ingresarán en auto o necesitan estacionamiento.' },
 ]
 
-const DATE_INPUT_FORMAT = process.env.EXPO_PUBLIC_DATETIME_FORMAT || 'YYYY-MM-DD HH:mm'
-const INVITATION_BASE_URL = process.env.EXPO_BASE_URL || 'https://app.visitme.cl'
+const DATE_INPUT_FORMAT = env.datetimeFormat || 'YYYY-MM-DD HH:mm'
+const INVITATION_BASE_URL = env.visitmeUrl
 
 export default function InvitationWizard({ onExit }: { onExit?: () => void }) {
   const { id: userId, communityId, name: residentName, communityName } = useUser()

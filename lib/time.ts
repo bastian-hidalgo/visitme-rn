@@ -5,16 +5,18 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import timezone from 'dayjs/plugin/timezone'
 import utc from 'dayjs/plugin/utc'
 
+import { env } from '@/constants/env'
+
 dayjsLib.extend(utc)
 dayjsLib.extend(timezone)
 dayjsLib.extend(localizedFormat)
 dayjsLib.extend(relativeTime)
 dayjsLib.locale('es')
 
-const TZ = process.env.EXPO_PUBLIC_TIME_ZONE || 'America/Santiago'
-const DATETIME_FORMAT = process.env.EXPO_PUBLIC_DATETIME_FORMAT || 'YYYY-MM-DD HH:mm'
-const DATE_FORMAT = process.env.EXPO_PUBLIC_DATE_FORMAT || 'YYYY-MM-DD'
-const TIME_FORMAT = process.env.EXPO_PUBLIC_TIME_FORMAT || 'HH:mm'
+const TZ = env.timezone || 'America/Santiago'
+const DATETIME_FORMAT = env.datetimeFormat || 'YYYY-MM-DD HH:mm'
+const DATE_FORMAT = env.dateFormat || 'YYYY-MM-DD'
+const TIME_FORMAT = env.timeFormat || 'HH:mm'
 
 // Detección básica de RN / web
 const isReactNative = typeof navigator !== 'undefined' && navigator.product === 'ReactNative'

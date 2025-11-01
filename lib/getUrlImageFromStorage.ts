@@ -1,5 +1,7 @@
 import Constants from 'expo-constants'
 
+import { env } from '@/constants/env'
+
 const PUBLIC_STORAGE_PREFIX = '/storage/v1/object/public/'
 
 const getUrlImageFromStorage = (imageName: string, storage: string) => {
@@ -9,11 +11,15 @@ const getUrlImageFromStorage = (imageName: string, storage: string) => {
     return imageName
   }
 
+  const manifestExtra =
+    (Constants.manifest2?.extra as Record<string, string | undefined> | undefined) ||
+    (Constants.manifest?.extra as Record<string, string | undefined> | undefined)
+
   const supabaseUrl =
-    process.env.EXPO_PUBLIC_SUPABASE_URL ||
+    env.supabaseUrl ||
     process.env.SUPABASE_URL ||
-    Constants.expoConfig?.extra?.SUPABASE_URL ||
-    Constants.manifest2?.extra?.SUPABASE_URL ||
+    (Constants.expoConfig?.extra as Record<string, string | undefined>)?.SUPABASE_URL ||
+    manifestExtra?.SUPABASE_URL ||
     'https://tu-proyecto.supabase.co'
 
   let normalized = imageName.replace(/^\/+/, '')

@@ -1,3 +1,4 @@
+import { env } from '@/constants/env'
 import { supabase } from '@/lib/supabase'
 import type { AuthTokenResponse } from '@supabase/supabase-js'
 import * as AuthSession from 'expo-auth-session'
@@ -30,9 +31,9 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
 
   const clientIds = useMemo(
     () => ({
-      androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? undefined,
-      iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? undefined,
-      webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? undefined,
+      androidClientId: env.googleAndroidClientId ?? undefined,
+      iosClientId: env.googleIosClientId ?? undefined,
+      webClientId: env.googleWebClientId ?? undefined,
     }),
     []
   )
@@ -48,7 +49,7 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
   const redirectUri = AuthSession.makeRedirectUri({
     scheme: 'visitmeapp', // coincide con app.json
     path: 'oauthredirect',
-    useProxy: false,
+    useProxy: true,
   })
 
   console.log('🎯 redirectUri usado:', redirectUri)

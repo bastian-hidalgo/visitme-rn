@@ -5,6 +5,7 @@ import GoogleLoginButton, {
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
+import { env } from '@/constants/env';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { supabase } from '@/lib/supabase';
 import { useSupabaseAuth } from '@/providers/supabase-auth-provider';
@@ -27,7 +28,7 @@ import {
 const AnimatedImage = Animated.createAnimatedComponent(Image);
 
 const getMagicLinkRedirectUrl = () => {
-  const base = (process.env.EXPO_PUBLIC_URL_AUTH || '').trim();
+  const base = (env.authBaseUrl || '').trim();
   if (!base) return undefined;
   const deviceDeepLink = Linking.createURL('/auth/callback/client');
   const url = new URL(base);
