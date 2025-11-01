@@ -8,10 +8,17 @@
     "scheme": "visitmeapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "cl.visitme.app"
+      "bundleIdentifier": "cl.visitme.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Visitme necesita acceso a tu galería para que puedas seleccionar una foto de perfil.",
+        "NSCameraUsageDescription": "Visitme necesita acceso a la cámara si deseas tomar una nueva foto de perfil.",
+        "NSMicrophoneUsageDescription": "Visitme podría usar tu micrófono para grabaciones en funciones futuras (por ejemplo, mensajes de voz)."
+      }
     },
+
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -29,10 +36,12 @@
         "android.permission.RECORD_AUDIO"
       ]
     },
+
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+
     "plugins": [
       "expo-router",
       [
@@ -64,6 +73,7 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
+
     "extra": {
       "router": {},
       "eas": {
