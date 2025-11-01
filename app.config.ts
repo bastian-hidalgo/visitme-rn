@@ -68,7 +68,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
       package: 'cl.visitme.app',
-      permissions: ['android.permission.RECORD_AUDIO'],
+      permissions: [
+        'android.permission.CAMERA',
+        'android.permission.READ_MEDIA_IMAGES',
+        'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
+        'android.permission.READ_EXTERNAL_STORAGE',
+        'android.permission.RECORD_AUDIO',
+      ],
     },
     web: {
       output: 'static',
