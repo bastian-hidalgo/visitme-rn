@@ -11,11 +11,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     <SafeAreaProvider>
       <BottomSheetModalProvider>
         <SupabaseAuthProvider>
-          <UserProvider>
-            <OneSignalProvider>{children}</OneSignalProvider>
-          </UserProvider>
+          <OneSignalProvider>
+            <UserProvider>{children}</UserProvider>
+          </OneSignalProvider>
         </SupabaseAuthProvider>
       </BottomSheetModalProvider>
     </SafeAreaProvider>
-  )
 }

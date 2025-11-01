@@ -25,6 +25,24 @@
         "EXPO_USE_CPP": "0",
         "EXPO_NO_CMAKE_BUILD": "1"
       }
+    },
+    "test-apk": {
+      "extends": "production",
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal",
+      "env": {
+        "EXPO_USE_CPP": "0",
+        "EXPO_NO_CMAKE_BUILD": "1",
+        "EXPO_PUBLIC_TIME_ZONE":"America/Santiago",
+        "EXPO_PUBLIC_DATETIME_FORMAT":"YYYY-MM-DD HH:mm",
+        "EXPO_PUBLIC_DATE_FORMAT":"YYYY-MM-DD",
+        "EXPO_PUBLIC_TIME_FORMAT":"HH:mm",
+        "EXPO_PUBLIC_SUPABASE_URL":"https://rdhwcavenrqjgcunfjcf.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkaHdjYXZlbnJxamdjdW5mamNmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ0MDY2NDAsImV4cCI6MjA1OTk4MjY0MH0.Q6A7BgalscHLJgTz0x7xVsBUDfOdjU1xPpC20fkAsDk",
+        "EXPO_PUBLIC_GOOGLE_ANALYTICS_ID":"G-JKFP64WG20"
+      }
     }
   },
   "submit": {

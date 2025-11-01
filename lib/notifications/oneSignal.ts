@@ -167,6 +167,11 @@ export const promptForPushPermission = async (): Promise<boolean> => {
 
 // Cierra sesión del usuario actual
 export const logoutOneSignalUser = () => {
+  if (!initialized) {
+    console.warn('[OneSignal] logout() omitido: SDK aún no inicializado')
+    return
+  }
+
   loginOneSignalUser(null)
 }
 
