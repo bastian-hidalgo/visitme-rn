@@ -49,7 +49,7 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
   const redirectUri = AuthSession.makeRedirectUri({
     scheme: 'visitmeapp', // coincide con app.json
     path: 'oauthredirect',
-    useProxy: false,
+    useProxy: true,
   })
 
   console.log('🎯 redirectUri usado:', redirectUri)
