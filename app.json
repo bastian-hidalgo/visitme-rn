@@ -37,9 +37,8 @@
         {
           "image": "./assets/images/splash.png",
           "resizeMode": "cover",
-          "backgroundColor": "#FFFFFF",
+          "backgroundColor": "#04223A", 
           "enableFullScreen": true,
-          "statusBarTranslucent": true,
           "dark": {
             "backgroundColor": "#000000"
           }
