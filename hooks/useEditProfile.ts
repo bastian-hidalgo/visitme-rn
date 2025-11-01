@@ -1,8 +1,8 @@
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import type { ImagePickerAsset, ImagePickerOptions } from 'expo-image-picker'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert } from 'react-native'
-import type { ImagePickerAsset, ImagePickerOptions } from 'expo-image-picker'
 import Toast from 'react-native-toast-message'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 
 import { updateOwnProfile } from '@/lib/api/users'
 import { decodeBase64ToArrayBuffer } from '@/lib/base64'
@@ -11,6 +11,9 @@ import { promptForPushPermission } from '@/lib/notifications/oneSignal'
 import { supabase } from '@/lib/supabase'
 import { dayjs, now } from '@/lib/time'
 import { useUser } from '@/providers/user-provider'
+
+// 👉 importamos el manipulador
+import * as ImageManipulator from 'expo-image-manipulator'
 
 export function useEditProfile() {
   const {
@@ -53,7 +56,7 @@ export function useEditProfile() {
 
   const pickAvatar = useCallback(async () => {
     try {
-      // eslint-disable-next-line import/no-unresolved
+       
       const ImagePicker = await import('expo-image-picker')
       const { launchImageLibraryAsync } = ImagePicker
 
@@ -67,85 +70,67 @@ export function useEditProfile() {
         },
       })
 
-      if (!hasPermission) {
-        return
-      }
+      if (!hasPermission) return
 
       const pickerOptions: ImagePickerOptions = {
         allowsEditing: true,
-        aspect: [1, 1] as [number, number],
-        quality: 0.8,
-        base64: true,
+        aspect: [1, 1],
+        quality: 1,
+        base64: false, // base64 lo generamos después del manipulado
       }
 
       const result = await launchImageLibraryAsync(pickerOptions)
-
-      if (result.canceled || result.assets.length === 0) {
-        return
-      }
+      if (result.canceled || result.assets.length === 0) return
 
       const [asset] = result.assets
-
       if (asset.type && asset.type !== 'image') {
         Alert.alert('Archivo inválido', 'Selecciona una imagen para tu avatar.')
         return
       }
 
-      setSelectedAvatar(asset)
+      // ✨ Redimensionar y convertir a WebP (1000x1000)
+      const manipulated = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width: 1000, height: 1000 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.WEBP, base64: true }
+      )
+
+      setSelectedAvatar({
+        uri: manipulated.uri,
+        base64: manipulated.base64 ?? null,
+        mimeType: 'image/webp',
+        width: 1000,
+        height: 1000,
+        type: 'image',
+        fileName: `avatar_${Date.now()}.webp`,
+      } as ImagePickerAsset)
     } catch (error) {
       console.error('[useEditProfile] pickAvatar error', error)
-
-      if (error instanceof Error && error.message.toLowerCase().includes('native module')) {
-        Alert.alert(
-          'Funcionalidad no disponible',
-          'Necesitas reinstalar o actualizar la aplicación para seleccionar una imagen.'
-        )
-        return
-      }
-
       Alert.alert('Error', 'No pudimos abrir tu galería. Inténtalo nuevamente más tarde.')
     }
   }, [])
 
   const handleSave = useCallback(async () => {
     if (!id) return false
-
     setSaving(true)
 
     try {
       let finalAvatarUrl = avatarUrl || null
 
-      if (selectedAvatar?.uri) {
-        if (!selectedAvatar.base64) {
-          throw new Error('No pudimos procesar la imagen seleccionada.')
-        }
-
+      if (selectedAvatar?.base64) {
         const fileBuffer = decodeBase64ToArrayBuffer(selectedAvatar.base64)
-
-        const mimeType = selectedAvatar.mimeType || 'image/jpeg'
-        const guessedExtensionFromFileName =
-          selectedAvatar.fileName?.split('.').pop()?.toLowerCase() || null
-        const guessedExtensionFromUri = selectedAvatar.uri.split('?')[0].split('.').pop()?.toLowerCase()
-        const rawExtension =
-          guessedExtensionFromFileName || guessedExtensionFromUri || mimeType.split('/').pop() || 'jpg'
-        const normalizedExtension = rawExtension === 'jpeg' ? 'jpg' : rawExtension
-        const filePath = `avatars/${now().valueOf()}.${normalizedExtension}`
-        const contentType = mimeType
-
+        const filePath = `avatars/${now().valueOf()}.webp`
         const { error: uploadError } = await supabase.storage
           .from('avatars')
           .upload(filePath, fileBuffer, {
             upsert: true,
-            contentType,
+            contentType: 'image/webp',
           })
 
         if (uploadError) throw uploadError
 
         const { data } = supabase.storage.from('avatars').getPublicUrl(filePath)
-
-        if (!data?.publicUrl) {
-          throw new Error('No pudimos obtener la URL pública del avatar.')
-        }
+        if (!data?.publicUrl) throw new Error('No pudimos obtener la URL pública del avatar.')
 
         finalAvatarUrl = data.publicUrl
       }
@@ -162,26 +147,16 @@ export function useEditProfile() {
         avatarUrl: finalAvatarUrl,
       })
 
-      if (updated) {
-        setUserData({
-          name: updated.name || '',
-          avatarUrl: updated.avatar_url || '',
-          phone: updated.phone || '',
-          birthday: updated.birthday || null,
-          acceptsNotifications:
-            typeof updated.accepts_notifications === 'boolean'
-              ? updated.accepts_notifications
-              : acceptsNotifications,
-        })
-      } else {
-        setUserData({
-          name: trimmedName,
-          avatarUrl: finalAvatarUrl || '',
-          phone: trimmedPhone,
-          birthday: formattedBirthday,
-          acceptsNotifications,
-        })
-      }
+      setUserData({
+        name: updated?.name || trimmedName,
+        avatarUrl: updated?.avatar_url || finalAvatarUrl || '',
+        phone: updated?.phone || trimmedPhone,
+        birthday: updated?.birthday || formattedBirthday,
+        acceptsNotifications:
+          typeof updated?.accepts_notifications === 'boolean'
+            ? updated.accepts_notifications
+            : acceptsNotifications,
+      })
 
       Toast.show({ type: 'success', text1: 'Perfil actualizado' })
       setSelectedAvatar(null)
@@ -191,7 +166,6 @@ export function useEditProfile() {
 
       if (id) {
         const promptKey = `onesignal_prompted_${id}`
-
         if (acceptsNotifications && !previousAccepts) {
           await AsyncStorage.removeItem(promptKey)
           const granted = await promptForPushPermission()
@@ -200,6 +174,7 @@ export function useEditProfile() {
           await AsyncStorage.removeItem(promptKey)
         }
       }
+
       return true
     } catch (error) {
       console.error('[useEditProfile] handleSave error', error)
@@ -208,47 +183,25 @@ export function useEditProfile() {
     } finally {
       setSaving(false)
     }
-  }, [
-    id,
-    avatarUrl,
-    selectedAvatar,
-    birthday,
-    name,
-    phone,
-    acceptsNotifications,
-    setUserData,
-  ])
+  }, [id, avatarUrl, selectedAvatar, birthday, name, phone, acceptsNotifications, setUserData])
 
   const toggleNotifications = useCallback(() => {
-    setAcceptsNotifications((prev) => !prev)
+    setAcceptsNotifications(prev => !prev)
   }, [])
 
   const handleBirthdayChange = useCallback((date: Date | undefined) => {
     if (!date) return
-    const formatted = dayjs(date).format('YYYY-MM-DD')
-    setBirthday(formatted)
-  }, [])
-
-  const clearBirthday = useCallback(() => {
-    setBirthday(null)
-  }, [])
-
-  const openDatePicker = useCallback(() => {
-    setShowDatePicker(true)
-  }, [])
-
-  const closeDatePicker = useCallback(() => {
-    setShowDatePicker(false)
+    setBirthday(dayjs(date).format('YYYY-MM-DD'))
   }, [])
 
   return {
     initializing,
     saving,
     showDatePicker,
-    openDatePicker,
-    closeDatePicker,
+    openDatePicker: () => setShowDatePicker(true),
+    closeDatePicker: () => setShowDatePicker(false),
     handleBirthdayChange,
-    clearBirthday,
+    clearBirthday: () => setBirthday(null),
     name,
     setName,
     phone,
