@@ -1,0 +1,14 @@
+{
+  "cli": {
+    "version": ">= 3.0.0"
+  },
+  "build": {
+    "production": {
+      "env": {
+        "EXPO_USE_CPP": "0",
+        "EXPO_NO_CMAKE_BUILD": "1"
+      }
+    }
+  }
+}
+

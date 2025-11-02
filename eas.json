@@ -30,7 +30,21 @@
       "distribution": "internal",
       "env": {
         "EXPO_USE_CPP": "0",
-        "EXPO_NO_CMAKE_BUILD": "1"
+        "EXPO_NO_CMAKE_BUILD": "1",
+        "EXPO_PUBLIC_TIME_ZONE":"America/Santiago",
+        "EXPO_PUBLIC_DATETIME_FORMAT":"YYYY-MM-DD HH:mm",
+        "EXPO_PUBLIC_DATE_FORMAT":"YYYY-MM-DD",
+        "EXPO_PUBLIC_TIME_FORMAT":"HH:mm",
+        "EXPO_PUBLIC_SUPABASE_URL":"https://rdhwcavenrqjgcunfjcf.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkaHdjYXZlbnJxamdjdW5mamNmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ0MDY2NDAsImV4cCI6MjA1OTk4MjY0MH0.Q6A7BgalscHLJgTz0x7xVsBUDfOdjU1xPpC20fkAsDk",
+        "EXPO_PUBLIC_GOOGLE_ANALYTICS_ID":"G-JKFP64WG20",
+        "EXPO_PUBLIC_URL_AUTH":"https://app.visitme.cl/auth/mobile-redirect?target=mobile",
+        "EXPO_PUBLIC_DEEP_LINK_SCHEME":"visitme",
+        "EXPO_BASE_URL":"https://app.visitme.cl",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID":"211418787779-e6vpo0jbcumu4hiuro63v57lja39hco3.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID":"211418787779-sak2n907nb73098evn9jb4qspo8bm3qu.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID":"211418787779-sriiok9em6j73qj5vtb24e30qglmhd4j.apps.googleusercontent.com",
+        "EXPO_PUBLIC_ONESIGNAL_APP_ID":"95cbb2e9-2713-42cd-97b6-385662cdca45"
       }
     },
     "production": {

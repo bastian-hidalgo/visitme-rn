@@ -8,7 +8,6 @@
     "scheme": "visitmeapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "cl.visitme.app",
@@ -18,7 +17,6 @@
         "NSMicrophoneUsageDescription": "Visitme podría usar tu micrófono para grabaciones en funciones futuras (por ejemplo, mensajes de voz)."
       }
     },
-
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -39,12 +37,10 @@
         "android.permission.ACTIVITY_RECOGNITION"
       ]
     },
-
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-
     "plugins": [
       "expo-router",
       [
@@ -65,12 +61,10 @@
         }
       ]
     ],
-
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
-
     "extra": {
       "router": {},
       "eas": {
