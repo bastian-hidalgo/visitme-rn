@@ -88,12 +88,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         },
       ],
       [
-        'expo-image-picker',
-        {
-          photosPermission: 'Permite a Visite acceder a tus fotos.',
-        },
-      ],
-      [
         'onesignal-expo-plugin',
         {
           mode: oneSignalMode,

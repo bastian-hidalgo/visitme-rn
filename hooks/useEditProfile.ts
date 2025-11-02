@@ -1,18 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import type { ImagePickerAsset, ImagePickerOptions } from 'expo-image-picker'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert } from 'react-native'
+import type { ImageOrVideo } from 'react-native-image-crop-picker'
+import ImagePicker from 'react-native-image-crop-picker'
 import Toast from 'react-native-toast-message'
 
 import { updateOwnProfile } from '@/lib/api/users'
 import { decodeBase64ToArrayBuffer } from '@/lib/base64'
-import { ensureMediaLibraryPermission } from '@/lib/image-picker-permissions'
 import { promptForPushPermission } from '@/lib/notifications/oneSignal'
 import { supabase } from '@/lib/supabase'
 import { dayjs, now } from '@/lib/time'
 import { useUser } from '@/providers/user-provider'
-
-// 👉 importamos el manipulador
 import * as ImageManipulator from 'expo-image-manipulator'
 
 export function useEditProfile() {
@@ -33,7 +31,7 @@ export function useEditProfile() {
   const [phone, setPhone] = useState('')
   const [birthday, setBirthday] = useState<string | null>(null)
   const [acceptsNotifications, setAcceptsNotifications] = useState(true)
-  const [selectedAvatar, setSelectedAvatar] = useState<ImagePickerAsset | null>(null)
+  const [selectedAvatar, setSelectedAvatar] = useState<any | null>(null)
   const [saving, setSaving] = useState(false)
   const [initializing, setInitializing] = useState(true)
   const [showDatePicker, setShowDatePicker] = useState(false)
@@ -56,41 +54,20 @@ export function useEditProfile() {
 
   const pickAvatar = useCallback(async () => {
     try {
-       
-      const ImagePicker = await import('expo-image-picker')
-      const { launchImageLibraryAsync } = ImagePicker
-
-      const hasPermission = await ensureMediaLibraryPermission({
-        ImagePicker,
-        onDenied: () => {
-          Alert.alert(
-            'Permiso requerido',
-            'Necesitamos acceso a tus fotos para actualizar tu avatar.'
-          )
-        },
+      const result: ImageOrVideo = await ImagePicker.openPicker({
+        width: 1000,
+        height: 1000,
+        cropping: true,
+        includeBase64: true,
+        compressImageQuality: 0.8,
+        mediaType: 'photo',
       })
 
-      if (!hasPermission) return
-
-      const pickerOptions: ImagePickerOptions = {
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 1,
-        base64: false, // base64 lo generamos después del manipulado
-      }
-
-      const result = await launchImageLibraryAsync(pickerOptions)
-      if (result.canceled || result.assets.length === 0) return
-
-      const [asset] = result.assets
-      if (asset.type && asset.type !== 'image') {
-        Alert.alert('Archivo inválido', 'Selecciona una imagen para tu avatar.')
-        return
-      }
+      if (!result || !result.path) return
 
       // ✨ Redimensionar y convertir a WebP (1000x1000)
       const manipulated = await ImageManipulator.manipulateAsync(
-        asset.uri,
+        result.path,
         [{ resize: { width: 1000, height: 1000 } }],
         { compress: 0.8, format: ImageManipulator.SaveFormat.WEBP, base64: true }
       )
@@ -103,8 +80,9 @@ export function useEditProfile() {
         height: 1000,
         type: 'image',
         fileName: `avatar_${Date.now()}.webp`,
-      } as ImagePickerAsset)
-    } catch (error) {
+      })
+    } catch (error: any) {
+      if (error?.message?.includes('cancelled')) return
       console.error('[useEditProfile] pickAvatar error', error)
       Alert.alert('Error', 'No pudimos abrir tu galería. Inténtalo nuevamente más tarde.')
     }

@@ -56,12 +56,6 @@
         }
       ],
       [
-        "expo-image-picker",
-        {
-          "photosPermission": "Permite a Visitme acceder a tus fotos."
-        }
-      ],
-      [
         "onesignal-expo-plugin",
         {
           "mode": "development"
