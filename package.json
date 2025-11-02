@@ -10,7 +10,7 @@
     "lint": "expo lint",
     "clean-native": "rm -rf android .gradle node_modules .expo .expo-shared && npm install && npx expo prebuild --clean",
     "apk": "rm -rf builds && eas build -p android --profile test-apk --local",
-    "aab": "rm -rf builds && eas build -p android --profile production --local"
+    "aab": "rm -rf builds && eas build -p android --profile production --local --clear-cache --non-interactive"
   },
   "dependencies": {
     "@babel/runtime": "^7.26.0",
