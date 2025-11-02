@@ -217,10 +217,14 @@ export default function LoginScreen() {
                 )}
               </Pressable>
               {statusMessage ? (
-                <ThemedText style={[styles.feedbackText, { color: '#6366F1' }]}>{statusMessage}</ThemedText>
+                <View style={[styles.feedbackContainer, isDarkMode && styles.feedbackContainerDark]}>
+                  <ThemedText style={[styles.feedbackText, { color: '#6366F1' }]}>{statusMessage}</ThemedText>
+                </View>
               ) : null}
               {errorMessage ? (
-                <ThemedText style={[styles.feedbackText, styles.errorMessage]}>{errorMessage}</ThemedText>
+                <View style={[styles.feedbackContainer, isDarkMode && styles.feedbackContainerDark]}>
+                  <ThemedText style={[styles.feedbackText, styles.errorMessage]}>{errorMessage}</ThemedText>
+                </View>
               ) : null}
               <ThemedText style={[styles.infoText, isDarkMode && styles.infoTextDark]}>
                 Este sistema es exclusivo para residentes autorizados. Si no tienes acceso, contacta a tu administrador.
@@ -269,7 +273,16 @@ const styles = StyleSheet.create({
   submitButton: { borderRadius: 16, paddingVertical: 16, alignItems: 'center' },
   disabledButton: { opacity: 0.7 },
   submitText: { color: '#fff' },
-  feedbackText: { marginTop: -8, textAlign: 'center' },
+  feedbackContainer: {
+    marginTop: -8,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+    alignSelf: 'stretch',
+  },
+  feedbackContainerDark: { backgroundColor: 'rgba(15, 23, 42, 0.75)', borderWidth: 1, borderColor: 'rgba(148, 163, 184, 0.35)' },
+  feedbackText: { textAlign: 'center' },
   errorMessage: { color: '#EF4444' },
   infoText: { marginTop: 8, fontSize: 12, textAlign: 'center', color: '#6B7280', lineHeight: 18 },
   infoTextDark: { color: '#9CA3AF' },
