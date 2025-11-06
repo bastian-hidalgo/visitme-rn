@@ -57,6 +57,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'cl.visitme.app',
+      infoPlist: {
+        NSPhotoLibraryUsageDescription:
+          'Visitme necesita acceso a tu galería para que puedas seleccionar una foto de perfil.',
+        NSCameraUsageDescription:
+          'Visitme necesita acceso a la cámara si deseas tomar una nueva foto de perfil.',
+        NSMicrophoneUsageDescription:
+          'Visitme podría usar tu micrófono para grabaciones en funciones futuras (por ejemplo, mensajes de voz).',
+        ITSAppUsesNonExemptEncryption: false
+      }
     },
     android: {
       adaptiveIcon: {
