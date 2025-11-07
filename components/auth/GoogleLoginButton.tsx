@@ -82,6 +82,7 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
       const { data, error } = await supabase.auth.signInWithIdToken({
         provider: 'google',
         token: idToken,
+        nonce: undefined
       })
 
       if (error) throw new Error(error.message)
