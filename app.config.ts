@@ -58,6 +58,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       supportsTablet: true,
       bundleIdentifier: 'cl.visitme.app',
       infoPlist: {
+        NSLocationWhenInUseUsageDescription: "Visitme necesita acceder a tu ubicación para ofrecer funciones relacionadas con tu comunidad y visitas cercanas.",
         NSPhotoLibraryUsageDescription:
           'Visitme necesita acceso a tu galería para que puedas seleccionar una foto de perfil.',
         NSCameraUsageDescription:
