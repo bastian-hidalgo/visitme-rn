@@ -1,15 +1,9 @@
 import { env } from '@/constants/env'
 import { supabase } from '@/lib/supabase'
 import { GoogleSignin } from '@react-native-google-signin/google-signin'
-import * as AuthSession from 'expo-auth-session'
-import * as Google from 'expo-auth-session/providers/google'
-import Constants from 'expo-constants'
 import { Image } from 'expo-image'
-import * as WebBrowser from 'expo-web-browser'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
-
-WebBrowser.maybeCompleteAuthSession()
 
 const googleLogo = require('@/assets/images/google-logo.svg')
 
@@ -25,6 +19,7 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
   const [status, setStatus] = useState<GoogleLoginButtonStatus>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+  // IDs configurados en Google Cloud Console
   const clientIds = useMemo(
     () => ({
       androidClientId: env.googleAndroidClientId,
@@ -34,78 +29,56 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
     []
   )
 
-  const redirectUri = useMemo(
-    () =>
-      AuthSession.makeRedirectUri({
-        scheme: 'visitmeapp',
-        path: 'oauthredirect',
-        useProxy: Constants.appOwnership === 'expo',
-      }),
-    []
-  )
-
-  const [request, , promptAsync] = Google.useAuthRequest({
-    androidClientId: clientIds.androidClientId,
-    iosClientId: clientIds.iosClientId,
-    webClientId: clientIds.webClientId,
-    redirectUri,
-    scopes: ['openid', 'email', 'profile'],
-    prompt: 'select_account',
-  })
-
+  /**
+   * Configuración global del SDK de Google.
+   * Se ejecuta una sola vez al montar el componente.
+   */
   useEffect(() => {
-    if (Platform.OS === 'android') {
-      ;(async () => {
-        try {
+    const configureGoogleSignIn = async () => {
+      try {
+        if (Platform.OS === 'android') {
           await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true })
-          GoogleSignin.configure({
-            webClientId: clientIds.webClientId,
-            offlineAccess: true,
-            forceCodeForRefreshToken: false,
-          })
-        } catch {}
-      })()
-    }
-  }, [])
+        }
 
+        GoogleSignin.configure({
+          iosClientId: clientIds.iosClientId, // ID cliente iOS
+          webClientId: clientIds.webClientId, // ID cliente web (para Supabase)
+          offlineAccess: true,
+          forceCodeForRefreshToken: false,
+        })
+      } catch (error) {
+        console.warn('Error configurando GoogleSignin', error)
+      }
+    }
+
+    configureGoogleSignIn()
+  }, [clientIds])
+
+  /**
+   * Manejo de inicio de sesión con Google nativo
+   */
   const handleSignIn = useCallback(async () => {
     try {
       setStatus('loading')
       setErrorMessage(null)
       onStatusChange?.('loading')
 
+      // Verifica servicios en Android
       if (Platform.OS === 'android') {
         await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true })
-        const userInfo = await GoogleSignin.signIn()
-
-        const idToken =
-          (userInfo as any)?.idToken ||
-          (userInfo as any)?.data?.idToken ||
-          (userInfo as any)?.data?.authentication?.idToken
-
-        if (!idToken) throw new Error('No se obtuvo idToken del login nativo.')
-
-        const { data, error } = await supabase.auth.signInWithIdToken({
-          provider: 'google',
-          token: idToken,
-        })
-
-        if (error) throw new Error(error.message)
-
-        setStatus('success')
-        onSuccess?.(data)
-        onStatusChange?.('success')
-        return
       }
 
-      const result = await promptAsync()
-      if (result.type !== 'success') {
-        throw new Error(result.type === 'cancel' ? 'Inicio cancelado' : 'Error en login con Google')
-      }
+      // Inicia sesión con el SDK nativo
+      const userInfo = await GoogleSignin.signIn()
 
-      const idToken = result.authentication?.idToken
-      if (!idToken) throw new Error('No se obtuvo idToken (AuthSession)')
+      const idToken =
+        (userInfo as any)?.idToken ||
+        (userInfo as any)?.data?.idToken ||
+        (userInfo as any)?.data?.authentication?.idToken
 
+      if (!idToken) throw new Error('No se obtuvo idToken del login nativo.')
+
+      // Login en Supabase
       const { data, error } = await supabase.auth.signInWithIdToken({
         provider: 'google',
         token: idToken,
@@ -121,7 +94,7 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
       setErrorMessage(err.message)
       onStatusChange?.('error', { errorMessage: err.message })
     }
-  }, [promptAsync, onStatusChange, onSuccess])
+  }, [onStatusChange, onSuccess])
 
   return (
     <View style={styles.container}>

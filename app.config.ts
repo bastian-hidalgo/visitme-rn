@@ -64,7 +64,20 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           'Visitme necesita acceso a la cámara si deseas tomar una nueva foto de perfil.',
         NSMicrophoneUsageDescription:
           'Visitme podría usar tu micrófono para grabaciones en funciones futuras (por ejemplo, mensajes de voz).',
-        ITSAppUsesNonExemptEncryption: false
+        ITSAppUsesNonExemptEncryption: false,
+
+        // 👇 Requerido para Google Sign-In iOS
+        CFBundleURLTypes: [
+          {
+            CFBundleURLSchemes: [
+              'com.googleusercontent.apps.211418787779-sriiok9em6j73qj5vtb24e30qglmhd4j'
+            ]
+          }
+        ],
+        GIDClientID:
+          '211418787779-sriiok9em6j73qj5vtb24e30qglmhd4j.apps.googleusercontent.com',
+        GIDServerClientID:
+          '211418787779-e6vpo0jbucmua4hiuro63v57jia39hco3.apps.googleusercontent.com'
       }
     },
     android: {
