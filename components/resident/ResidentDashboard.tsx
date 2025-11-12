@@ -14,6 +14,7 @@ import NewsSlider from '@/components/resident/NewsSlider'
 import PackageSlider from '@/components/resident/PackageSlider'
 import QuickAccess from '@/components/resident/QuickAccess'
 import ReservationsSlider from '@/components/resident/ReservationsSlider'
+import SurveyPanel from '@/components/resident/SurveyPanel'
 import SurveysSlider from '@/components/resident/SurveysSlider'
 import UserMenuPanel from '@/components/resident/sidepanels/UserMenuPanel'
 import getReservationBannerStatus from '@/lib/getReservationsBannerStatus'
@@ -190,6 +191,7 @@ export default function ResidentDashboard() {
           onClose={() => setIsMenuOpen(false)}
           progress={menuProgress}
         />
+        <SurveyPanel />
         <FeedbackPanel />
     </SafeAreaView>
   )

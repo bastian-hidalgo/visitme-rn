@@ -53,6 +53,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
     setFeedbackPanelOpen(false)
     setInvitationPanelOpen(false)
     setPackagesPanelOpen(false)
+    setSelectedSurvey(null)
     closeAlertPanel()
   }, [closeAlertPanel])
 
