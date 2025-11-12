@@ -2,6 +2,7 @@ import { env } from '@/constants/env'
 import { supabase } from '@/lib/supabase'
 import { GoogleSignin } from '@react-native-google-signin/google-signin'
 import { Image } from 'expo-image'
+import { jwtDecode } from 'jwt-decode'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 
@@ -19,7 +20,6 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
   const [status, setStatus] = useState<GoogleLoginButtonStatus>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  // IDs configurados en Google Cloud Console
   const clientIds = useMemo(
     () => ({
       androidClientId: env.googleAndroidClientId,
@@ -29,10 +29,6 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
     []
   )
 
-  /**
-   * Configuración global del SDK de Google.
-   * Se ejecuta una sola vez al montar el componente.
-   */
   useEffect(() => {
     const configureGoogleSignIn = async () => {
       try {
@@ -41,8 +37,8 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
         }
 
         GoogleSignin.configure({
-          iosClientId: clientIds.iosClientId, // ID cliente iOS
-          webClientId: clientIds.webClientId, // ID cliente web (para Supabase)
+          iosClientId: clientIds.iosClientId,
+          webClientId: clientIds.webClientId,
           offlineAccess: true,
           forceCodeForRefreshToken: false,
         })
@@ -54,23 +50,17 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
     configureGoogleSignIn()
   }, [clientIds])
 
-  /**
-   * Manejo de inicio de sesión con Google nativo
-   */
   const handleSignIn = useCallback(async () => {
     try {
       setStatus('loading')
       setErrorMessage(null)
       onStatusChange?.('loading')
 
-      // Verifica servicios en Android
       if (Platform.OS === 'android') {
         await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true })
       }
 
-      // Inicia sesión con el SDK nativo
       const userInfo = await GoogleSignin.signIn()
-
       const idToken =
         (userInfo as any)?.idToken ||
         (userInfo as any)?.data?.idToken ||
@@ -78,12 +68,19 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
 
       if (!idToken) throw new Error('No se obtuvo idToken del login nativo.')
 
-      // Login en Supabase
-      const { data, error } = await supabase.auth.signInWithIdToken({
-        provider: 'google',
-        token: idToken,
-        nonce: undefined
-      })
+      const decoded: any = jwtDecode(idToken)
+      const hasNonce = decoded?.nonce && decoded?.nonce !== ''
+
+      const { data, error } = hasNonce
+        ? await supabase.auth.signInWithIdToken({
+            provider: 'google',
+            token: idToken,
+            nonce: decoded.nonce,
+          })
+        : await supabase.auth.signInWithIdToken({
+            provider: 'google',
+            token: idToken,
+          })
 
       if (error) throw new Error(error.message)
 
