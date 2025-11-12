@@ -1,7 +1,6 @@
 import { useResidentContext } from '@/components/contexts/ResidentContext'
 import { formatDateLogical } from '@/lib/time'
 import { supabase } from '@/lib/supabase'
-import { useUser } from '@/providers/user-provider'
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
@@ -65,8 +64,8 @@ export default function SurveyPanel() {
     loadingSurveys,
     closePanels,
     refreshSurveys,
+    residentDepartments,
   } = useResidentContext()
-  const { userDepartments } = useUser()
 
   const bottomSheetRef = useRef<BottomSheetModal>(null)
   const snapPoints = useMemo(() => ['92%'], [])
@@ -75,7 +74,7 @@ export default function SurveyPanel() {
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  const hasMultipleDepartments = userDepartments.length > 1
+  const hasMultipleDepartments = residentDepartments.length > 1
 
   useEffect(() => {
     const sheet = bottomSheetRef.current
@@ -89,23 +88,41 @@ export default function SurveyPanel() {
   }, [isSurveyPanelOpen])
 
   useEffect(() => {
-    if (userDepartments.length === 1) {
-      setSelectedDepartmentId(userDepartments[0].department_id)
+    if (!isSurveyPanelOpen) return
+
+    if (!residentDepartments.length) {
+      setSelectedDepartmentId(null)
+      return
     }
-  }, [userDepartments])
+
+    if (residentDepartments.length === 1) {
+      setSelectedDepartmentId(residentDepartments[0].department_id)
+      return
+    }
+
+    setSelectedDepartmentId((current) => {
+      if (
+        current &&
+        residentDepartments.some((department) => department.department_id === current)
+      ) {
+        return current
+      }
+      return residentDepartments[0].department_id
+    })
+  }, [isSurveyPanelOpen, residentDepartments])
 
   useEffect(() => {
     if (!isSurveyPanelOpen) {
       setAnswers({})
       setSubmitting(false)
-      if (userDepartments.length !== 1) {
+      if (residentDepartments.length !== 1) {
         setSelectedDepartmentId(null)
       }
     } else {
       setAnswers({})
       setSubmitting(false)
     }
-  }, [isSurveyPanelOpen, userDepartments.length])
+  }, [isSurveyPanelOpen, residentDepartments.length])
 
   useEffect(() => {
     setAnswers({})
@@ -131,7 +148,7 @@ export default function SurveyPanel() {
   }, [])
 
   const handleSelectDepartment = useCallback((departmentId: string) => {
-    setSelectedDepartmentId(departmentId)
+    setSelectedDepartmentId(String(departmentId))
   }, [])
 
   const handleSubmit = useCallback(async () => {
@@ -289,7 +306,7 @@ export default function SurveyPanel() {
               <View style={styles.section}>
                 <Text style={styles.sectionLabel}>Responder desde el departamento</Text>
                 <View style={styles.departmentGrid}>
-                  {userDepartments.map((department) => {
+                  {residentDepartments.map((department) => {
                     const isSelected = department.department_id === selectedDepartmentId
                     return (
                       <Pressable
@@ -306,7 +323,7 @@ export default function SurveyPanel() {
                             isSelected && styles.departmentLabelActive,
                           ]}
                         >
-                          {department.department}
+                          {department.label}
                         </Text>
                       </Pressable>
                     )
@@ -315,12 +332,12 @@ export default function SurveyPanel() {
               </View>
             ) : null}
 
-            {!hasMultipleDepartments && userDepartments.length === 1 ? (
+            {!hasMultipleDepartments && residentDepartments.length === 1 ? (
               <View style={styles.section}>
                 <Text style={styles.sectionLabel}>Respondiendo desde</Text>
                 <View style={styles.singleDepartment}>
                   <Text style={styles.singleDepartmentText}>
-                    {userDepartments[0]?.department ?? 'Departamento asignado'}
+                    {residentDepartments[0]?.label ?? 'Departamento asignado'}
                   </Text>
                 </View>
               </View>

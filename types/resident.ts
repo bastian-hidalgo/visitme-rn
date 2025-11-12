@@ -13,6 +13,7 @@ export interface ResidentContextType {
   selectedSurvey: any | null
   selectedParcel: Parcel | null
   alertDetail: Alert | null
+  residentDepartments: { department_id: string; label: string }[]
 
   // 🔹 Estado de paneles
   isSurveyPanelOpen: boolean
@@ -35,6 +36,7 @@ export interface ResidentContextType {
   fetchVisits: () => void
   fetchPackages: () => void
   refreshSurveys: () => Promise<void>
+  refreshAll: () => Promise<void>
   resetCommunityData: (options?: { loadingState?: boolean }) => void
 
   // 🔹 Control de paneles
