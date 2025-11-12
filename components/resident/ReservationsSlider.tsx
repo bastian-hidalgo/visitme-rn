@@ -5,13 +5,14 @@ import {
   BottomSheetTextInput,
   type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet'
-import { Image } from 'expo-image'
-import { LinearGradient } from 'expo-linear-gradient'
-import { useRouter } from 'expo-router'
 import dayjs from 'dayjs'
 import 'dayjs/locale/es'
 import timezone from 'dayjs/plugin/timezone'
 import utc from 'dayjs/plugin/utc'
+import * as FileSystem from 'expo-file-system/legacy'
+import { Image } from 'expo-image'
+import { LinearGradient } from 'expo-linear-gradient'
+import { useRouter } from 'expo-router'
 import {
   CalendarDays,
   Clock3,
@@ -35,15 +36,14 @@ import {
   View,
 } from 'react-native'
 import Toast from 'react-native-toast-message'
-import * as FileSystem from 'expo-file-system/legacy'
 
-import EmptyActionCard from '@/components/ui/EmptyActionCard'
 import { useResidentContext } from '@/components/contexts/ResidentContext'
-import ReservationCard from './ReservationCard'
+import EmptyActionCard from '@/components/ui/EmptyActionCard'
+import getUrlImageFromStorage from '@/lib/getUrlImageFromStorage'
+import { supabase } from '@/lib/supabase'
 import { useWeatherForReservations, type ReservationWithWeather } from '@/lib/useWeatherForReservations'
 import { useUser } from '@/providers/user-provider'
-import { supabase } from '@/lib/supabase'
-import getUrlImageFromStorage from '@/lib/getUrlImageFromStorage'
+import ReservationCard from './ReservationCard'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -505,8 +505,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   headerTitle: {
-    fontSize: 26,
-    fontWeight: '800',
+    fontSize: 22,
+    fontWeight: '700',
     color: '#111827',
   },
   ctaButton: {

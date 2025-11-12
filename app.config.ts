@@ -1,13 +1,13 @@
-import { loadProjectEnv, logLoadedEnv } from '@expo/env'
-import type { ConfigContext, ExpoConfig } from 'expo/config'
+import { loadProjectEnv, logLoadedEnv } from '@expo/env';
+import type { ConfigContext, ExpoConfig } from 'expo/config';
 
-const projectRoot = process.cwd()
+const projectRoot = process.cwd();
 
 try {
-  const envInfo = loadProjectEnv(projectRoot, { silent: true })
-  logLoadedEnv(envInfo, { silent: true })
+  const envInfo = loadProjectEnv(projectRoot, { silent: true });
+  logLoadedEnv(envInfo, { silent: true });
 } catch (error) {
-  console.warn('No se pudieron cargar las variables de entorno desde los archivos .env:', error)
+  console.warn('No se pudieron cargar las variables de entorno desde los archivos .env:', error);
 }
 
 const PUBLIC_ENV_KEYS = [
@@ -24,31 +24,31 @@ const PUBLIC_ENV_KEYS = [
   'EXPO_PUBLIC_DATETIME_FORMAT',
   'EXPO_PUBLIC_DATE_FORMAT',
   'EXPO_PUBLIC_TIME_FORMAT',
-] as const
+] as const;
 
-type PublicEnvKey = (typeof PUBLIC_ENV_KEYS)[number]
+type PublicEnvKey = (typeof PUBLIC_ENV_KEYS)[number];
 
-type PublicEnv = Partial<Record<PublicEnvKey, string | undefined>>
+type PublicEnv = Partial<Record<PublicEnvKey, string | undefined>>;
 
 const collectPublicEnv = (): PublicEnv => {
   return PUBLIC_ENV_KEYS.reduce<PublicEnv>((acc, key) => {
-    const value = process.env[key]
+    const value = process.env[key];
     if (typeof value === 'string') {
-      acc[key] = value
+      acc[key] = value;
     }
-    return acc
-  }, {})
-}
+    return acc;
+  }, {});
+};
 
 export default ({ config }: ConfigContext): ExpoConfig => {
-  const publicEnv = collectPublicEnv()
-  const oneSignalMode = publicEnv.EXPO_PUBLIC_ONESIGNAL_MODE ?? 'development'
+  const publicEnv = collectPublicEnv();
+  const oneSignalMode = publicEnv.EXPO_PUBLIC_ONESIGNAL_MODE ?? 'development';
 
   return {
     ...config,
     name: 'Visitme',
     slug: 'visitme-app',
-    version: '1.0.0',
+    version: '1.0.3',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     scheme: 'visitmeapp',
@@ -58,7 +58,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       supportsTablet: true,
       bundleIdentifier: 'cl.visitme.app',
       infoPlist: {
-        NSLocationWhenInUseUsageDescription: "Visitme necesita acceder a tu ubicación para ofrecer funciones relacionadas con tu comunidad y visitas cercanas.",
+        NSLocationWhenInUseUsageDescription:
+          "Visitme necesita acceder a tu ubicación para ofrecer funciones relacionadas con tu comunidad y visitas cercanas.",
         NSPhotoLibraryUsageDescription:
           'Visitme necesita acceso a tu galería para que puedas seleccionar una foto de perfil.',
         NSCameraUsageDescription:
@@ -66,20 +67,18 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         NSMicrophoneUsageDescription:
           'Visitme podría usar tu micrófono para grabaciones en funciones futuras (por ejemplo, mensajes de voz).',
         ITSAppUsesNonExemptEncryption: false,
-
-        // 👇 Requerido para Google Sign-In iOS
         CFBundleURLTypes: [
           {
             CFBundleURLSchemes: [
               'com.googleusercontent.apps.211418787779-sriiok9em6j73qj5vtb24e30qglmhd4j'
-            ]
-          }
+            ],
+          },
         ],
         GIDClientID:
           '211418787779-sriiok9em6j73qj5vtb24e30qglmhd4j.apps.googleusercontent.com',
         GIDServerClientID:
-          '211418787779-e6vpo0jbucmua4hiuro63v57jia39hco3.apps.googleusercontent.com'
-      }
+          '211418787779-e6vpo0jbucmua4hiuro63v57jia39hco3.apps.googleusercontent.com',
+      },
     },
     android: {
       adaptiveIcon: {
@@ -103,10 +102,26 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         'expo-splash-screen',
         {
           image: './assets/images/splash.png',
+          // según docs: resizeMode puede ser 'contain', 'cover' o 'native'
           resizeMode: 'cover',
           backgroundColor: '#ffffff',
           dark: {
+            image: './assets/images/splash.png',
             backgroundColor: '#000000',
+          },
+          // Puedes definir un ancho de imagen para controlar tamaño
+          imageWidth: 200,
+          // Si quieres configurar por plataforma:
+          ios: {
+            // enableFullScreenImage_legacy sólo para iOS si quieres full screen
+            enableFullScreenImage_legacy: true,
+            image: './assets/images/splash.png',
+            resizeMode: 'cover',
+          },
+          android: {
+            image: './assets/images/splash.png',
+            resizeMode: 'cover',
+            imageWidth: 200,
           },
         },
       ],
@@ -137,5 +152,5 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         mode: oneSignalMode,
       },
     },
-  }
-}
+  };
+};

@@ -4,6 +4,7 @@ import { MotiView } from 'moti'
 import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated'
+import EmptyPackages from './EmptyPackages'
 import PackageCard from './PackageCard'
 
 export default function PackageSlider() {
@@ -32,29 +33,32 @@ export default function PackageSlider() {
           <Text style={styles.packageCountText}>{packages.length}</Text>
         </View>
       </View>
-
-      <Animated.FlatList
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        data={packages}
-        keyExtractor={(item) => item.id.toString()}
-        onScroll={scrollHandler}
-        scrollEventThrottle={16}
-        renderItem={({ item, index }) => (
-          <PackageCard parcel={item} index={index} scrollX={scrollX} />
+      {packages.length === 0 ? (
+          <EmptyPackages />
+        ) : (
+          <Animated.FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={packages}
+            keyExtractor={(item) => item.id.toString()}
+            onScroll={scrollHandler}
+            scrollEventThrottle={16}
+            renderItem={({ item, index }) => (
+              <PackageCard parcel={item} index={index} scrollX={scrollX} />
+            )}
+            snapToInterval={300}
+            decelerationRate="fast"
+            bounces={false}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            contentContainerStyle={styles.listContent}
+          />
         )}
-        snapToInterval={300}
-        decelerationRate="fast"
-        bounces={false}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-        contentContainerStyle={styles.listContent}
-      />
     </MotiView>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { width: '100%', marginTop: 16 },
+  container: { width: '100%', marginTop: 16, backgroundColor: 'transparent' },
   listContent: {
     paddingLeft: 0,
     paddingRight: 16,

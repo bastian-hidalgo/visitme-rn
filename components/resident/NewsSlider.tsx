@@ -3,7 +3,8 @@ import SkeletonCard from '@/components/ui/SkeletonCard'
 import type { Alert } from '@/types/alert'
 import { MotiView } from 'moti'
 import React from 'react'
-import { Dimensions, FlatList, StyleSheet, Text, View } from 'react-native'
+import { Dimensions, StyleSheet, Text, View } from 'react-native'
+import Animated from 'react-native-reanimated'
 import NewsCard from './NewsCard'
 
 const { width } = Dimensions.get('window')
@@ -26,40 +27,44 @@ export default function NewsSlider() {
   if (alerts.length === 0 && !loadingAlerts) {
     return (
       <View style={styles.container}>
-        <Text style={[styles.title, styles.titleCompact]}>
-          Lo último
-        </Text>
+        <Text style={[styles.title, styles.titleCompact]}>Lo último</Text>
         <Text style={styles.subtitle}>No hay alertas recientes.</Text>
       </View>
     )
   }
 
-  // 🔹 Definimos el tipo explícito del item
+  // 🔹 Tipo del item (alerta o skeleton)
   type FlatListItem = Alert | { skeleton: true; id: string }
 
   const data: FlatListItem[] = loadingAlerts
-    ? Array.from({ length: 3 }).map((_, i) => ({ skeleton: true, id: `skeleton-${i}` }))
+    ? Array.from({ length: 3 }).map((_, i) => ({
+        skeleton: true,
+        id: `skeleton-${i}`,
+      }))
     : alerts
 
-  const cardWidth = Math.max(Math.min(width - 120, 320), 220)
+  // 🔹 Ancho base de cada card (igual que otros sliders)
+  const cardWidth = 300
+  const separatorWidth = 12
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Lo último</Text>
 
-      <FlatList<FlatListItem>
+      <Animated.FlatList<FlatListItem>
         horizontal
-        pagingEnabled
-        snapToAlignment="center"
         showsHorizontalScrollIndicator={false}
         data={data}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
-        renderItem={({ item }) => {
+        snapToInterval={cardWidth + separatorWidth} // 👈 paso exacto por card
+        decelerationRate="fast"
+        bounces={false}
+        renderItem={({ item, index }) => {
           if ('skeleton' in item) {
             return (
-              <View style={{ width: cardWidth, marginRight: 14 }}>
-                <SkeletonCard height={86} width={cardWidth} />
+              <View style={{ width: cardWidth, marginRight: separatorWidth }}>
+                <SkeletonCard height={120} width={cardWidth} />
               </View>
             )
           }
@@ -69,7 +74,7 @@ export default function NewsSlider() {
               from={{ opacity: 0, translateY: 20 }}
               animate={{ opacity: 1, translateY: 0 }}
               transition={{ duration: 500 }}
-              style={{ width: cardWidth, marginRight: 14 }}
+              style={{ width: cardWidth, marginRight: separatorWidth }}
             >
               <NewsCard
                 id={item.id}
@@ -93,7 +98,8 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   listContent: {
-    paddingHorizontal: 4,
+    paddingLeft: 0,
+    paddingRight: 16,
   },
   title: {
     fontSize: 24,

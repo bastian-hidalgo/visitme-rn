@@ -1,4 +1,4 @@
-import { formatDate } from '@/lib/time'
+import { formatDateLogical } from '@/lib/time'
 import { CalendarDays, CheckCircle2, ClipboardList } from 'lucide-react-native'
 import { MotiView } from 'moti'
 import React from 'react'
@@ -19,14 +19,13 @@ export default function SurveyCard({
   onClick,
   disabled = false,
 }: SurveyCardProps) {
-  const formattedDate = formatDate(expiresAt)
+  const formattedDate = formatDateLogical(expiresAt)
 
   return (
     <MotiView
       from={{ opacity: 0, translateY: 20 }}
       animate={{ opacity: 1, translateY: 0 }}
       transition={{ duration: 400 }}
-      style={{ alignItems: 'center', justifyContent: 'center' }}
     >
       <TouchableOpacity
         activeOpacity={0.9}
@@ -62,6 +61,7 @@ export default function SurveyCard({
           {/* Título */}
           <Text
             numberOfLines={2}
+            ellipsizeMode="tail"
             style={[
               styles.title,
               disabled ? styles.disabledText : styles.enabledText,
@@ -73,6 +73,7 @@ export default function SurveyCard({
           {/* Descripción */}
           <Text
             numberOfLines={3}
+            ellipsizeMode="tail"
             style={[
               styles.description,
               disabled ? styles.disabledText : styles.enabledText,
@@ -102,13 +103,13 @@ export default function SurveyCard({
 
 const styles = StyleSheet.create({
   card: {
+    width: 250,
+    height: 160, // 👈 alto fijo para que todas midan igual
     borderRadius: 16,
     overflow: 'hidden',
-    minWidth: 150,
-    maxWidth: 200,
     padding: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
   cardEnabled: {
     backgroundColor: '#ede9fe',
@@ -118,14 +119,13 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   content: {
-    alignItems: 'center',
     width: '100%',
     gap: 8,
   },
   dateBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     gap: 8,
     paddingVertical: 4,
     paddingHorizontal: 8,
@@ -150,19 +150,21 @@ const styles = StyleSheet.create({
   title: {
     fontWeight: '600',
     fontSize: 14,
-    textAlign: 'center',
+    textAlign: 'left',
+    width: '100%',
   },
   description: {
     fontSize: 12,
-    textAlign: 'center',
+    textAlign: 'left',
+    width: '100%',
   },
   iconWrapper: {
     width: 32,
     height: 32,
-    marginTop: 8,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 4,
   },
   iconWrapperEnabled: {
     backgroundColor: '#c4b5fd',

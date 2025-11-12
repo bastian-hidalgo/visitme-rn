@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient'
 import { MotiView } from 'moti'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { LayoutChangeEvent, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { LayoutChangeEvent, ScrollView, StyleSheet, View } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useResidentContext } from '@/components/contexts/ResidentContext'
@@ -79,6 +79,7 @@ export default function ResidentDashboard() {
                 paddingBottom: contentPaddingBottom,
                 paddingTop: 24,
               }}
+              style={{backgroundColor: '#FFFFFF'}}
             >
               {/* Header */}
               <View style={[styles.sectionWrapper, styles.sectionHeader]}>
@@ -163,13 +164,6 @@ export default function ResidentDashboard() {
                   <InvitationsSlider />
                 </View>
               </MotiView>
-
-              {/* Placeholder de acciones */}
-              <View style={styles.placeholder}>
-                <Text style={styles.placeholderText}>
-                  Aquí aparecerán tus próximas acciones ✨
-                </Text>
-              </View>
             </ScrollView>
 
             {/* Quick Access (fijo inferior) */}
@@ -213,18 +207,19 @@ const styles = StyleSheet.create({
   },
   sectionWrapper: {
     paddingHorizontal: 12,
+    backgroundColor: '#FFFFFF'
   },
   sectionHeader: {
     paddingBottom: 8,
   },
   sectionSurface: {
-    backgroundColor: '#ffffff',
-    borderRadius: 28,
-    shadowColor: 'rgba(15, 23, 42, 0.08)',
+    marginBottom: 24,
+    shadowColor: 'rgba(256, 256, 256, 0)',
     shadowOpacity: 1,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 10 },
     elevation: 6,
+    backgroundColor: '#FFFFFF'
   },
   placeholder: {
     alignItems: 'center',
