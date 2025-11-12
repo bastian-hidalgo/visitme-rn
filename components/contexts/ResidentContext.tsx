@@ -21,6 +21,9 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   const [selectedSurvey, setSelectedSurvey] = useState<any | null>(null)
   const [selectedParcel, setSelectedParcel] = useState<Parcel | null>(null)
   const [alertDetail, setAlertDetailState] = useState<Alert | null>(null)
+  const [residentDepartments, setResidentDepartments] = useState<
+    { department_id: string; label: string }[]
+  >([])
 
   // 🔹 Estados de paneles
   const [isSurveyPanelOpen, setSurveyPanelOpen] = useState(false)
@@ -53,6 +56,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
     setFeedbackPanelOpen(false)
     setInvitationPanelOpen(false)
     setPackagesPanelOpen(false)
+    setSelectedSurvey(null)
     closeAlertPanel()
   }, [closeAlertPanel])
 
@@ -65,6 +69,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
       setVisits([])
       setPackages([])
       setSurveys([])
+      setResidentDepartments([])
       setSelectedSurvey(null)
       setSelectedParcel(null)
       setAlertDetailState(null)
@@ -94,43 +99,67 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
 
   // 🔹 Encuestas
   const refreshSurveys = useCallback(async () => {
-    if (!id || !communityId) return
-    setLoadingSurveys(true)
-
-    const { data: userDepartments } = await supabase
-      .from('user_departments')
-      .select('department_id')
-      .eq('user_id', id)
-      .eq('community_id', communityId)
-
-    if (!userDepartments) {
-      setSurveys([])
-      setLoadingSurveys(false)
+    if (!id || !communityId) {
+      setResidentDepartments([])
       return
     }
+    setLoadingSurveys(true)
 
-    const departmentIds = userDepartments.map((d) => d.department_id)
-    const [{ data: surveysData }, { data: responses }] = await Promise.all([
-      supabase
-        .from('surveys')
-        .select('*, survey_questions(*)')
+    try {
+      const { data: userDepartments, error: departmentsError } = await supabase
+        .from('user_departments')
+        .select('department_id, department:department_id(number, name)')
+        .eq('user_id', id)
         .eq('community_id', communityId)
-        .eq('status', 'activa')
-        .gt('expires_at', toServerUTC(now())),
-      supabase
-        .from('survey_responses')
-        .select('survey_id, department_id')
-        .in('department_id', departmentIds),
-    ])
 
-    const respondedSurveyIds = new Set(responses?.map((r) => r.survey_id))
-    const enriched = (surveysData || []).map((s) => ({
-      ...s,
-      alreadyAnswered: respondedSurveyIds.has(s.id),
-    }))
+      if (departmentsError) {
+        console.error('Error al cargar departamentos del residente:', departmentsError)
+      }
 
-    setSurveys(enriched)
-    setLoadingSurveys(false)
+      if (!userDepartments) {
+        setSurveys([])
+        setResidentDepartments([])
+        return
+      }
+
+      const normalizedDepartments = userDepartments.map((row) => ({
+        department_id: String(row.department_id),
+        label:
+          (row as any)?.department?.number?.toString() ??
+          (row as any)?.department?.name?.toString() ??
+          `Departamento ${row.department_id}`,
+      }))
+
+      setResidentDepartments(normalizedDepartments)
+
+      const departmentIds = userDepartments.map((d) => d.department_id)
+      const [{ data: surveysData }, { data: responses }] = await Promise.all([
+        supabase
+          .from('surveys')
+          .select('*, survey_questions(*)')
+          .eq('community_id', communityId)
+          .eq('status', 'activa')
+          .gt('expires_at', toServerUTC(now())),
+        supabase
+          .from('survey_responses')
+          .select('survey_id, department_id')
+          .in('department_id', departmentIds),
+      ])
+
+      const respondedSurveyIds = new Set(responses?.map((r) => r.survey_id))
+      const enriched = (surveysData || []).map((s) => ({
+        ...s,
+        alreadyAnswered: respondedSurveyIds.has(s.id),
+      }))
+
+      setSurveys(enriched)
+    } catch (error) {
+      console.error('Error al cargar encuestas:', error)
+      setSurveys([])
+      setResidentDepartments([])
+    } finally {
+      setLoadingSurveys(false)
+    }
   }, [communityId, id])
 
   // 🔹 Alertas (API pública)
@@ -270,6 +299,32 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
     }
   }, [communityId, id])
 
+  const refreshAll = useCallback(async () => {
+    if (!id || !communityId) {
+      return
+    }
+
+    try {
+      await Promise.all([
+        fetchAlerts(),
+        fetchReservations(),
+        fetchVisits(),
+        fetchPackages(),
+        refreshSurveys(),
+      ])
+    } catch (error) {
+      console.error('Error al refrescar datos del residente:', error)
+    }
+  }, [
+    communityId,
+    fetchAlerts,
+    fetchPackages,
+    fetchReservations,
+    fetchVisits,
+    id,
+    refreshSurveys,
+  ])
+
   // 🔹 Cargar todo en montaje
   useEffect(() => {
     if (userLoading) return
@@ -279,28 +334,8 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
 
     if (!id || !communityId) return
 
-    const loadAll = () => {
-      fetchAlerts()
-      fetchReservations()
-      fetchVisits()
-      fetchPackages()
-      refreshSurveys()
-    }
-
-    loadAll()
-    const interval = setInterval(loadAll, 60000)
-    return () => clearInterval(interval)
-  }, [
-    userLoading,
-    id,
-    communityId,
-    fetchAlerts,
-    fetchReservations,
-    fetchVisits,
-    fetchPackages,
-    refreshSurveys,
-    resetCommunityData,
-  ])
+    refreshAll()
+  }, [communityId, id, refreshAll, resetCommunityData, userLoading])
 
   // ✅ Contexto
   return (
@@ -315,6 +350,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         selectedSurvey,
         selectedParcel,
         alertDetail,
+        residentDepartments,
 
         // 🔹 Estado de paneles
         isSurveyPanelOpen,
@@ -337,6 +373,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         fetchVisits,
         fetchPackages,
         refreshSurveys,
+        refreshAll,
         resetCommunityData,
 
         // 🔹 Control de paneles

@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient'
 import { MotiView } from 'moti'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { LayoutChangeEvent, ScrollView, StyleSheet, View } from 'react-native'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { LayoutChangeEvent, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useResidentContext } from '@/components/contexts/ResidentContext'
@@ -14,6 +14,7 @@ import NewsSlider from '@/components/resident/NewsSlider'
 import PackageSlider from '@/components/resident/PackageSlider'
 import QuickAccess from '@/components/resident/QuickAccess'
 import ReservationsSlider from '@/components/resident/ReservationsSlider'
+import SurveyPanel from '@/components/resident/SurveyPanel'
 import SurveysSlider from '@/components/resident/SurveysSlider'
 import UserMenuPanel from '@/components/resident/sidepanels/UserMenuPanel'
 import getReservationBannerStatus from '@/lib/getReservationsBannerStatus'
@@ -37,7 +38,7 @@ export default function ResidentDashboard() {
       shadowOpacity: progress ? 0.3 : 0,
     }
   })
-  const { reservations } = useResidentContext()
+  const { reservations, refreshAll } = useResidentContext()
 
   // Estado del banner de reserva (hoy / mañana / pasada)
   const { status, formattedDate } = getReservationBannerStatus(reservations)
@@ -46,6 +47,7 @@ export default function ResidentDashboard() {
   const insets = useSafeAreaInsets()
 
   const [sectionPositions, setSectionPositions] = useState<Record<string, number>>({})
+  const [refreshing, setRefreshing] = useState(false)
 
   const registerSection = (sectionId: string) => ({ nativeEvent }: LayoutChangeEvent) => {
     setSectionPositions((prev) => ({
@@ -60,6 +62,15 @@ export default function ResidentDashboard() {
       scrollViewRef.current.scrollTo({ y: Math.max(0, y - 32), animated: true })
     }
   }
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      await refreshAll()
+    } finally {
+      setRefreshing(false)
+    }
+  }, [refreshAll])
 
   const contentPaddingBottom = useMemo(() => insets.bottom + 160, [insets.bottom])
 
@@ -80,6 +91,14 @@ export default function ResidentDashboard() {
                 paddingTop: 24,
               }}
               style={{backgroundColor: '#FFFFFF'}}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={handleRefresh}
+                  colors={['#7C3AED']}
+                  tintColor="#7C3AED"
+                />
+              }
             >
               {/* Header */}
               <View style={[styles.sectionWrapper, styles.sectionHeader]}>
@@ -190,6 +209,7 @@ export default function ResidentDashboard() {
           onClose={() => setIsMenuOpen(false)}
           progress={menuProgress}
         />
+        <SurveyPanel />
         <FeedbackPanel />
     </SafeAreaView>
   )
