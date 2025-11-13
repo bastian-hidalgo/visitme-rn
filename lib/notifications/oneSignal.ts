@@ -197,11 +197,11 @@ export const syncOneSignalEmail = async (email: string | null) => {
     }
 
     if (normalizedEmail) {
-      await OneSignal.User.addEmail(normalizedEmail)
+      await OneSignal.User?.addEmail?.(normalizedEmail)
       lastSyncedEmail = normalizedEmail
       console.log(`[OneSignal] Email sincronizado: ${email}`)
-    } else {
-      await OneSignal.User.removeEmail(lastSyncedEmail ?? undefined)
+    } else if (lastSyncedEmail) {
+      await OneSignal.User?.removeEmail?.(lastSyncedEmail)
       lastSyncedEmail = null
       console.log('[OneSignal] Email removido de OneSignal')
     }
@@ -211,15 +211,46 @@ export const syncOneSignalEmail = async (email: string | null) => {
 }
 
 // Sincroniza tags personalizados (por ejemplo rol, comunidad, etc.)
-export const syncOneSignalTags = (tags: Record<string, string | number | boolean>) => {
+let lastSyncedTags: Record<string, string> = {}
+
+export const syncOneSignalTags = async (
+  tags: Record<string, string | number | boolean>
+) => {
   const oneSignal = getOneSignal()
   if (!oneSignal) return
 
   try {
-    for (const [key, value] of Object.entries(tags)) {
-      OneSignal.User.addTag(key, String(value))
-    }
-    console.log('[OneSignal] Tags sincronizados:', tags)
+    const normalizedEntries = Object.entries(tags).reduce<Record<string, string>>(
+      (acc, [key, value]) => {
+        acc[key] = String(value)
+        return acc
+      },
+      {}
+    )
+
+    const keysToRemove = Object.keys(lastSyncedTags).filter(
+      key => !(key in normalizedEntries)
+    )
+
+    await Promise.all(
+      keysToRemove.map(async key => {
+        try {
+          await OneSignal.User?.removeTag?.(key)
+        } catch (error) {
+          console.error(`[OneSignal] Error al remover tag ${key}:`, error)
+        }
+      })
+    )
+
+    await Promise.all(
+      Object.entries(normalizedEntries).map(async ([key, value]) => {
+        if (lastSyncedTags[key] === value) return
+        await OneSignal.User?.addTag?.(key, value)
+      })
+    )
+
+    lastSyncedTags = normalizedEntries
+    console.log('[OneSignal] Tags sincronizados:', normalizedEntries)
   } catch (error) {
     console.error('[OneSignal] Error al sincronizar tags:', error)
   }
