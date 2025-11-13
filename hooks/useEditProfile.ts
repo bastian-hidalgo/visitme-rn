@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert } from 'react-native'
 import type { ImageOrVideo } from 'react-native-image-crop-picker'
 import ImagePicker from 'react-native-image-crop-picker'
@@ -7,7 +7,7 @@ import Toast from 'react-native-toast-message'
 
 import { updateOwnProfile } from '@/lib/api/users'
 import { decodeBase64ToArrayBuffer } from '@/lib/base64'
-import { promptForPushPermission } from '@/lib/notifications/oneSignal'
+import { promptForPushPermission, updatePushSubscription } from '@/lib/notifications/oneSignal'
 import { supabase } from '@/lib/supabase'
 import { dayjs, now } from '@/lib/time'
 import { useUser } from '@/providers/user-provider'
@@ -26,7 +26,6 @@ export function useEditProfile() {
     setUserData,
   } = useUser()
 
-  const initialAcceptsRef = useRef(initialAccepts ?? true)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [birthday, setBirthday] = useState<string | null>(null)
@@ -42,7 +41,6 @@ export function useEditProfile() {
     setPhone(initialPhone || '')
     setBirthday(initialBirthday || null)
     setAcceptsNotifications(initialAccepts ?? true)
-    initialAcceptsRef.current = initialAccepts ?? true
     setSelectedAvatar(null)
     setInitializing(false)
   }, [loading, initialName, initialPhone, initialBirthday, initialAccepts])
@@ -139,18 +137,9 @@ export function useEditProfile() {
       Toast.show({ type: 'success', text1: 'Perfil actualizado' })
       setSelectedAvatar(null)
 
-      const previousAccepts = initialAcceptsRef.current
-      initialAcceptsRef.current = acceptsNotifications
-
-      if (id) {
+      if (id && !acceptsNotifications) {
         const promptKey = `onesignal_prompted_${id}`
-        if (acceptsNotifications && !previousAccepts) {
-          await AsyncStorage.removeItem(promptKey)
-          const granted = await promptForPushPermission()
-          await AsyncStorage.setItem(promptKey, granted ? 'granted' : 'denied')
-        } else if (!acceptsNotifications && previousAccepts) {
-          await AsyncStorage.removeItem(promptKey)
-        }
+        await AsyncStorage.removeItem(promptKey)
       }
 
       return true
@@ -163,9 +152,51 @@ export function useEditProfile() {
     }
   }, [id, avatarUrl, selectedAvatar, birthday, name, phone, acceptsNotifications, setUserData])
 
-  const toggleNotifications = useCallback(() => {
-    setAcceptsNotifications(prev => !prev)
-  }, [])
+  const toggleNotifications = useCallback(
+    (nextValue: boolean) => {
+      setAcceptsNotifications(nextValue)
+
+      if (!id) return
+
+      const promptKey = `onesignal_prompted_${id}`
+
+      void (async () => {
+        try {
+          if (nextValue) {
+            await AsyncStorage.removeItem(promptKey)
+            const granted = await promptForPushPermission()
+            await AsyncStorage.setItem(promptKey, granted ? 'granted' : 'denied')
+
+            if (!granted) {
+              setAcceptsNotifications(false)
+              Toast.show({
+                type: 'info',
+                text1: 'Para recibir notificaciones, actívalas desde ajustes.',
+              })
+              updatePushSubscription(false)
+              return
+            }
+
+            updatePushSubscription(true)
+          } else {
+            await AsyncStorage.removeItem(promptKey)
+            updatePushSubscription(false)
+          }
+        } catch (error) {
+          console.error('[useEditProfile] toggleNotifications error', error)
+          Toast.show({
+            type: 'error',
+            text1: 'No pudimos actualizar tus notificaciones.',
+          })
+          setAcceptsNotifications(current => {
+            if (current !== nextValue) return current
+            return !nextValue
+          })
+        }
+      })()
+    },
+    [id]
+  )
 
   const handleBirthdayChange = useCallback((date: Date | undefined) => {
     if (!date) return
