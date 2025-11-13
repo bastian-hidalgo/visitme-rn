@@ -27,6 +27,11 @@ type OneSignalModule = {
   }
 }
 
+type LoginPayload = {
+  email?: string | null
+  userId?: string | null
+}
+
 const warnOnce = (() => {
   const messages = new Set<string>()
 
@@ -94,16 +99,19 @@ export const initializeOneSignal = () => {
 }
 
 // Inicia sesión con un usuario (para segmentar notificaciones)
-export const loginOneSignalUser = (userId: string | null) => {
+export const loginOneSignalUser = (payload: LoginPayload | null) => {
   if (!initialized) initializeOneSignal()
 
   const oneSignal = getOneSignal()
   if (!oneSignal) return
 
   try {
-    if (userId) {
-      oneSignal.login?.(userId)
-      console.log(`[OneSignal] Usuario logueado: ${userId}`)
+    const email = payload?.email?.trim() || null
+    const identifier = email?.toLowerCase() || payload?.userId || null
+
+    if (identifier) {
+      oneSignal.login?.(identifier)
+      console.log(`[OneSignal] Usuario logueado: ${identifier}`)
     } else {
       oneSignal.logout?.()
       console.log('[OneSignal] Usuario deslogueado')
@@ -170,18 +178,31 @@ export const logoutOneSignalUser = () => {
   }
 
   loginOneSignalUser(null)
+  void syncOneSignalEmail(null)
 }
 
-export const syncOneSignalEmail = (email: string | null) => {
+let lastSyncedEmail: string | null = null
+
+export const syncOneSignalEmail = async (email: string | null) => {
+  if (!initialized) initializeOneSignal()
+
   const oneSignal = getOneSignal()
   if (!oneSignal) return
 
   try {
-    if (email) {
-      OneSignal.User.addEmail(email)
+    const normalizedEmail = email?.trim().toLowerCase() || null
+
+    if (lastSyncedEmail === normalizedEmail) {
+      return
+    }
+
+    if (normalizedEmail) {
+      await OneSignal.User?.addEmail?.(normalizedEmail)
+      lastSyncedEmail = normalizedEmail
       console.log(`[OneSignal] Email sincronizado: ${email}`)
-    } else {
-      OneSignal.User.removeEmail()
+    } else if (lastSyncedEmail) {
+      await OneSignal.User?.removeEmail?.(lastSyncedEmail)
+      lastSyncedEmail = null
       console.log('[OneSignal] Email removido de OneSignal')
     }
   } catch (error) {
@@ -190,15 +211,46 @@ export const syncOneSignalEmail = (email: string | null) => {
 }
 
 // Sincroniza tags personalizados (por ejemplo rol, comunidad, etc.)
-export const syncOneSignalTags = (tags: Record<string, string | number | boolean>) => {
+let lastSyncedTags: Record<string, string> = {}
+
+export const syncOneSignalTags = async (
+  tags: Record<string, string | number | boolean>
+) => {
   const oneSignal = getOneSignal()
   if (!oneSignal) return
 
   try {
-    for (const [key, value] of Object.entries(tags)) {
-      OneSignal.User.addTag(key, String(value))
-    }
-    console.log('[OneSignal] Tags sincronizados:', tags)
+    const normalizedEntries = Object.entries(tags).reduce<Record<string, string>>(
+      (acc, [key, value]) => {
+        acc[key] = String(value)
+        return acc
+      },
+      {}
+    )
+
+    const keysToRemove = Object.keys(lastSyncedTags).filter(
+      key => !(key in normalizedEntries)
+    )
+
+    await Promise.all(
+      keysToRemove.map(async key => {
+        try {
+          await OneSignal.User?.removeTag?.(key)
+        } catch (error) {
+          console.error(`[OneSignal] Error al remover tag ${key}:`, error)
+        }
+      })
+    )
+
+    await Promise.all(
+      Object.entries(normalizedEntries).map(async ([key, value]) => {
+        if (lastSyncedTags[key] === value) return
+        await OneSignal.User?.addTag?.(key, value)
+      })
+    )
+
+    lastSyncedTags = normalizedEntries
+    console.log('[OneSignal] Tags sincronizados:', normalizedEntries)
   } catch (error) {
     console.error('[OneSignal] Error al sincronizar tags:', error)
   }
