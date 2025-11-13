@@ -5,7 +5,7 @@ import type { Alert } from '@/types/alert'
 import type { Parcel } from '@/types/parcel'
 import type { Reservation } from '@/types/reservation'
 import type { ResidentContextType } from '@/types/resident'
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
 
 const ResidentContext = createContext<ResidentContextType | undefined>(undefined)
 
@@ -100,39 +100,73 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   // 🔹 Encuestas
   const refreshSurveys = useCallback(async () => {
     if (!id || !communityId) {
+      setSurveys([])
       setResidentDepartments([])
       return
     }
+
     setLoadingSurveys(true)
 
     try {
-      const { data: userDepartments, error: departmentsError } = await supabase
-        .from('user_departments')
-        .select('department_id, department:department_id(number, name)')
+      // 1) Validar que el communityId actual SI pertenezca al usuario
+      const { data: validCommunities, error: vcError } = await supabase
+        .from('user_communities')
+        .select('community_id')
         .eq('user_id', id)
-        .eq('community_id', communityId)
 
-      if (departmentsError) {
-        console.error('Error al cargar departamentos del residente:', departmentsError)
-      }
-
-      if (!userDepartments) {
+      if (vcError) {
+        console.error("Error validando comunidades del usuario:", vcError)
         setSurveys([])
         setResidentDepartments([])
         return
       }
 
-      const normalizedDepartments = userDepartments.map((row) => ({
-        department_id: String(row.department_id),
-        label:
-          (row as any)?.department?.number?.toString() ??
-          (row as any)?.department?.name?.toString() ??
-          `Departamento ${row.department_id}`,
+      const validCommunityIds = validCommunities?.map(c => c.community_id) ?? []
+      const isValidCommunity = validCommunityIds.includes(communityId)
+
+      if (!isValidCommunity) {
+        console.warn("communityId inválido para este usuario:", communityId)
+        setSurveys([])
+        setResidentDepartments([])
+        return
+      }
+
+      // 2) Obtener departments del usuario para esta comunidad
+      const { data: userDepartments, error: userDepsError } = await supabase
+        .from('user_departments')
+        .select('department_id')
+        .eq('user_id', id)
+        .eq('community_id', communityId)
+        .eq('active', true)
+
+      if (userDepsError) {
+        console.error("Error al cargar departamentos del residente:", userDepsError)
+        setSurveys([])
+        return
+      }
+
+      if (!userDepartments || userDepartments.length === 0) {
+        setSurveys([])
+        setResidentDepartments([])
+        return
+      }
+
+      const departmentIds = userDepartments.map(d => d.department_id)
+
+      // 3) Obtener detalles de los departamentos con una segunda query
+      const { data: departmentDetails } = await supabase
+        .from('departments')
+        .select('id, name, number')
+        .in('id', departmentIds)
+
+      const normalizedDepartments = (departmentDetails || []).map((dep) => ({
+        department_id: dep.id,
+        label: dep.number?.toString() ?? dep.name ?? `Departamento ${dep.id}`,
       }))
 
       setResidentDepartments(normalizedDepartments)
 
-      const departmentIds = userDepartments.map((d) => d.department_id)
+      // 4) Obtener encuestas de la comunidad actual
       const [{ data: surveysData }, { data: responses }] = await Promise.all([
         supabase
           .from('surveys')
@@ -140,6 +174,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
           .eq('community_id', communityId)
           .eq('status', 'activa')
           .gt('expires_at', toServerUTC(now())),
+
         supabase
           .from('survey_responses')
           .select('survey_id, department_id')
@@ -147,20 +182,24 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
       ])
 
       const respondedSurveyIds = new Set(responses?.map((r) => r.survey_id))
+
       const enriched = (surveysData || []).map((s) => ({
         ...s,
         alreadyAnswered: respondedSurveyIds.has(s.id),
       }))
 
       setSurveys(enriched)
+
     } catch (error) {
-      console.error('Error al cargar encuestas:', error)
+      console.error("Error al cargar encuestas:", error)
       setSurveys([])
       setResidentDepartments([])
     } finally {
       setLoadingSurveys(false)
     }
+
   }, [communityId, id])
+
 
   // 🔹 Alertas (API pública)
   const fetchAlerts = useCallback(async () => {
