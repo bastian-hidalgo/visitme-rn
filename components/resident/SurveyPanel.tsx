@@ -1,16 +1,18 @@
 import { useResidentContext } from '@/components/contexts/ResidentContext'
-import { formatDateLogical } from '@/lib/time'
 import { supabase } from '@/lib/supabase'
+import { formatDateLogical } from '@/lib/time'
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
   BottomSheetScrollView,
   type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet'
+
 import { X } from 'lucide-react-native'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Pressable,
   StyleSheet,
   Text,
@@ -34,24 +36,15 @@ const YES_NO_OPTIONS = ['Sí', 'No']
 const parseOptions = (raw: unknown): string[] => {
   if (!raw) return []
 
-  if (Array.isArray(raw)) {
-    return raw.map((value) => String(value))
-  }
+  if (Array.isArray(raw)) return raw.map(String)
 
   if (typeof raw === 'string') {
     try {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) {
-        return parsed.map((value) => String(value))
-      }
-    } catch {
-      // noop -> fallback to splitting below
-    }
+      if (Array.isArray(parsed)) return parsed.map(String)
+    } catch {}
 
-    return raw
-      .split('|')
-      .map((value) => value.trim())
-      .filter((value) => value.length > 0)
+    return raw.split('|').map((v) => v.trim()).filter(Boolean)
   }
 
   return []
@@ -76,17 +69,13 @@ export default function SurveyPanel() {
 
   const hasMultipleDepartments = residentDepartments.length > 1
 
+  // abrir/cerrar modal
   useEffect(() => {
-    const sheet = bottomSheetRef.current
-    if (!sheet) return
-
-    if (isSurveyPanelOpen) {
-      sheet.present()
-    } else {
-      sheet.dismiss()
-    }
+    if (!bottomSheetRef.current) return
+    isSurveyPanelOpen ? bottomSheetRef.current.present() : bottomSheetRef.current.dismiss()
   }, [isSurveyPanelOpen])
 
+  // set de departamento inicial
   useEffect(() => {
     if (!isSurveyPanelOpen) return
 
@@ -100,24 +89,20 @@ export default function SurveyPanel() {
       return
     }
 
-    setSelectedDepartmentId((current) => {
-      if (
-        current &&
-        residentDepartments.some((department) => department.department_id === current)
-      ) {
-        return current
-      }
-      return residentDepartments[0].department_id
-    })
+    setSelectedDepartmentId((current) =>
+      current &&
+      residentDepartments.some((d) => d.department_id === current)
+        ? current
+        : residentDepartments[0].department_id
+    )
   }, [isSurveyPanelOpen, residentDepartments])
 
+  // reset en apertura/cierre
   useEffect(() => {
     if (!isSurveyPanelOpen) {
       setAnswers({})
       setSubmitting(false)
-      if (residentDepartments.length !== 1) {
-        setSelectedDepartmentId(null)
-      }
+      if (residentDepartments.length !== 1) setSelectedDepartmentId(null)
     } else {
       setAnswers({})
       setSubmitting(false)
@@ -143,8 +128,7 @@ export default function SurveyPanel() {
   )
 
   const handleChange = useCallback((questionId: string | number, value: string) => {
-    const key = String(questionId)
-    setAnswers((prev) => ({ ...prev, [key]: value }))
+    setAnswers((prev) => ({ ...prev, [String(questionId)]: value }))
   }, [])
 
   const handleSelectDepartment = useCallback((departmentId: string) => {
@@ -155,44 +139,27 @@ export default function SurveyPanel() {
     if (!selectedSurvey) return
 
     if (!selectedDepartmentId) {
-      Toast.show({
-        type: 'info',
-        text1: 'Selecciona un departamento para responder la encuesta.',
-      })
+      Toast.show({ type: 'info', text1: 'Selecciona un departamento.' })
       return
     }
 
     if (selectedSurvey.alreadyAnswered) {
-      Toast.show({
-        type: 'info',
-        text1: 'Este departamento ya respondió esta encuesta.',
-      })
+      Toast.show({ type: 'info', text1: 'Este departamento ya respondió esta encuesta.' })
       return
     }
 
-    const questions = Array.isArray(selectedSurvey.survey_questions)
+    const questions: SurveyQuestion[] = Array.isArray(selectedSurvey.survey_questions)
       ? selectedSurvey.survey_questions
       : []
 
     if (!questions.length) {
-      Toast.show({
-        type: 'info',
-        text1: 'Esta encuesta no tiene preguntas disponibles por ahora.',
-      })
+      Toast.show({ type: 'info', text1: 'La encuesta no tiene preguntas.' })
       return
     }
 
-    const hasMissingRequired = questions.some((question) => {
-      if (!question?.is_required) return false
-      const key = String(question.id)
-      return !answers[key]
-    })
-
-    if (hasMissingRequired) {
-      Toast.show({
-        type: 'info',
-        text1: 'Responde todas las preguntas obligatorias.',
-      })
+    const missing = questions.some((q) => q.is_required && !answers[String(q.id)])
+    if (missing) {
+      Toast.show({ type: 'info', text1: 'Responde todas las preguntas obligatorias.' })
       return
     }
 
@@ -207,14 +174,11 @@ export default function SurveyPanel() {
       }))
 
       const { error } = await supabase.from('survey_responses').insert(entries)
-      if (error) {
-        throw error
-      }
+      if (error) throw error
 
       Toast.show({
         type: 'success',
         text1: '¡Gracias por participar!',
-        text2: 'Tus respuestas fueron enviadas correctamente.',
       })
 
       await refreshSurveys()
@@ -224,7 +188,6 @@ export default function SurveyPanel() {
       Toast.show({
         type: 'error',
         text1: 'No pudimos enviar tus respuestas.',
-        text2: 'Inténtalo nuevamente en unos minutos.',
       })
     } finally {
       setSubmitting(false)
@@ -237,11 +200,8 @@ export default function SurveyPanel() {
     selectedSurvey,
   ])
 
-  const questions = useMemo(() => {
-    if (!selectedSurvey || !Array.isArray(selectedSurvey.survey_questions)) {
-      return []
-    }
-
+  const questions = useMemo<SurveyQuestion[]>(() => {
+    if (!selectedSurvey?.survey_questions) return []
     return selectedSurvey.survey_questions as SurveyQuestion[]
   }, [selectedSurvey])
 
@@ -260,200 +220,178 @@ export default function SurveyPanel() {
       handleIndicatorStyle={styles.handleIndicator}
       backgroundStyle={styles.sheetBackground}
     >
-      <BottomSheetScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>Responder encuesta</Text>
-            {selectedSurvey?.title ? (
-              <Text style={styles.surveyTitle}>{selectedSurvey.title}</Text>
-            ) : null}
-            {selectedSurvey?.description ? (
-              <Text style={styles.surveyDescription}>{selectedSurvey.description}</Text>
-            ) : null}
-            {expiresAtLabel ? (
-              <Text style={styles.surveyMeta}>Vigente hasta: {expiresAtLabel}</Text>
-            ) : null}
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            onPress={closePanels}
-            hitSlop={12}
-            style={styles.closeButton}
-          >
-            <X size={18} color="#1F2937" />
-          </Pressable>
-        </View>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+        <BottomSheetScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* HEADER */}
+          <View style={styles.header}>
+            <View style={styles.headerText}>
+              <Text style={styles.headerTitle}>Responder encuesta</Text>
 
-        {loadingSurveys ? (
-          <View style={styles.loader}>
-            <ActivityIndicator size="small" color="#6D28D9" />
-            <Text style={styles.loaderText}>Cargando encuesta...</Text>
-          </View>
-        ) : null}
+              {selectedSurvey?.title && (
+                <Text style={styles.surveyTitle}>{selectedSurvey.title}</Text>
+              )}
 
-        {!loadingSurveys && !selectedSurvey ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No se encontró la encuesta seleccionada.</Text>
-          </View>
-        ) : null}
+              {selectedSurvey?.description && (
+                <Text style={styles.surveyDescription}>{selectedSurvey.description}</Text>
+              )}
 
-        {!loadingSurveys && selectedSurvey ? (
-          <View style={styles.body}>
-            {hasMultipleDepartments ? (
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Responder desde el departamento</Text>
-                <View style={styles.departmentGrid}>
-                  {residentDepartments.map((department) => {
-                    const isSelected = department.department_id === selectedDepartmentId
-                    return (
-                      <Pressable
-                        key={department.department_id}
-                        onPress={() => handleSelectDepartment(department.department_id)}
-                        style={[
-                          styles.departmentChip,
-                          isSelected && styles.departmentChipActive,
-                        ]}
-                      >
-                        <Text
+              {expiresAtLabel && (
+                <Text style={styles.surveyMeta}>Vigente hasta: {expiresAtLabel}</Text>
+              )}
+            </View>
+
+            <Pressable onPress={closePanels} style={styles.closeButton}>
+              <X size={18} color="#1F2937" />
+            </Pressable>
+          </View>
+
+          {loadingSurveys && (
+            <View style={styles.loader}>
+              <ActivityIndicator size="small" color="#6D28D9" />
+              <Text style={styles.loaderText}>Cargando encuesta...</Text>
+            </View>
+          )}
+
+          {!loadingSurveys && selectedSurvey && (
+            <View style={styles.body}>
+              {/* Selección de departamento */}
+              {hasMultipleDepartments && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Responder desde el departamento</Text>
+
+                  <View style={styles.departmentGrid}>
+                    {residentDepartments.map((d) => {
+                      const selected = d.department_id === selectedDepartmentId
+                      return (
+                        <Pressable
+                          key={d.department_id}
+                          onPress={() => handleSelectDepartment(d.department_id)}
                           style={[
-                            styles.departmentLabel,
-                            isSelected && styles.departmentLabelActive,
+                            styles.departmentChip,
+                            selected && styles.departmentChipActive,
                           ]}
                         >
-                          {department.label}
-                        </Text>
-                      </Pressable>
-                    )
-                  })}
+                          <Text
+                            style={[
+                              styles.departmentLabel,
+                              selected && styles.departmentLabelActive,
+                            ]}
+                          >
+                            {d.label}
+                          </Text>
+                        </Pressable>
+                      )
+                    })}
+                  </View>
                 </View>
-              </View>
-            ) : null}
+              )}
 
-            {!hasMultipleDepartments && residentDepartments.length === 1 ? (
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Respondiendo desde</Text>
-                <View style={styles.singleDepartment}>
-                  <Text style={styles.singleDepartmentText}>
-                    {residentDepartments[0]?.label ?? 'Departamento asignado'}
+              {selectedSurvey.alreadyAnswered && (
+                <View style={styles.alertBox}>
+                  <Text style={styles.alertTitle}>Encuesta respondida</Text>
+                  <Text style={styles.alertDescription}>
+                    Este departamento ya respondió esta encuesta.
                   </Text>
                 </View>
-              </View>
-            ) : null}
+              )}
 
-            {selectedSurvey.alreadyAnswered ? (
-              <View style={styles.alertBox}>
-                <Text style={styles.alertTitle}>Encuesta respondida</Text>
-                <Text style={styles.alertDescription}>
-                  Este departamento ya respondió esta encuesta. ¡Gracias por participar!
-                </Text>
-              </View>
-            ) : null}
+              {/* PREGUNTAS */}
+              {questions.map((question, index) => {
+                const key = String(question.id)
+                const selected = answers[key] ?? ''
+                const disabled = submitting || selectedSurvey.alreadyAnswered
 
-            {questions.map((question, index) => {
-              const key = String(question.id)
-              const selectedValue = answers[key] ?? ''
-              const isDisabled = submitting || Boolean(selectedSurvey?.alreadyAnswered)
-
-              const renderChoices = (options: string[]) => (
-                <View style={styles.optionGroup}>
-                  {options.map((option) => {
-                    const isSelected = selectedValue === option
-                    return (
-                      <Pressable
-                        key={option}
-                        onPress={() => !isDisabled && handleChange(question.id, option)}
-                        style={[
-                          styles.option,
-                          isSelected && styles.optionActive,
-                          isDisabled && styles.optionDisabled,
-                        ]}
-                      >
-                        <Text
+                const renderChoices = (options: string[]) => (
+                  <View style={styles.optionGroup}>
+                    {options.map((opt) => {
+                      const isSelected = selected === opt
+                      return (
+                        <Pressable
+                          key={opt}
+                          onPress={() => !disabled && handleChange(question.id, opt)}
                           style={[
-                            styles.optionLabel,
-                            isSelected && styles.optionLabelActive,
-                            isDisabled && styles.optionLabelDisabled,
+                            styles.option,
+                            isSelected && styles.optionActive,
+                            disabled && styles.optionDisabled,
                           ]}
                         >
-                          {option}
-                        </Text>
-                      </Pressable>
-                    )
-                  })}
-                </View>
-              )
+                          <Text
+                            style={[
+                              styles.optionLabel,
+                              isSelected && styles.optionLabelActive,
+                              disabled && styles.optionLabelDisabled,
+                            ]}
+                          >
+                            {opt}
+                          </Text>
+                        </Pressable>
+                      )
+                    })}
+                  </View>
+                )
 
-              const renderInput = () => {
-                if (question.type === 'yes_no') {
-                  return renderChoices(YES_NO_OPTIONS)
-                }
+                const renderInput = () => {
+                  if (question.type === 'yes_no') return renderChoices(YES_NO_OPTIONS)
+                  if (question.type === 'multiple')
+                    return renderChoices(parseOptions(question.options))
 
-                if (question.type === 'multiple') {
-                  return renderChoices(parseOptions(question.options))
+                  return (
+                    <TextInput
+                      value={selected}
+                      onChangeText={(value) => handleChange(question.id, value)}
+                      editable={!disabled}
+                      multiline
+                      numberOfLines={4}
+                      placeholder="Tu respuesta..."
+                      placeholderTextColor="#9CA3AF"
+                      onFocus={() => bottomSheetRef.current?.expand()}
+                      style={[
+                        styles.textArea,
+                        disabled && styles.textAreaDisabled,
+                      ]}
+                    />
+                  )
                 }
 
                 return (
-                  <TextInput
-                    value={selectedValue}
-                    onChangeText={(value) => handleChange(question.id, value)}
-                    editable={!isDisabled}
-                    multiline
-                    numberOfLines={4}
-                    placeholder="Tu respuesta..."
-                    placeholderTextColor="#9CA3AF"
-                    style={[styles.textArea, isDisabled && styles.textAreaDisabled]}
-                    textAlignVertical="top"
-                  />
-                )
-              }
+                  <View key={key} style={styles.questionCard}>
+                    <View style={styles.questionHeader}>
+                      <Text style={styles.questionIndex}>{index + 1}.</Text>
+                      <Text style={styles.questionText}>{question.question}</Text>
+                      {question.is_required && (
+                        <Text style={styles.requiredBadge}>*</Text>
+                      )}
+                    </View>
 
-              return (
-                <View key={key} style={styles.questionCard}>
-                  <View style={styles.questionHeader}>
-                    <Text style={styles.questionIndex}>{index + 1}.</Text>
-                    <Text style={styles.questionText}>{question.question}</Text>
-                    {question.is_required ? (
-                      <Text style={styles.requiredBadge}>*</Text>
-                    ) : null}
+                    {renderInput()}
                   </View>
+                )
+              })}
 
-                  {renderInput()}
-                </View>
-              )
-            })}
-
-            {!questions.length ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>Esta encuesta no tiene preguntas configuradas.</Text>
-              </View>
-            ) : null}
-
-            <Pressable
-              disabled={
-                submitting ||
-                Boolean(selectedSurvey.alreadyAnswered) ||
-                !questions.length
-              }
-              onPress={handleSubmit}
-              style={[
-                styles.submitButton,
-                (submitting ||
-                  selectedSurvey.alreadyAnswered ||
-                  !questions.length) && styles.submitButtonDisabled,
-              ]}
-            >
-              {submitting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.submitButtonText}>Enviar respuestas</Text>
-              )}
-            </Pressable>
-          </View>
-        ) : null}
-      </BottomSheetScrollView>
+              {/* BOTÓN ENVIAR */}
+              <Pressable
+                disabled={submitting || selectedSurvey.alreadyAnswered || !questions.length}
+                onPress={handleSubmit}
+                style={[
+                  styles.submitButton,
+                  (submitting || selectedSurvey.alreadyAnswered) &&
+                    styles.submitButtonDisabled,
+                ]}
+              >
+                {submitting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Enviar respuestas</Text>
+                )}
+              </Pressable>
+            </View>
+          )}
+        </BottomSheetScrollView>
+      </KeyboardAvoidingView>
     </BottomSheetModal>
   )
 }
@@ -518,16 +456,6 @@ const styles = StyleSheet.create({
   loaderText: {
     fontSize: 14,
     color: '#4B5563',
-  },
-  emptyState: {
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: '#F9FAFB',
-  },
-  emptyStateText: {
-    textAlign: 'center',
-    fontSize: 14,
-    color: '#6B7280',
   },
   body: {
     gap: 20,
@@ -647,6 +575,7 @@ const styles = StyleSheet.create({
   },
   textArea: {
     minHeight: 120,
+    textAlignVertical: 'top',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 16,

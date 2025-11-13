@@ -131,40 +131,38 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         return
       }
 
-      // 2) Obtener departments del usuario para esta comunidad
-      const { data: userDepartments, error: userDepsError } = await supabase
-        .from('user_departments')
-        .select('department_id')
-        .eq('user_id', id)
+      // 2) Obtener departamentos activos del usuario usando la view
+      const { data: deptRows, error: deptError } = await supabase
+        .from('users_with_departments')
+        .select('department_id, department_number')
+        .eq('id', id)
         .eq('community_id', communityId)
-        .eq('active', true)
 
-      if (userDepsError) {
-        console.error("Error al cargar departamentos del residente:", userDepsError)
-        setSurveys([])
-        return
-      }
-
-      if (!userDepartments || userDepartments.length === 0) {
+      if (deptError) {
+        console.error("Error al cargar departamentos del residente:", deptError)
         setSurveys([])
         setResidentDepartments([])
         return
       }
 
-      const departmentIds = userDepartments.map(d => d.department_id)
+      if (!deptRows || deptRows.length === 0) {
+        setSurveys([])
+        setResidentDepartments([])
+        return
+      }
 
-      // 3) Obtener detalles de los departamentos con una segunda query
-      const { data: departmentDetails } = await supabase
-        .from('departments')
-        .select('id, name, number')
-        .in('id', departmentIds)
-
-      const normalizedDepartments = (departmentDetails || []).map((dep) => ({
-        department_id: dep.id,
-        label: dep.number?.toString() ?? dep.name ?? `Departamento ${dep.id}`,
+      const normalizedDepartments = deptRows.map(row => ({
+        department_id: row.department_id,
+        label: row.department_number
+          ? `Depto ${row.department_number}`
+          : `Departamento ${row.department_id}`,
       }))
 
       setResidentDepartments(normalizedDepartments)
+
+      const departmentIds = deptRows.map(row => row.department_id)
+
+
 
       // 4) Obtener encuestas de la comunidad actual
       const [{ data: surveysData }, { data: responses }] = await Promise.all([
@@ -188,7 +186,9 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         alreadyAnswered: respondedSurveyIds.has(s.id),
       }))
 
-      setSurveys(enriched)
+      setSurveys(
+        enriched.filter((s) => !s.alreadyAnswered)
+      )
 
     } catch (error) {
       console.error("Error al cargar encuestas:", error)
