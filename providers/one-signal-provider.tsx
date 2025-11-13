@@ -22,12 +22,14 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (loading) return
 
-    if (id) {
-      loginOneSignalUser(id)
+    if (email) {
+      loginOneSignalUser({ email, userId: id })
+    } else if (id) {
+      loginOneSignalUser({ userId: id })
     } else {
       loginOneSignalUser(null)
     }
-  }, [id, loading])
+  }, [email, id, loading])
 
   useEffect(() => {
     if (loading) return
@@ -62,7 +64,11 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (loading || !id) return
 
-    if (email) syncOneSignalEmail(email)
+    if (acceptsNotifications && email) {
+      void syncOneSignalEmail(email)
+    } else if (!acceptsNotifications || !email) {
+      void syncOneSignalEmail(null)
+    }
 
     syncOneSignalTags({
       role: role || 'unknown',

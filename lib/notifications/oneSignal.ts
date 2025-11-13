@@ -27,6 +27,11 @@ type OneSignalModule = {
   }
 }
 
+type LoginPayload = {
+  email?: string | null
+  userId?: string | null
+}
+
 const warnOnce = (() => {
   const messages = new Set<string>()
 
@@ -94,16 +99,19 @@ export const initializeOneSignal = () => {
 }
 
 // Inicia sesión con un usuario (para segmentar notificaciones)
-export const loginOneSignalUser = (userId: string | null) => {
+export const loginOneSignalUser = (payload: LoginPayload | null) => {
   if (!initialized) initializeOneSignal()
 
   const oneSignal = getOneSignal()
   if (!oneSignal) return
 
   try {
-    if (userId) {
-      oneSignal.login?.(userId)
-      console.log(`[OneSignal] Usuario logueado: ${userId}`)
+    const email = payload?.email?.trim() || null
+    const identifier = email?.toLowerCase() || payload?.userId || null
+
+    if (identifier) {
+      oneSignal.login?.(identifier)
+      console.log(`[OneSignal] Usuario logueado: ${identifier}`)
     } else {
       oneSignal.logout?.()
       console.log('[OneSignal] Usuario deslogueado')
@@ -170,18 +178,31 @@ export const logoutOneSignalUser = () => {
   }
 
   loginOneSignalUser(null)
+  void syncOneSignalEmail(null)
 }
 
-export const syncOneSignalEmail = (email: string | null) => {
+let lastSyncedEmail: string | null = null
+
+export const syncOneSignalEmail = async (email: string | null) => {
+  if (!initialized) initializeOneSignal()
+
   const oneSignal = getOneSignal()
   if (!oneSignal) return
 
   try {
-    if (email) {
-      OneSignal.User.addEmail(email)
+    const normalizedEmail = email?.trim().toLowerCase() || null
+
+    if (lastSyncedEmail === normalizedEmail) {
+      return
+    }
+
+    if (normalizedEmail) {
+      await OneSignal.User.addEmail(normalizedEmail)
+      lastSyncedEmail = normalizedEmail
       console.log(`[OneSignal] Email sincronizado: ${email}`)
     } else {
-      OneSignal.User.removeEmail()
+      await OneSignal.User.removeEmail(lastSyncedEmail ?? undefined)
+      lastSyncedEmail = null
       console.log('[OneSignal] Email removido de OneSignal')
     }
   } catch (error) {
