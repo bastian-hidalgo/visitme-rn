@@ -102,18 +102,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         'expo-splash-screen',
         {
           image: './assets/images/splash.png',
-          // según docs: resizeMode puede ser 'contain', 'cover' o 'native'
           resizeMode: 'cover',
           backgroundColor: '#ffffff',
           dark: {
             image: './assets/images/splash.png',
             backgroundColor: '#000000',
           },
-          // Puedes definir un ancho de imagen para controlar tamaño
-          imageWidth: 200,
-          // Si quieres configurar por plataforma:
           ios: {
-            // enableFullScreenImage_legacy sólo para iOS si quieres full screen
             enableFullScreenImage_legacy: true,
             image: './assets/images/splash.png',
             resizeMode: 'cover',
@@ -121,9 +116,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           android: {
             image: './assets/images/splash.png',
             resizeMode: 'cover',
-            imageWidth: 200,
-          },
-        },
+            enableLegacy: true
+          }
+        }
       ],
       [
         'onesignal-expo-plugin',
