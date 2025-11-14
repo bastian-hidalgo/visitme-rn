@@ -101,22 +101,28 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       [
         'expo-splash-screen',
         {
-          image: './assets/images/splash.png',
-          resizeMode: 'cover',
-          backgroundColor: '#ffffff',
+          image: './assets/images/favicon.png',  // ICONO para Android
+          resizeMode: 'contain',
+          backgroundColor: '#4a6aac',
+
           dark: {
-            image: './assets/images/splash.png',
-            backgroundColor: '#000000',
+            image: './assets/images/favicon.png',
+            backgroundColor: '#4a6aac',
           },
+
           ios: {
+            // iOS sí puede seguir usando tu splash fullscreen
             enableFullScreenImage_legacy: true,
             image: './assets/images/splash.png',
             resizeMode: 'cover',
           },
+
           android: {
-            image: './assets/images/splash.png',
-            resizeMode: 'cover',
-            enableLegacy: true
+            // Android 12+ → Ícono centrado con fondo color sólido
+            image: './assets/images/favicon.png',
+            resizeMode: 'contain',
+            backgroundColor: '#4a6aac',
+            enableLegacy: false   // forzamos API moderna para evitar comportamientos raros
           }
         }
       ],
