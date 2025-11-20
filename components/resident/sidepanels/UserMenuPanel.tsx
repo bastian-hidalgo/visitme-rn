@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useUser } from '@/providers/user-provider'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
-import { ArrowLeftRight, Lightbulb, LogOut, UserRound } from 'lucide-react-native'
+import { ArrowLeftRight, FileText, Lightbulb, LogOut, UserRound } from 'lucide-react-native'
 import React, { useEffect, useState } from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { SharedValue } from 'react-native-reanimated'
@@ -18,7 +18,7 @@ type UserMenuPanelProps = {
 
 export default function UserMenuPanel({ isOpen, onClose, progress }: UserMenuPanelProps) {
   const router = useRouter()
-  const { avatarUrl, communityName, id, logout, name } = useUser()
+  const { avatarUrl, communityName, communitySlug, id, logout, name } = useUser()
   const { openFeedbackPanel } = useResidentContext()
   const [hasMultipleCommunities, setHasMultipleCommunities] = useState(false)
   const [activeItem, setActiveItem] = useState('home')
@@ -34,7 +34,7 @@ export default function UserMenuPanel({ isOpen, onClose, progress }: UserMenuPan
       })
   }, [id])
 
-  const handleNavigate = (path: string) => {
+  const handleNavigate = (path: Parameters<typeof router.push>[0]) => {
     onClose()
     setTimeout(() => router.push(path as any), 250)
   }
@@ -45,6 +45,15 @@ export default function UserMenuPanel({ isOpen, onClose, progress }: UserMenuPan
   }
 
   const MENU_ITEMS = [
+    {
+      id: 'library',
+      text: 'Biblioteca digital',
+      icon: <FileText size={18} color="#fff" />,
+      onPress: () =>
+        handleNavigate(
+          communitySlug ? { pathname: '/library', params: { community: communitySlug } } : '/library'
+        ),
+    },
     {
       id: 'profile',
       text: 'Editar perfil',
