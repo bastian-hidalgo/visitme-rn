@@ -141,7 +141,7 @@ export default function CommunityLibraryScreen() {
         colors={['#7C3AED', '#5B21B6']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.hero, { paddingTop: insets.top + 12 }]}
+        style={[styles.hero, { paddingTop: insets.top }]}
       >
         <View style={styles.heroHeader}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
