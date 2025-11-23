@@ -55,17 +55,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     userInterfaceStyle: 'automatic',
     newArchEnabled: true,
     ios: {
-      supportsTablet: true,
+      supportsTablet: false,
       bundleIdentifier: 'cl.visitme.app',
       infoPlist: {
         NSLocationWhenInUseUsageDescription:
-          "Visitme necesita acceder a tu ubicación para ofrecer funciones relacionadas con tu comunidad y visitas cercanas.",
+          'Visitme necesita acceder a tu ubicación para ofrecer funciones relacionadas con tu comunidad y visitas cercanas.',
         NSPhotoLibraryUsageDescription:
           'Visitme necesita acceso a tu galería para que puedas seleccionar una foto de perfil.',
         NSCameraUsageDescription:
           'Visitme necesita acceso a la cámara si deseas tomar una nueva foto de perfil.',
         NSMicrophoneUsageDescription:
-          'Visitme podría usar tu micrófono para grabaciones en funciones futuras (por ejemplo, mensajes de voz).',
+          'Visitme podría usar tu micrófono para grabaciones en funciones futuras.',
         ITSAppUsesNonExemptEncryption: false,
         CFBundleURLTypes: [
           {
@@ -101,28 +101,23 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       [
         'expo-splash-screen',
         {
-          image: './assets/images/favicon.png',  // ICONO para Android
+          image: './assets/images/favicon.png',
           resizeMode: 'contain',
           backgroundColor: '#4a6aac',
-
           dark: {
             image: './assets/images/favicon.png',
             backgroundColor: '#4a6aac',
           },
-
           ios: {
-            // iOS sí puede seguir usando tu splash fullscreen
             enableFullScreenImage_legacy: true,
             image: './assets/images/splash.png',
             resizeMode: 'cover',
           },
-
           android: {
-            // Android 12+ → Ícono centrado con fondo color sólido
             image: './assets/images/favicon.png',
             resizeMode: 'contain',
             backgroundColor: '#4a6aac',
-            enableLegacy: false   // forzamos API moderna para evitar comportamientos raros
+            enableLegacy: false
           }
         }
       ],
