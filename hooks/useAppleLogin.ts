@@ -1,4 +1,4 @@
-import { appleAuth } from '@invertase/react-native-apple-authentication'
+import { appleAuth } from '@react-native-community/apple-authentication'
 import * as Crypto from 'expo-crypto'
 import * as Random from 'expo-random'
 import { useCallback, useMemo, useState } from 'react'
