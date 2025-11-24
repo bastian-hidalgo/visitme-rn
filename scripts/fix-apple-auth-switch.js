@@ -21,18 +21,28 @@ if (content.includes('@unknown default')) {
   process.exit(0);
 }
 
-const pattern = /case \.failed:\n\s*return RequestFailedException\(\)\n\s*}\n/;
+const switchMatch = content.match(/(switch\s+error\.code\s*\{\n)([\s\S]*?)(\n\s*\})/m);
 
-if (!pattern.test(content)) {
-  console.warn('[fix-apple-auth-switch] Could not find switch tail; manual review needed.');
+if (!switchMatch) {
+  console.warn('[fix-apple-auth-switch] Could not locate switch(error.code) block.');
   process.exit(1);
 }
 
-const replacement =
-  'case .failed:\n    return RequestFailedException()\n' +
-  '  @unknown default:\n    return RequestUnknownException()\n' +
-  '  }\n';
+const [fullMatch, prefix, body, suffix] = switchMatch;
+const failedCasePattern = /(case\s+\.failed:[\s\S]*?return\s+RequestFailedException\(\)\s*)/m;
+const indentMatch = body.match(/\n(\s*)case\s+\.failed:/);
+const indent = indentMatch?.[1] ?? '  ';
 
-content = content.replace(pattern, replacement);
+if (!failedCasePattern.test(body)) {
+  console.warn('[fix-apple-auth-switch] Could not find .failed case to append @unknown default.');
+  process.exit(1);
+}
+
+const patchedBody = body.replace(
+  failedCasePattern,
+  `$1\n${indent}@unknown default:\n${indent}  return RequestUnknownException()\n`
+);
+
+content = content.replace(fullMatch, `${prefix}${patchedBody}${suffix}`);
 fs.writeFileSync(appleExceptionPath, content);
 console.log('[fix-apple-auth-switch] Added @unknown default to ASAuthorizationError switch.');
