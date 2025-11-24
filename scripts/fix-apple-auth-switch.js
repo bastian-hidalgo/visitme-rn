@@ -14,12 +14,7 @@ if (!fs.existsSync(appleExceptionPath)) {
   process.exit(0);
 }
 
-let content = fs.readFileSync(appleExceptionPath, 'utf8');
-
-if (content.includes('@unknown default')) {
-  console.log('[fix-apple-auth-switch] Switch already exhaustive; no changes needed.');
-  process.exit(0);
-}
+const content = fs.readFileSync(appleExceptionPath, 'utf8');
 
 const switchStart = content.indexOf('switch error.code');
 
@@ -54,11 +49,29 @@ if (braceEnd === -1) {
 }
 
 const switchBlock = content.slice(braceStart + 1, braceEnd);
-const caseIndentMatch = switchBlock.match(/\n(\s*)case\s+\.failed:/) || switchBlock.match(/\n(\s*)case\s+\.unknown:/);
+const caseIndentMatch =
+  switchBlock.match(/\n(\s*)case\s+\.failed:/) || switchBlock.match(/\n(\s*)case\s+\.unknown:/);
 const indent = caseIndentMatch?.[1] ?? '  ';
 
-if (switchBlock.includes('@unknown default')) {
-  console.log('[fix-apple-auth-switch] Switch already exhaustive inside block; no changes made.');
+const defaultIndex = switchBlock.indexOf('@unknown default:');
+
+if (defaultIndex !== -1) {
+  const afterDefault = switchBlock.slice(defaultIndex);
+  const nextCaseMatch = afterDefault.match(/\n\s*case\s+\.[^:\n]+:/);
+
+  if (!nextCaseMatch) {
+    console.log('[fix-apple-auth-switch] Switch already exhaustive; no changes needed.');
+    process.exit(0);
+  }
+
+  const defaultEnd = defaultIndex + nextCaseMatch.index;
+  const defaultBlock = switchBlock.slice(defaultIndex, defaultEnd);
+  const switchWithoutDefault = `${switchBlock.slice(0, defaultIndex)}${switchBlock.slice(defaultEnd)}`.replace(/\s*$/, '');
+  const needsTrailingNewline = !switchWithoutDefault.endsWith('\n');
+  const patchedBlock = `${switchWithoutDefault}${needsTrailingNewline ? '\n' : ''}${defaultBlock}\n`;
+  const updatedContent = `${content.slice(0, braceStart + 1)}${patchedBlock}${content.slice(braceEnd)}`;
+  fs.writeFileSync(appleExceptionPath, updatedContent);
+  console.log('[fix-apple-auth-switch] Moved existing @unknown default to the end of the switch.');
   process.exit(0);
 }
 
