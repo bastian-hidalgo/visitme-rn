@@ -57,6 +57,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ios: {
       supportsTablet: false,
       bundleIdentifier: 'cl.visitme.app',
+      usesAppleSignIn: true,
       infoPlist: {
         NSLocationWhenInUseUsageDescription:
           'Visitme necesita acceder a tu ubicación para ofrecer funciones relacionadas con tu comunidad y visitas cercanas.',

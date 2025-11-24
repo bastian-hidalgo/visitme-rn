@@ -1,3 +1,7 @@
+import AppleLoginButton, {
+  type AppleLoginButtonStatus,
+  type AppleLoginStatusChangeDetails,
+} from '@/components/auth/AppleLoginButton'
 import GoogleLoginButton, {
   type GoogleLoginButtonStatus,
   type GoogleLoginStatusChangeDetails,
@@ -45,6 +49,7 @@ export default function LoginScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isMagicLinkLoading, setIsMagicLinkLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isAppleLoading, setIsAppleLoading] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
   const { height: windowHeight } = useWindowDimensions();
 
@@ -112,6 +117,38 @@ export default function LoginScreen() {
     setErrorMessage(null);
   }, []);
 
+  const handleAppleStatusChange = useCallback(
+    (status: AppleLoginButtonStatus, details?: AppleLoginStatusChangeDetails) => {
+      if (status === 'loading') {
+        setIsAppleLoading(true);
+        setStatusMessage(null);
+        setErrorMessage(null);
+        clearAuthRestrictionMessage();
+        return;
+      }
+
+      setIsAppleLoading(false);
+
+      if (status === 'error') {
+        const message = details?.errorMessage ?? 'No pudimos iniciar sesión con Apple. Intenta nuevamente.';
+        setErrorMessage(message);
+        setStatusMessage(null);
+        return;
+      }
+
+      if (status === 'success') {
+        setStatusMessage('Autenticación con Apple exitosa. Redirigiendo…');
+        setErrorMessage(null);
+      }
+    },
+    [clearAuthRestrictionMessage],
+  );
+
+  const handleAppleSuccess = useCallback(() => {
+    setStatusMessage('Autenticación con Apple exitosa. Redirigiendo…');
+    setErrorMessage(null);
+  }, []);
+
   if (isLoading) {
     return (
       <ThemedView style={styles.loadingContainer}>
@@ -124,7 +161,7 @@ export default function LoginScreen() {
     return <Redirect href="/(tabs)" />;
   }
 
-  const isBusy = isMagicLinkLoading || isGoogleLoading;
+  const isBusy = isMagicLinkLoading || isGoogleLoading || isAppleLoading;
   const isDarkMode = colorScheme === 'dark';
   const baseBackgroundColor = isDarkMode ? '#0f172a' : '#f5f3ff';
 
@@ -170,6 +207,11 @@ export default function LoginScreen() {
                   Ingresa tu correo y te enviaremos un enlace mágico para iniciar sesión.
                 </ThemedText>
               </View>
+              <AppleLoginButton
+                onStatusChange={handleAppleStatusChange}
+                onSuccess={handleAppleSuccess}
+                disabled={isBusy}
+              />
               <GoogleLoginButton
                 onStatusChange={handleGoogleStatusChange}
                 onSuccess={handleGoogleSuccess}
