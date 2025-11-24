@@ -56,20 +56,38 @@ const indent = caseIndentMatch?.[1] ?? '  ';
 const defaultIndex = switchBlock.indexOf('@unknown default:');
 
 if (defaultIndex !== -1) {
-  const afterDefault = switchBlock.slice(defaultIndex);
-  const nextCaseMatch = afterDefault.match(/\n\s*case\s+\.[^:\n]+:/);
+  const lines = switchBlock.split('\n');
+  const defaultLineIndex = lines.findIndex((line) => line.includes('@unknown default:'));
 
-  if (!nextCaseMatch) {
+  if (defaultLineIndex === -1) {
+    console.warn('[fix-apple-auth-switch] Could not re-locate @unknown default line; leaving file untouched.');
+    process.exit(0);
+  }
+
+  let blockEnd = lines.length;
+  for (let i = defaultLineIndex + 1; i < lines.length; i += 1) {
+    if (/^\s*case\s+\.[^:\n]+:/.test(lines[i]) || /@unknown default:/.test(lines[i])) {
+      blockEnd = i;
+      break;
+    }
+  }
+
+  const defaultBlock = lines.slice(defaultLineIndex, blockEnd);
+  const withoutDefault = [...lines.slice(0, defaultLineIndex), ...lines.slice(blockEnd)];
+
+  // If default is already last, exit.
+  if (blockEnd === lines.length) {
     console.log('[fix-apple-auth-switch] Switch already exhaustive; no changes needed.');
     process.exit(0);
   }
 
-  const defaultEnd = defaultIndex + nextCaseMatch.index;
-  const defaultBlock = switchBlock.slice(defaultIndex, defaultEnd);
-  const switchWithoutDefault = `${switchBlock.slice(0, defaultIndex)}${switchBlock.slice(defaultEnd)}`.replace(/\s*$/, '');
-  const needsTrailingNewline = !switchWithoutDefault.endsWith('\n');
-  const patchedBlock = `${switchWithoutDefault}${needsTrailingNewline ? '\n' : ''}${defaultBlock}\n`;
-  const updatedContent = `${content.slice(0, braceStart + 1)}${patchedBlock}${content.slice(braceEnd)}`;
+  // Preserve a trailing blank line before reinserting to avoid tightening formatting.
+  if (withoutDefault.length && withoutDefault[withoutDefault.length - 1].trim() !== '') {
+    withoutDefault.push(indent);
+  }
+
+  const patchedBlock = [...withoutDefault, ...defaultBlock].join('\n');
+  const updatedContent = `${content.slice(0, braceStart + 1)}${patchedBlock}\n${content.slice(braceEnd)}`;
   fs.writeFileSync(appleExceptionPath, updatedContent);
   console.log('[fix-apple-auth-switch] Moved existing @unknown default to the end of the switch.');
   process.exit(0);
