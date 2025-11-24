@@ -16,7 +16,7 @@ type AppleLoginButtonProps = {
 }
 
 export default function AppleLoginButton({ onSuccess, onStatusChange, disabled }: AppleLoginButtonProps) {
-  const { isLoading, signInWithApple } = useAppleLogin()
+  const { isLoading, isSupported, signInWithApple } = useAppleLogin()
   const [status, setStatus] = useState<AppleLoginButtonStatus>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const scale = useRef(new Animated.Value(1)).current
@@ -36,6 +36,14 @@ export default function AppleLoginButton({ onSuccess, onStatusChange, disabled }
   )
 
   const handlePress = useCallback(async () => {
+    if (!isSupported) {
+      const message = 'Sign in with Apple no está disponible en este dispositivo.'
+      setStatus('error')
+      setErrorMessage(message)
+      onStatusChange?.('error', { errorMessage: message })
+      return
+    }
+
     try {
       setStatus('loading')
       setErrorMessage(null)
@@ -52,22 +60,23 @@ export default function AppleLoginButton({ onSuccess, onStatusChange, disabled }
       setErrorMessage(message)
       onStatusChange?.('error', { errorMessage: message })
     }
-  }, [onStatusChange, onSuccess, signInWithApple])
+  }, [isSupported, onStatusChange, onSuccess, signInWithApple])
 
   const isButtonLoading = status === 'loading' || isLoading
+  const isButtonDisabled = disabled || isButtonLoading || !isSupported
 
   return (
     <View style={styles.container}>
       <Animated.View style={{ transform: [{ scale }] }}>
         <Pressable
-          disabled={disabled || isButtonLoading}
+          disabled={isButtonDisabled}
           onPress={handlePress}
           onPressIn={() => animateScale(0.98)}
           onPressOut={() => animateScale(1)}
           style={({ pressed }) => [
             styles.button,
             pressed && styles.buttonPressed,
-            (disabled || isButtonLoading) && styles.buttonDisabled,
+            (disabled || isButtonLoading || !isSupported) && styles.buttonDisabled,
           ]}
         >
           {isButtonLoading ? (
@@ -77,7 +86,13 @@ export default function AppleLoginButton({ onSuccess, onStatusChange, disabled }
               <View style={styles.iconBadge}>
                 <Ionicons name="logo-apple" size={18} color="#0F172A" />
               </View>
-              <Text style={styles.label}>{isNative ? 'Continuar con Apple' : 'Iniciar sesión con Apple'}</Text>
+              <Text style={styles.label}>
+                {isSupported
+                  ? isNative
+                    ? 'Continuar con Apple'
+                    : 'Iniciar sesión con Apple'
+                  : 'No disponible en este dispositivo'}
+              </Text>
             </>
           )}
         </Pressable>

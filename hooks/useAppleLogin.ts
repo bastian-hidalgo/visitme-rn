@@ -1,7 +1,7 @@
-import * as AppleAuthentication from 'expo-apple-authentication'
+import { appleAuth } from '@invertase/react-native-apple-authentication'
 import * as Crypto from 'expo-crypto'
 import * as Random from 'expo-random'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import { supabase } from '@/lib/supabase'
 
@@ -21,29 +21,28 @@ type SignInResult = Awaited<ReturnType<typeof supabase.auth.signInWithIdToken>>
 
 type UseAppleLoginResponse = {
   isLoading: boolean
+  isSupported: boolean
   signInWithApple: () => Promise<SignInResult>
 }
 
 export function useAppleLogin(): UseAppleLoginResponse {
   const [isLoading, setIsLoading] = useState(false)
+  const isSupported = useMemo(() => appleAuth.isSupported, [])
 
   const signInWithApple = useCallback(async () => {
+    if (!isSupported) {
+      throw new Error('Sign in with Apple no está disponible en este dispositivo.')
+    }
+
     setIsLoading(true)
 
     try {
-      const isAvailable = await AppleAuthentication.isAvailableAsync()
-      if (!isAvailable) {
-        throw new Error('Sign in with Apple no está disponible en este dispositivo.')
-      }
-
       const nonce = await generateNonce()
       const hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, nonce)
 
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
+      const credential = await appleAuth.performRequest({
+        requestedOperation: appleAuth.Operation.LOGIN,
+        requestedScopes: [appleAuth.Scope.EMAIL, appleAuth.Scope.FULL_NAME],
         nonce: hashedNonce,
       })
 
@@ -61,12 +60,16 @@ export function useAppleLogin(): UseAppleLoginResponse {
 
       return data
     } catch (err: any) {
-      const message = err?.message || 'No pudimos iniciar sesión con Apple.'
+      const code = err?.code as string | undefined
+      const message =
+        code === appleAuth.Error.CANCELED
+          ? 'Cancelaste el inicio de sesión con Apple.'
+          : err?.message || 'No pudimos iniciar sesión con Apple.'
       throw new Error(message)
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [isSupported])
 
-  return { isLoading, signInWithApple }
+  return { isLoading, isSupported, signInWithApple }
 }
