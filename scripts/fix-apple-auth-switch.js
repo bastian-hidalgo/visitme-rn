@@ -21,28 +21,51 @@ if (content.includes('@unknown default')) {
   process.exit(0);
 }
 
-const switchMatch = content.match(/(switch\s+error\.code\s*\{\n)([\s\S]*?)(\n\s*\})/m);
+const switchStart = content.indexOf('switch error.code');
 
-if (!switchMatch) {
-  console.warn('[fix-apple-auth-switch] Could not locate switch(error.code) block.');
-  process.exit(1);
+if (switchStart === -1) {
+  console.warn('[fix-apple-auth-switch] Could not locate switch(error.code) block; leaving file untouched.');
+  process.exit(0);
 }
 
-const [fullMatch, prefix, body, suffix] = switchMatch;
-const failedCasePattern = /(case\s+\.failed:[\s\S]*?return\s+RequestFailedException\(\)\s*)/m;
-const indentMatch = body.match(/\n(\s*)case\s+\.failed:/);
-const indent = indentMatch?.[1] ?? '  ';
+const braceStart = content.indexOf('{', switchStart);
 
-if (!failedCasePattern.test(body)) {
-  console.warn('[fix-apple-auth-switch] Could not find .failed case to append @unknown default.');
-  process.exit(1);
+if (braceStart === -1) {
+  console.warn('[fix-apple-auth-switch] Found switch but no opening brace; leaving file untouched.');
+  process.exit(0);
 }
 
-const patchedBody = body.replace(
-  failedCasePattern,
-  `$1\n${indent}@unknown default:\n${indent}  return RequestUnknownException()\n`
-);
+let depth = 0;
+let braceEnd = -1;
 
-content = content.replace(fullMatch, `${prefix}${patchedBody}${suffix}`);
-fs.writeFileSync(appleExceptionPath, content);
+for (let i = braceStart; i < content.length; i += 1) {
+  const char = content[i];
+  if (char === '{') depth += 1;
+  if (char === '}') depth -= 1;
+  if (depth === 0) {
+    braceEnd = i;
+    break;
+  }
+}
+
+if (braceEnd === -1) {
+  console.warn('[fix-apple-auth-switch] Could not find closing brace for switch; leaving file untouched.');
+  process.exit(0);
+}
+
+const switchBlock = content.slice(braceStart + 1, braceEnd);
+const caseIndentMatch = switchBlock.match(/\n(\s*)case\s+\.failed:/) || switchBlock.match(/\n(\s*)case\s+\.unknown:/);
+const indent = caseIndentMatch?.[1] ?? '  ';
+
+if (switchBlock.includes('@unknown default')) {
+  console.log('[fix-apple-auth-switch] Switch already exhaustive inside block; no changes made.');
+  process.exit(0);
+}
+
+const needsTrailingNewline = !switchBlock.endsWith('\n');
+const insertion = `${needsTrailingNewline ? '\n' : ''}${indent}@unknown default:\n${indent}  return RequestUnknownException()\n`;
+const patchedBlock = `${switchBlock.replace(/\s*$/, '')}${insertion}`;
+
+const updatedContent = `${content.slice(0, braceStart + 1)}${patchedBlock}\n${content.slice(braceEnd)}`;
+fs.writeFileSync(appleExceptionPath, updatedContent);
 console.log('[fix-apple-auth-switch] Added @unknown default to ASAuthorizationError switch.');
