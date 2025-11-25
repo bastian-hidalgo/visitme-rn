@@ -1,52 +1,34 @@
+import { supabase } from '@/lib/supabase'
+import { Buffer } from 'buffer'
 import * as AppleAuthentication from 'expo-apple-authentication'
 import * as Crypto from 'expo-crypto'
 import * as Random from 'expo-random'
 import { useCallback, useEffect, useState } from 'react'
 
-import { supabase } from '@/lib/supabase'
-
-const NONCE_BYTE_SIZE = 32
-
-const bytesToHex = (bytes: Uint8Array) =>
-  Array.from(bytes)
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('')
-
-const generateNonce = async () => {
-  const randomBytes = await Random.getRandomBytesAsync(NONCE_BYTE_SIZE)
-  return bytesToHex(randomBytes)
+// --- Helpers ---
+function base64UrlEncode(buffer: Uint8Array) {
+  return Buffer.from(buffer)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
 }
 
-type SignInResult = Awaited<ReturnType<typeof supabase.auth.signInWithIdToken>>
-
-type UseAppleLoginResponse = {
-  isLoading: boolean
-  isSupported: boolean
-  signInWithApple: () => Promise<SignInResult>
+// RAW nonce → para Supabase
+async function generateNonceRaw() {
+  const bytes = await Random.getRandomBytesAsync(16)
+  return base64UrlEncode(bytes)
 }
 
-export function useAppleLogin(): UseAppleLoginResponse {
-  const [isLoading, setIsLoading] = useState(false)
+export function useAppleLogin() {
   const [isSupported, setIsSupported] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
+  // Saber si Apple Login está disponible
   useEffect(() => {
-    let isMounted = true
-
     AppleAuthentication.isAvailableAsync()
-      .then((available) => {
-        if (isMounted) {
-          setIsSupported(available)
-        }
-      })
-      .catch(() => {
-        if (isMounted) {
-          setIsSupported(false)
-        }
-      })
-
-    return () => {
-      isMounted = false
-    }
+      .then((v) => setIsSupported(v))
+      .catch(() => setIsSupported(false))
   }, [])
 
   const signInWithApple = useCallback(async () => {
@@ -57,41 +39,50 @@ export function useAppleLogin(): UseAppleLoginResponse {
     setIsLoading(true)
 
     try {
-      const nonce = await generateNonce()
-      const hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, nonce)
+      // 1. Generar RAW nonce para Supabase
+      const rawNonce = await generateNonceRaw()
 
+      // 2. Generar SHA256 en HEX (lo que Apple exige)
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        rawNonce // ← correcto
+        // Sin encoding → SHA256 hex string (esto lo quiere Apple)
+      )
+
+      // 3. Solicitar credenciales a Apple
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
-        nonce: hashedNonce,
+        nonce: hashedNonce // Apple recibe el hash
       })
 
       if (!credential.identityToken) {
-        throw new Error('Apple no devolvió un token de identidad. Intenta nuevamente.')
+        throw new Error('Apple no retornó identityToken.')
       }
 
+      // 4. Supabase valida usando el RAW nonce
       const { data, error } = await supabase.auth.signInWithIdToken({
         provider: 'apple',
         token: credential.identityToken,
-        nonce,
+        nonce: rawNonce, // ← MUY IMPORTANTE
       })
 
-      if (error) throw new Error(error.message)
+      if (error) throw error
 
       return data
+
     } catch (err: any) {
-      const code = err?.code as string | undefined
-      const message =
-        code === 'ERR_CANCELED'
-          ? 'Cancelaste el inicio de sesión con Apple.'
-          : err?.message || 'No pudimos iniciar sesión con Apple.'
-      throw new Error(message)
+      throw new Error(err?.message ?? 'Error de inicio de sesión con Apple.')
     } finally {
       setIsLoading(false)
     }
   }, [isSupported])
 
-  return { isLoading, isSupported, signInWithApple }
+  return {
+    isSupported,
+    isLoading,
+    signInWithApple,
+  }
 }
