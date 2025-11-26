@@ -24,6 +24,8 @@ type PushSubscriptionModule = {
 const LOG_PREFIX = '[OneSignal]'
 const ERR_PREFIX = '[OneSignal:ERR]'
 const MAX_RETRIES = 3
+const PLAYER_POLL_RETRIES = 5
+const PLAYER_POLL_DELAY = 350
 
 const log = (message: string, ...args: unknown[]) => {
   console.log(`${LOG_PREFIX} ${message}`, ...args)
@@ -36,6 +38,8 @@ const logError = (message: string, ...args: unknown[]) => {
 const getPushSubscription = (): PushSubscriptionModule | undefined => {
   return OneSignal?.User?.pushSubscription as PushSubscriptionModule | undefined
 }
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export const syncPlayerIdToSupabase = async (
   playerId: string | null | undefined,
@@ -52,6 +56,8 @@ export const syncPlayerIdToSupabase = async (
     logError('syncPlayerIdToSupabase omitido: playerId sin contenido')
     return
   }
+
+  log('Sincronizando player_id → Supabase', { normalizedPlayerId, userId, communityId })
 
   const { error } = await supabase.from('onesignal_players').upsert(
     {
@@ -114,8 +120,12 @@ export const registerPushSubscriptionListener = (
 
   const handler = (event: PushSubscriptionChangeEvent) => {
     const newPlayerId = event?.pushSubscription?.id ?? pushSubscription.id
-    if (!newPlayerId) return
+    if (!newPlayerId) {
+      log('pushSubscription change recibido sin player_id, se omitió sync')
+      return
+    }
 
+    log('pushSubscription change → player_id detectado, sincronizando', newPlayerId)
     void syncPlayerIdWithRetry(newPlayerId, userId, communityId)
   }
 
@@ -131,21 +141,50 @@ export const registerPushSubscriptionListener = (
 export const getCurrentPlayerId = async (): Promise<string | null> => {
   try {
     const pushSubscription = getPushSubscription()
-    if (!pushSubscription) return null
+    if (!pushSubscription) {
+      log('pushSubscription aún no disponible para obtener player_id')
+      return null
+    }
 
     const currentId = await pushSubscription.getId?.()
-    return currentId ?? pushSubscription.id ?? null
+    const resolved = currentId ?? pushSubscription.id ?? null
+    if (!resolved) {
+      log('pushSubscription disponible pero sin player_id actual')
+    }
+
+    return resolved
   } catch (err) {
     logError('No se pudo obtener el player_id actual', err)
     return null
   }
 }
 
+const getCurrentPlayerIdWithRetry = async (): Promise<string | null> => {
+  let lastId: string | null = null
+
+  for (let attempt = 1; attempt <= PLAYER_POLL_RETRIES; attempt += 1) {
+    lastId = await getCurrentPlayerId()
+
+    if (lastId) {
+      if (attempt > 1) {
+        log('player_id obtenido tras reintento', { attempt, lastId })
+      }
+      break
+    }
+
+    log('player_id no disponible, reintentando', { attempt, max: PLAYER_POLL_RETRIES })
+    await sleep(PLAYER_POLL_DELAY * attempt)
+  }
+
+  return lastId
+}
+
 export const ensureCurrentPlayerSynced = async (
   userId: string,
   communityId: string,
 ) => {
-  const currentId = await getCurrentPlayerId()
+  log('Iniciando sync de player_id actual', { userId, communityId })
+  const currentId = await getCurrentPlayerIdWithRetry()
   if (!currentId) {
     log('No se encontró player_id actual para sincronizar')
     return
