@@ -1,13 +1,28 @@
-import { Platform } from 'react-native'
+import { InteractionManager, Platform } from 'react-native'
 import { OneSignal } from 'react-native-onesignal'
 
 import { env } from '@/constants/env'
 
-// Solo inicializamos una vez
-let initialized = false
-
-// Se obtiene el App ID desde tu .env
 const ONESIGNAL_APP_ID = env.oneSignalAppId
+const LOG_PREFIX = '[OneSignal]'
+
+let initialized = false
+let initializingPromise: Promise<boolean> | null = null
+let lastLoggedInUserId: string | null = null
+let lastSyncedEmail: string | null = null
+let lastSyncedTags: Record<string, string> = {}
+
+const log = (message: string, ...args: unknown[]) => {
+  console.log(`${LOG_PREFIX} ${message}`, ...args)
+}
+
+const warn = (message: string, ...args: unknown[]) => {
+  console.warn(`${LOG_PREFIX} ${message}`, ...args)
+}
+
+const error = (message: string, ...args: unknown[]) => {
+  console.error(`${LOG_PREFIX} ${message}`, ...args)
+}
 
 type OneSignalNotifications = {
   requestPermission?: (requestOptions?: boolean) => Promise<boolean> | boolean
@@ -20,6 +35,10 @@ type OneSignalModule = {
   logout?: () => void
   Notifications?: OneSignalNotifications
   User?: {
+    addEmail?: (email: string) => Promise<void>
+    removeEmail?: (email?: string) => Promise<void>
+    addTag?: (key: string, value: string) => Promise<void>
+    removeTag?: (key: string) => Promise<void>
     pushSubscription?: {
       optIn?: () => unknown
       optOut?: () => unknown
@@ -27,32 +46,17 @@ type OneSignalModule = {
   }
 }
 
-type LoginPayload = {
-  email?: string | null
-  userId?: string | null
-}
-
-const warnOnce = (() => {
-  const messages = new Set<string>()
-
-  return (message: string) => {
-    if (messages.has(message)) return
-    messages.add(message)
-    console.warn(message)
-  }
-})()
-
 const getOneSignal = (): OneSignalModule | undefined => {
   if (Platform.OS === 'web') {
-    warnOnce('[OneSignal] SDK no disponible en plataforma web, se omite la inicialización')
+    warn('SDK no disponible en plataforma web, se omite la inicialización')
     return undefined
   }
 
   const oneSignal = OneSignal as unknown as OneSignalModule | undefined
 
   if (!oneSignal?.initialize) {
-    warnOnce(
-      '[OneSignal] SDK nativo no disponible. Asegúrate de usar una build con el plugin de OneSignal instalado.',
+    warn(
+      'SDK nativo no disponible. Asegúrate de usar una build con el plugin de OneSignal instalado.',
     )
     return undefined
   }
@@ -60,162 +64,132 @@ const getOneSignal = (): OneSignalModule | undefined => {
   return oneSignal
 }
 
-// Inicializa OneSignal de forma segura
-export const initializeOneSignal = () => {
-  console.log('[OneSignal] Intentando inicializar...')
-  if (initialized) return
-  console.log('[OneSignal] No estaba inicializado, procediendo...')
+const waitForNativeReady = async () =>
+  new Promise<void>(resolve => {
+    InteractionManager.runAfterInteractions(() => {
+      setTimeout(resolve, 120)
+    })
+  })
+
+export const initializeOneSignal = async (): Promise<boolean> => {
+  if (initialized) return true
+  if (initializingPromise) return initializingPromise
 
   if (!ONESIGNAL_APP_ID) {
-    console.warn('[OneSignal] Falta EXPO_PUBLIC_ONESIGNAL_APP_ID en tu entorno (.env)')
+    warn('Falta EXPO_PUBLIC_ONESIGNAL_APP_ID en tu entorno (.env)')
+    return false
+  }
+
+  const oneSignal = getOneSignal()
+  if (!oneSignal) return false
+
+  initializingPromise = (async () => {
+    try {
+      await waitForNativeReady()
+      oneSignal.initialize?.(ONESIGNAL_APP_ID)
+
+      oneSignal.Notifications?.addEventListener?.('click', event => {
+        log('Notificación abierta', event?.notification?.notificationId)
+      })
+
+      oneSignal.Notifications?.addEventListener?.('foregroundWillDisplay', event => {
+        log('Notificación recibida en foreground', event?.notification?.notificationId)
+        event?.getNotification?.()?.display?.()
+      })
+
+      initialized = true
+      log('Inicializado correctamente')
+      return true
+    } catch (err) {
+      error('Error al inicializar SDK', err)
+      return false
+    } finally {
+      initializingPromise = null
+    }
+  })()
+
+  return initializingPromise
+}
+
+export const loginUser = async (userId?: string | null, email?: string | null) => {
+  if (!userId) {
+    warn('login omitido: userId no disponible')
     return
   }
 
-  const oneSignal = getOneSignal()
-  if (!oneSignal) return
+  const ready = await initializeOneSignal()
+  if (!ready) return
 
-  try {
-    // Inicialización principal
-    oneSignal.initialize?.(ONESIGNAL_APP_ID)
+  if (lastLoggedInUserId === userId) {
+    log(`Usuario ya logueado: ${userId}`)
+  } else {
+    try {
+      const oneSignal = getOneSignal()
+      if (!oneSignal) return
 
-    // Configurar comportamiento al abrir una notificación
-    oneSignal.Notifications?.addEventListener?.('click', event => {
-      console.log('[OneSignal] Notificación abierta:', event?.notification)
-      // Aquí podrías hacer navegación o tracking
-    })
-
-    // Configurar listener cuando se recibe una notificación
-    oneSignal.Notifications?.addEventListener?.('foregroundWillDisplay', event => {
-      console.log('[OneSignal] Notificación recibida en foreground:', event?.notification)
-      // Muestra la notificación (por defecto la suprime)
-      event?.getNotification?.()?.display?.()
-    })
-
-    initialized = true
-    console.log('[OneSignal] Inicializado correctamente')
-  } catch (error) {
-    console.error('[OneSignal] Error al inicializar SDK:', error)
-  }
-}
-
-// Inicia sesión con un usuario (para segmentar notificaciones)
-export const loginOneSignalUser = (payload: LoginPayload | null) => {
-  if (!initialized) initializeOneSignal()
-
-  const oneSignal = getOneSignal()
-  if (!oneSignal) return
-
-  try {
-    const email = payload?.email?.trim() || null
-    const identifier = email?.toLowerCase() || payload?.userId || null
-
-    if (identifier) {
-      oneSignal.login?.(identifier)
-      console.log(`[OneSignal] Usuario logueado: ${identifier}`)
-    } else {
-      oneSignal.logout?.()
-      console.log('[OneSignal] Usuario deslogueado')
+      oneSignal.login?.(userId)
+      lastLoggedInUserId = userId
+      log(`Usuario logueado con external_id ${userId}`)
+    } catch (err) {
+      error('Error en login del usuario', err)
     }
-  } catch (error) {
-    console.error('[OneSignal] Error en login/logout del usuario:', error)
+  }
+
+  if (email) {
+    await syncEmail(email)
   }
 }
 
-// Actualiza si el usuario tiene activadas las notificaciones
-export const updatePushSubscription = (enabled: boolean) => {
-  if (!initialized) initializeOneSignal()
+export const logoutUser = async () => {
+  if (!initialized) {
+    warn('logout omitido: SDK aún no inicializado')
+    return
+  }
 
   try {
     const oneSignal = getOneSignal()
     if (!oneSignal) return
 
-    const pushSubscription = oneSignal.User?.pushSubscription
-
-    if (!oneSignal.User) {
-      console.warn('[OneSignal] SDK no disponible todavía para actualizar pushSubscription')
-      return
-    }
-
-    if (!pushSubscription) {
-      console.warn('[OneSignal] pushSubscription no disponible')
-      return
-    }
-
-    if (enabled) {
-      pushSubscription.optIn?.()
-    } else {
-      pushSubscription.optOut?.()
-    }
-
-    console.log(`[OneSignal] Push ${enabled ? 'activadas' : 'desactivadas'}`)
-  } catch (error) {
-    console.error('[OneSignal] Error al actualizar la suscripción push:', error)
+    oneSignal.logout?.()
+    lastLoggedInUserId = null
+    await syncEmail(null)
+    await syncTags({})
+    lastSyncedEmail = null
+    log('Usuario deslogueado de OneSignal')
+  } catch (err) {
+    error('Error al hacer logout', err)
   }
 }
 
-// Solicita permisos de notificación manualmente
-export const promptForPushPermission = async (): Promise<boolean> => {
-  if (!initialized) initializeOneSignal()
-
-  const oneSignal = getOneSignal()
-  if (!oneSignal) return false
-
-  try {
-    const granted = await oneSignal.Notifications?.requestPermission?.(true)
-    console.log('[OneSignal] Permiso de notificación:', granted)
-    return Boolean(granted)
-  } catch (error) {
-    console.error('[OneSignal] Error al solicitar permiso:', error)
-    return false
-  }
-}
-
-// Cierra sesión del usuario actual
-export const logoutOneSignalUser = () => {
-  if (!initialized) {
-    console.warn('[OneSignal] logout() omitido: SDK aún no inicializado')
-    return
-  }
-
-  loginOneSignalUser(null)
-  void syncOneSignalEmail(null)
-}
-
-let lastSyncedEmail: string | null = null
-
-export const syncOneSignalEmail = async (email: string | null) => {
-  if (!initialized) initializeOneSignal()
+export const syncEmail = async (email: string | null) => {
+  const ready = await initializeOneSignal()
+  if (!ready) return
 
   const oneSignal = getOneSignal()
   if (!oneSignal) return
 
   try {
     const normalizedEmail = email?.trim().toLowerCase() || null
-
-    if (lastSyncedEmail === normalizedEmail) {
-      return
-    }
+    if (lastSyncedEmail === normalizedEmail) return
 
     if (normalizedEmail) {
-      await OneSignal.User?.addEmail?.(normalizedEmail)
+      await oneSignal.User?.addEmail?.(normalizedEmail)
       lastSyncedEmail = normalizedEmail
-      console.log(`[OneSignal] Email sincronizado: ${email}`)
+      log(`Email sincronizado: ${normalizedEmail}`)
     } else if (lastSyncedEmail) {
-      await OneSignal.User?.removeEmail?.(lastSyncedEmail)
+      await oneSignal.User?.removeEmail?.(lastSyncedEmail)
       lastSyncedEmail = null
-      console.log('[OneSignal] Email removido de OneSignal')
+      log('Email removido de OneSignal')
     }
-  } catch (error) {
-    console.error('[OneSignal] Error al sincronizar email:', error)
+  } catch (err) {
+    error('Error al sincronizar email', err)
   }
 }
 
-// Sincroniza tags personalizados (por ejemplo rol, comunidad, etc.)
-let lastSyncedTags: Record<string, string> = {}
+export const syncTags = async (tags: Record<string, string | number | boolean>) => {
+  const ready = await initializeOneSignal()
+  if (!ready) return
 
-export const syncOneSignalTags = async (
-  tags: Record<string, string | number | boolean>
-) => {
   const oneSignal = getOneSignal()
   if (!oneSignal) return
 
@@ -225,33 +199,58 @@ export const syncOneSignalTags = async (
         acc[key] = String(value)
         return acc
       },
-      {}
+      {},
     )
 
-    const keysToRemove = Object.keys(lastSyncedTags).filter(
-      key => !(key in normalizedEntries)
-    )
+    const keysToRemove = Object.keys(lastSyncedTags).filter(key => !(key in normalizedEntries))
 
     await Promise.all(
       keysToRemove.map(async key => {
         try {
-          await OneSignal.User?.removeTag?.(key)
-        } catch (error) {
-          console.error(`[OneSignal] Error al remover tag ${key}:`, error)
+          await oneSignal.User?.removeTag?.(key)
+        } catch (err) {
+          error(`Error al remover tag ${key}`, err)
         }
-      })
+      }),
     )
 
     await Promise.all(
       Object.entries(normalizedEntries).map(async ([key, value]) => {
         if (lastSyncedTags[key] === value) return
-        await OneSignal.User?.addTag?.(key, value)
-      })
+        await oneSignal.User?.addTag?.(key, value)
+      }),
     )
 
     lastSyncedTags = normalizedEntries
-    console.log('[OneSignal] Tags sincronizados:', normalizedEntries)
-  } catch (error) {
-    console.error('[OneSignal] Error al sincronizar tags:', error)
+    log('Tags sincronizados', normalizedEntries)
+  } catch (err) {
+    error('Error al sincronizar tags', err)
+  }
+}
+
+export const updatePushSubscription = async (enabled: boolean) => {
+  const ready = await initializeOneSignal()
+  if (!ready) return
+
+  try {
+    const oneSignal = getOneSignal()
+    if (!oneSignal) return
+
+    const pushSubscription = oneSignal.User?.pushSubscription
+
+    if (!pushSubscription) {
+      warn('pushSubscription no disponible todavía')
+      return
+    }
+
+    if (enabled) {
+      pushSubscription.optIn?.()
+    } else {
+      pushSubscription.optOut?.()
+    }
+
+    log(`Push ${enabled ? 'activadas' : 'desactivadas'}`)
+  } catch (err) {
+    error('Error al actualizar la suscripción push', err)
   }
 }

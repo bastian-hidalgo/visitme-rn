@@ -2,7 +2,7 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet'
 import React from 'react'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 
-import { OneSignalProvider } from './one-signal-provider'
+import { OneSignalProvider } from './OneSignalProvider'
 import { SupabaseAuthProvider } from './supabase-auth-provider'
 import { UserProvider } from './user-provider'
 
@@ -11,9 +11,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     <SafeAreaProvider>
       <BottomSheetModalProvider>
         <SupabaseAuthProvider>
-          <OneSignalProvider>
-            <UserProvider>{children}</UserProvider>
-          </OneSignalProvider>
+          <UserProvider>
+            <OneSignalProvider>{children}</OneSignalProvider>
+          </UserProvider>
         </SupabaseAuthProvider>
       </BottomSheetModalProvider>
     </SafeAreaProvider>
