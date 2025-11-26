@@ -151,10 +151,11 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
     if (!id) return null
 
     const normalizedEmail = email?.trim().toLowerCase() || undefined
+    const normalizedPrimaryCommunity = communitySlug?.trim().toLowerCase() || 'none'
     const baseTags: Record<string, string | number | boolean> = {
       user_id: id,
       role: role || 'resident',
-      primary_community: communitySlug || 'none',
+      primary_community: normalizedPrimaryCommunity,
       community_memberships: membershipSlugs.length,
       accepts_notifications: acceptsNotifications,
     }
@@ -192,6 +193,12 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
       cleanup?.()
     }
   }, [ready, loading, id, communityId])
+
+  useEffect(() => {
+    if (!ready || loading || !id || !communityId || !acceptsNotifications) return
+
+    void ensureCurrentPlayerSynced(id, communityId)
+  }, [ready, loading, id, communityId, acceptsNotifications])
 
   return <>{children}</>
 }
