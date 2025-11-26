@@ -12,18 +12,28 @@ const APP_ID = env.oneSignalAppId
 const LOG = '[OneSignal]'
 const ERR = '[OneSignal:ERR]'
 
-const getOneSignalModule = () => {
-  const module = OneSignal as unknown as { initialize?: (...args: unknown[]) => unknown } | undefined
-  const hasInitialize = typeof module?.initialize === 'function'
+type OneSignalModule = {
+  initialize?: (appId: string) => unknown
+  setAppId?: (appId: string) => unknown
+}
 
-  if (!hasInitialize) {
+const getOneSignalModule = (): (OneSignalModule & { initializer: (appId: string) => void }) | null => {
+  const module = OneSignal as unknown as OneSignalModule | undefined
+  const initializer =
+    typeof module?.initialize === 'function'
+      ? (appId: string) => module.initialize?.(appId)
+      : typeof module?.setAppId === 'function'
+        ? (appId: string) => module.setAppId?.(appId)
+        : null
+
+  if (!initializer) {
     console.error(
       `${ERR} Módulo nativo OneSignal no disponible (¿prebuild/Dev Client faltante o plugin no aplicado?)`,
     )
     return null
   }
 
-  return module
+  return { ...module, initializer }
 }
 
 let initialized = false
@@ -68,7 +78,7 @@ export const initializeOneSignal = async (): Promise<boolean> => {
       if (!oneSignal) {
         return false
       }
-      oneSignal.initialize(APP_ID)
+      oneSignal.initializer(APP_ID)
 
       OneSignal.Notifications?.addEventListener?.('click', event => {
         log('Notificación abierta', event?.notification?.notificationId)
