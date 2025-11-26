@@ -1,4 +1,4 @@
-import { InteractionManager, Platform } from 'react-native'
+import { InteractionManager, NativeModules, Platform } from 'react-native'
 import OneSignal from 'react-native-onesignal'
 
 import { env } from '@/constants/env'
@@ -17,19 +17,35 @@ type OneSignalModule = {
   setAppId?: (appId: string) => unknown
 }
 
+const logNativeDiagnostics = (module?: OneSignalModule) => {
+  const nativeModule = (NativeModules as { OneSignal?: Record<string, unknown> }).OneSignal
+  const moduleKeys = Object.keys(module ?? {})
+  const nativeKeys = nativeModule ? Object.keys(nativeModule) : []
+  const hasNotifications = Boolean((module as Record<string, unknown> | undefined)?.Notifications)
+  const hasUser = Boolean((module as Record<string, unknown> | undefined)?.User)
+
+  log('Diagnóstico OneSignal', {
+    platform: Platform.OS,
+    importType: typeof module,
+    hasNotifications,
+    hasUser,
+    hasInitialize: typeof module?.initialize === 'function',
+    hasSetAppId: typeof module?.setAppId === 'function',
+    moduleKeys,
+    nativeModuleDetected: Boolean(nativeModule),
+    nativeKeys,
+    expoGoLike: Boolean((NativeModules as Record<string, unknown>).NativeUnimoduleProxy),
+  })
+}
+
 const getOneSignalModule = (): (OneSignalModule & { initializer: (appId: string) => void }) | null => {
   const module = OneSignal as unknown as OneSignalModule | undefined
+
+  logNativeDiagnostics(module)
 
   const hasInitialize = typeof module?.initialize === 'function'
   const hasSetAppId = typeof module?.setAppId === 'function'
   const moduleKeys = Object.keys(module ?? {})
-
-  log('Resolviendo módulo nativo OneSignal', {
-    platform: Platform.OS,
-    hasInitialize,
-    hasSetAppId,
-    moduleKeys,
-  })
 
   const initializer =
     hasInitialize
