@@ -17,6 +17,13 @@ async function main() {
     process.exit(1)
   }
 
+  if (!OneSignal || typeof OneSignal.initialize !== 'function') {
+    logErr(
+      'Módulo nativo OneSignal no disponible. Asegura haber corrido `expo prebuild` con el plugin de OneSignal y usar un Dev Client o build nativa.',
+    )
+    process.exit(1)
+  }
+
   log('Inicializando SDK con APP_ID', APP_ID)
   try {
     OneSignal.initialize(APP_ID)

@@ -12,6 +12,16 @@ const APP_ID = env.oneSignalAppId
 const LOG = '[OneSignal]'
 const ERR = '[OneSignal:ERR]'
 
+const isOneSignalAvailable = () => {
+  const hasModule = Boolean((OneSignal as unknown as { initialize?: unknown })?.initialize)
+  if (!hasModule) {
+    console.error(
+      `${ERR} Módulo nativo OneSignal no disponible (¿prebuild/Dev Client faltante o plugin no aplicado?)`,
+    )
+  }
+  return hasModule
+}
+
 let initialized = false
 let initializingPromise: Promise<boolean> | null = null
 let lastExternalId: string | null = null
@@ -50,6 +60,9 @@ export const initializeOneSignal = async (): Promise<boolean> => {
   initializingPromise = (async () => {
     try {
       await waitForNativeReady()
+      if (!isOneSignalAvailable()) {
+        return false
+      }
       OneSignal.initialize(APP_ID)
 
       OneSignal.Notifications?.addEventListener?.('click', event => {

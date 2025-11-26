@@ -37,7 +37,11 @@ const logError = (message: string, ...args: unknown[]) => {
 }
 
 const getPushSubscription = (): PushSubscriptionModule | undefined => {
-  return OneSignal?.User?.pushSubscription as PushSubscriptionModule | undefined
+  const pushSubscription = OneSignal?.User?.pushSubscription as PushSubscriptionModule | undefined
+  if (!pushSubscription) {
+    logError('Módulo nativo OneSignal o pushSubscription no disponible; verifica prebuild/dev client')
+  }
+  return pushSubscription
 }
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
