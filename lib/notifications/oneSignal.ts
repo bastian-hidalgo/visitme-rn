@@ -23,6 +23,17 @@ const logNativeDiagnostics = (module?: OneSignalModule) => {
   const nativeKeys = nativeModule ? Object.keys(nativeModule) : []
   const hasNotifications = Boolean((module as Record<string, unknown> | undefined)?.Notifications)
   const hasUser = Boolean((module as Record<string, unknown> | undefined)?.User)
+  const expoGoLike = Boolean((NativeModules as Record<string, unknown>).NativeUnimoduleProxy)
+
+  const newArchFlag = (() => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const appConfig = require('../../app.json') as { expo?: { newArchEnabled?: boolean } }
+      return Boolean(appConfig?.expo?.newArchEnabled)
+    } catch {
+      return undefined
+    }
+  })()
 
   log('Diagnóstico OneSignal', {
     platform: Platform.OS,
@@ -34,9 +45,12 @@ const logNativeDiagnostics = (module?: OneSignalModule) => {
     moduleKeys,
     nativeModuleDetected: Boolean(nativeModule),
     nativeKeys,
-    expoGoLike: Boolean((NativeModules as Record<string, unknown>).NativeUnimoduleProxy),
+    expoGoLike,
+    newArchEnabled: newArchFlag,
   })
 }
+
+let loggedMissingNative = false
 
 const getOneSignalModule = (): (OneSignalModule & { initializer: (appId: string) => void }) | null => {
   const module = OneSignal as unknown as OneSignalModule | undefined
@@ -55,15 +69,19 @@ const getOneSignalModule = (): (OneSignalModule & { initializer: (appId: string)
         : null
 
   if (!initializer) {
-    console.error(
-      `${ERR} Módulo nativo OneSignal no disponible (¿prebuild/Dev Client faltante o plugin no aplicado?)`,
-      {
-        platform: Platform.OS,
-        hasInitialize,
-        hasSetAppId,
-        moduleKeys,
-      },
-    )
+    if (!loggedMissingNative) {
+      loggedMissingNative = true
+      console.error(
+        `${ERR} Módulo nativo OneSignal no disponible (¿prebuild/Dev Client faltante, Expo Go o plugin no aplicado?)`,
+        {
+          platform: Platform.OS,
+          hasInitialize,
+          hasSetAppId,
+          moduleKeys,
+          hint: 'Usa dev client con prebuild limpio y asegúrate de que onesignal-expo-plugin esté habilitado',
+        },
+      )
+    }
     return null
   }
 

@@ -20,8 +20,24 @@ async function main() {
   const moduleKeys = Object.keys(OneSignal || {})
   const hasInitialize = typeof OneSignal?.initialize === 'function'
   const hasSetAppId = typeof OneSignal?.setAppId === 'function'
+  const nativeKeys = Object.keys(require('react-native').NativeModules?.OneSignal || {})
 
-  log('Resolviendo módulo nativo', { moduleKeys, hasInitialize, hasSetAppId })
+  let newArchEnabled
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const appJson = require('../app.json')
+    newArchEnabled = Boolean(appJson?.expo?.newArchEnabled)
+  } catch (error) {
+    newArchEnabled = undefined
+  }
+
+  log('Resolviendo módulo nativo', {
+    moduleKeys,
+    nativeKeys,
+    hasInitialize,
+    hasSetAppId,
+    newArchEnabled,
+  })
 
   if (!OneSignal || (!hasInitialize && !hasSetAppId)) {
     logErr(

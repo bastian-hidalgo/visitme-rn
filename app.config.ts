@@ -53,7 +53,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     icon: './assets/images/icon.png',
     scheme: 'visitmeapp',
     userInterfaceStyle: 'automatic',
-    newArchEnabled: true,
+    // OneSignal Expo plugin no soporta New Architecture en esta app actualmente
+    newArchEnabled: false,
     ios: {
       supportsTablet: false,
       bundleIdentifier: 'cl.visitme.app',
