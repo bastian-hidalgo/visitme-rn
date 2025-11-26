@@ -17,16 +17,27 @@ async function main() {
     process.exit(1)
   }
 
-  if (!OneSignal || typeof OneSignal.initialize !== 'function') {
+  const moduleKeys = Object.keys(OneSignal || {})
+  const hasInitialize = typeof OneSignal?.initialize === 'function'
+  const hasSetAppId = typeof OneSignal?.setAppId === 'function'
+
+  log('Resolviendo módulo nativo', { moduleKeys, hasInitialize, hasSetAppId })
+
+  if (!OneSignal || (!hasInitialize && !hasSetAppId)) {
     logErr(
       'Módulo nativo OneSignal no disponible. Asegura haber corrido `expo prebuild` con el plugin de OneSignal y usar un Dev Client o build nativa.',
     )
     process.exit(1)
   }
 
-  log('Inicializando SDK con APP_ID', APP_ID)
+  const initializerName = hasInitialize ? 'initialize' : 'setAppId'
+  log('Inicializando SDK con APP_ID', APP_ID, 'usando', initializerName)
   try {
-    OneSignal.initialize(APP_ID)
+    if (hasInitialize) {
+      OneSignal.initialize(APP_ID)
+    } else {
+      OneSignal.setAppId(APP_ID)
+    }
   } catch (error) {
     logErr('No se pudo inicializar OneSignal', error)
     process.exit(1)

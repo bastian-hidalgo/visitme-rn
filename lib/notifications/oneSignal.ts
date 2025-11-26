@@ -19,16 +19,34 @@ type OneSignalModule = {
 
 const getOneSignalModule = (): (OneSignalModule & { initializer: (appId: string) => void }) | null => {
   const module = OneSignal as unknown as OneSignalModule | undefined
+
+  const hasInitialize = typeof module?.initialize === 'function'
+  const hasSetAppId = typeof module?.setAppId === 'function'
+  const moduleKeys = Object.keys(module ?? {})
+
+  log('Resolviendo módulo nativo OneSignal', {
+    platform: Platform.OS,
+    hasInitialize,
+    hasSetAppId,
+    moduleKeys,
+  })
+
   const initializer =
-    typeof module?.initialize === 'function'
-      ? (appId: string) => module.initialize?.(appId)
-      : typeof module?.setAppId === 'function'
-        ? (appId: string) => module.setAppId?.(appId)
+    hasInitialize
+      ? (appId: string) => module?.initialize?.(appId)
+      : hasSetAppId
+        ? (appId: string) => module?.setAppId?.(appId)
         : null
 
   if (!initializer) {
     console.error(
       `${ERR} Módulo nativo OneSignal no disponible (¿prebuild/Dev Client faltante o plugin no aplicado?)`,
+      {
+        platform: Platform.OS,
+        hasInitialize,
+        hasSetAppId,
+        moduleKeys,
+      },
     )
     return null
   }
@@ -73,11 +91,14 @@ export const initializeOneSignal = async (): Promise<boolean> => {
 
   initializingPromise = (async () => {
     try {
+      log('Inicializando OneSignal (esperando módulo nativo)...')
       await waitForNativeReady()
       const oneSignal = getOneSignalModule()
       if (!oneSignal) {
         return false
       }
+      const initializerName = typeof (OneSignal as OneSignalModule)?.initialize === 'function' ? 'initialize' : 'setAppId'
+      log(`Usando inicializador OneSignal: ${initializerName}`)
       oneSignal.initializer(APP_ID)
 
       OneSignal.Notifications?.addEventListener?.('click', event => {
