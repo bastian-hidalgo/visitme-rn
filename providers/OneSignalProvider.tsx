@@ -6,6 +6,10 @@ import {
   syncTags,
   updatePushSubscription,
 } from '@/lib/notifications/oneSignal'
+import {
+  ensureCurrentPlayerSynced,
+  registerPushSubscriptionListener,
+} from '@/lib/notifications/oneSignalSync'
 import { supabase } from '@/lib/supabase'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { PropsWithChildren, useEffect, useMemo, useState } from 'react'
@@ -17,8 +21,8 @@ import { useUser } from './user-provider'
 const PERMISSION_STORAGE_KEY = 'onesignal_permission_prompt'
 
 export function OneSignalProvider({ children }: PropsWithChildren) {
-  const { id, email, role, communitySlug, acceptsNotifications, loading } = useUser()
-  const [membershipSlugs, setMembershipSlugs] = useState<string[]>([])
+  const { id, email, role, communitySlug, communityId, acceptsNotifications, loading } = useUser()
+  const [memberships, setMemberships] = useState<{ id: string; slug: string }[]>([])
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
@@ -61,7 +65,7 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (!id) {
-      setMembershipSlugs([])
+      setMemberships([])
       return
     }
 
@@ -70,7 +74,7 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
     const fetchMemberships = async () => {
       const { data, error } = await supabase
         .from('user_communities')
-        .select('community:community_id(slug)')
+        .select('community_id, community:community_id(id,slug)')
         .eq('user_id', id)
 
       if (error) {
@@ -80,12 +84,17 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
 
       if (!active) return
 
-      const slugs = (data ?? [])
-        .map(entry => entry?.community?.slug)
-        .filter((slug): slug is string => Boolean(slug))
-        .map(slug => slug.trim().toLowerCase())
+      const uniqueById = new Map<string, { id: string; slug: string }>()
 
-      setMembershipSlugs(Array.from(new Set(slugs)))
+      ;(data ?? []).forEach(entry => {
+        const slug = entry?.community?.slug?.trim().toLowerCase()
+        const commId = entry?.community?.id ?? entry?.community_id
+
+        if (!slug || !commId) return
+        uniqueById.set(commId, { id: commId, slug })
+      })
+
+      setMemberships(Array.from(uniqueById.values()))
     }
 
     fetchMemberships()
@@ -136,24 +145,30 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
     void handlePermissions()
   }, [ready, loading, acceptsNotifications, id])
 
+  const membershipSlugs = useMemo(() => memberships.map(m => m.slug), [memberships])
+
   const tagPayload = useMemo(() => {
     if (!id) return null
 
+    const normalizedEmail = email?.trim().toLowerCase() || undefined
     const baseTags: Record<string, string | number | boolean> = {
       user_id: id,
-      role: role || 'unknown',
+      role: role || 'resident',
       primary_community: communitySlug || 'none',
+      community_memberships: membershipSlugs.length,
       accepts_notifications: acceptsNotifications,
+    }
+
+    if (normalizedEmail) {
+      baseTags.email = normalizedEmail
     }
 
     membershipSlugs.forEach(slug => {
       baseTags[`community_${slug}`] = true
     })
 
-    baseTags.community_memberships = membershipSlugs.length
-
     return baseTags
-  }, [id, role, communitySlug, acceptsNotifications, membershipSlugs])
+  }, [id, email, role, communitySlug, acceptsNotifications, membershipSlugs])
 
   useEffect(() => {
     if (!ready || loading) return
@@ -165,6 +180,18 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
 
     void syncTags(tagPayload)
   }, [ready, loading, tagPayload])
+
+  useEffect(() => {
+    if (!ready || loading || !id || !communityId) return
+
+    const cleanup = registerPushSubscriptionListener(id, communityId)
+
+    void ensureCurrentPlayerSynced(id, communityId)
+
+    return () => {
+      cleanup?.()
+    }
+  }, [ready, loading, id, communityId])
 
   return <>{children}</>
 }
