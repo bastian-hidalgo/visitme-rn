@@ -1,4 +1,4 @@
-import { logoutOneSignalUser } from '@/lib/notifications/oneSignal'
+import { logoutUser as logoutOneSignalUser } from '@/lib/notifications/oneSignal'
 import { supabase } from '@/lib/supabase'
 import { useSupabaseAuth } from '@/providers/supabase-auth-provider'
 import AsyncStorage from '@react-native-async-storage/async-storage'
