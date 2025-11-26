@@ -14,7 +14,7 @@ import { supabase } from '@/lib/supabase'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { PropsWithChildren, useEffect, useMemo, useState } from 'react'
 import { InteractionManager } from 'react-native'
-import { OneSignal } from 'react-native-onesignal'
+import OneSignal from '@onesignal/react-native'
 
 import { useUser } from './user-provider'
 

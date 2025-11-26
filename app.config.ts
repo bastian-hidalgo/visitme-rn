@@ -82,6 +82,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
     },
     android: {
+      googleServicesFile: './google-services.json',
       adaptiveIcon: {
         backgroundColor: '#E6F4FE',
         foregroundImage: './assets/images/android-icon-foreground.png',
@@ -91,7 +92,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
       package: 'cl.visitme.app',
-      permissions: ['android.permission.RECORD_AUDIO'],
+      permissions: ['android.permission.RECORD_AUDIO', 'android.permission.POST_NOTIFICATIONS'],
     },
     web: {
       output: 'static',
@@ -126,6 +127,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         'onesignal-expo-plugin',
         {
           mode: oneSignalMode,
+          smallIconAccentColor: '#4a6aac',
         },
       ],
     ],

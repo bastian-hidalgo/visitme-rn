@@ -1,6 +1,7 @@
-import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
-import { OneSignal } from 'react-native-onesignal'
+import OneSignal from '@onesignal/react-native'
+
+import { supabase } from '@/lib/supabase'
 
 type PushSubscriptionChangeEvent = {
   pushSubscription?: {

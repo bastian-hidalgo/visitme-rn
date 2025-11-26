@@ -1,107 +1,72 @@
 import { InteractionManager, Platform } from 'react-native'
-import { OneSignal } from 'react-native-onesignal'
+import OneSignal from '@onesignal/react-native'
 
 import { env } from '@/constants/env'
+import {
+  ensureCurrentPlayerSynced,
+  getCurrentPlayerId,
+  registerPushSubscriptionListener,
+} from './oneSignalSync'
 
-const ONESIGNAL_APP_ID = env.oneSignalAppId
-const LOG_PREFIX = '[OneSignal]'
+const APP_ID = env.oneSignalAppId
+const LOG = '[OneSignal]'
+const ERR = '[OneSignal:ERR]'
 
 let initialized = false
 let initializingPromise: Promise<boolean> | null = null
-let lastLoggedInUserId: string | null = null
-let lastSyncedEmail: string | null = null
-let lastSyncedTags: Record<string, string> = {}
+let lastExternalId: string | null = null
+let lastEmail: string | null = null
+let lastTags: Record<string, string> = {}
+let lastListenerKey: string | null = null
+let listenerCleanup: (() => void) | null = null
 
-const log = (message: string, ...args: unknown[]) => {
-  console.log(`${LOG_PREFIX} ${message}`, ...args)
-}
-
-const warn = (message: string, ...args: unknown[]) => {
-  console.warn(`${LOG_PREFIX} ${message}`, ...args)
-}
-
-const error = (message: string, ...args: unknown[]) => {
-  console.error(`${LOG_PREFIX} ${message}`, ...args)
-}
-
-type OneSignalNotifications = {
-  requestPermission?: (requestOptions?: boolean) => Promise<boolean> | boolean
-  addEventListener?: (event: string, listener: (event: any) => void) => void
-}
-
-type OneSignalModule = {
-  initialize?: (appId: string) => void
-  login?: (userId: string) => void
-  logout?: () => void
-  Notifications?: OneSignalNotifications
-  User?: {
-    addEmail?: (email: string) => Promise<void>
-    removeEmail?: (email?: string) => Promise<void>
-    addTag?: (key: string, value: string) => Promise<void>
-    removeTag?: (key: string) => Promise<void>
-    pushSubscription?: {
-      optIn?: () => unknown
-      optOut?: () => unknown
-    }
-  }
-}
-
-const getOneSignal = (): OneSignalModule | undefined => {
-  if (Platform.OS === 'web') {
-    warn('SDK no disponible en plataforma web, se omite la inicialización')
-    return undefined
-  }
-
-  const oneSignal = OneSignal as unknown as OneSignalModule | undefined
-
-  if (!oneSignal?.initialize) {
-    warn(
-      'SDK nativo no disponible. Asegúrate de usar una build con el plugin de OneSignal instalado.',
-    )
-    return undefined
-  }
-
-  return oneSignal
-}
+const log = (msg: string, ...args: unknown[]) => console.log(`${LOG} ${msg}`, ...args)
+const logError = (msg: string, ...args: unknown[]) => console.error(`${ERR} ${msg}`, ...args)
+const warn = (msg: string, ...args: unknown[]) => console.warn(`${LOG} ${msg}`, ...args)
 
 const waitForNativeReady = async () =>
   new Promise<void>(resolve => {
-    InteractionManager.runAfterInteractions(() => {
-      setTimeout(resolve, 120)
-    })
+    InteractionManager.runAfterInteractions(() => setTimeout(resolve, 120))
   })
+
+const ensureSupportedPlatform = () => {
+  if (Platform.OS === 'web') {
+    warn('SDK omitido en web')
+    return false
+  }
+  return true
+}
 
 export const initializeOneSignal = async (): Promise<boolean> => {
   if (initialized) return true
   if (initializingPromise) return initializingPromise
+  if (!ensureSupportedPlatform()) return false
 
-  if (!ONESIGNAL_APP_ID) {
-    warn('Falta EXPO_PUBLIC_ONESIGNAL_APP_ID en tu entorno (.env)')
+  if (!APP_ID) {
+    logError('Falta EXPO_PUBLIC_ONESIGNAL_APP_ID en el entorno')
     return false
   }
-
-  const oneSignal = getOneSignal()
-  if (!oneSignal) return false
 
   initializingPromise = (async () => {
     try {
       await waitForNativeReady()
-      oneSignal.initialize?.(ONESIGNAL_APP_ID)
+      OneSignal.initialize(APP_ID)
 
-      oneSignal.Notifications?.addEventListener?.('click', event => {
+      OneSignal.Notifications?.addEventListener?.('click', event => {
         log('Notificación abierta', event?.notification?.notificationId)
       })
 
-      oneSignal.Notifications?.addEventListener?.('foregroundWillDisplay', event => {
-        log('Notificación recibida en foreground', event?.notification?.notificationId)
+      OneSignal.Notifications?.addEventListener?.('foregroundWillDisplay', event => {
+        const notificationId = event?.notification?.notificationId
+        log('Notificación en foreground', notificationId)
         event?.getNotification?.()?.display?.()
       })
 
       initialized = true
       log('Inicializado correctamente')
       return true
-    } catch (err) {
-      error('Error al inicializar SDK', err)
+    } catch (error) {
+      logError('Error inicializando OneSignal', error)
       return false
     } finally {
       initializingPromise = null
@@ -109,150 +74,6 @@ export const initializeOneSignal = async (): Promise<boolean> => {
   })()
 
   return initializingPromise
-}
-
-export const loginUser = async (userId?: string | null, email?: string | null) => {
-  if (!userId) {
-    warn('login omitido: userId no disponible')
-    return
-  }
-
-  const ready = await initializeOneSignal()
-  if (!ready) return
-
-  if (lastLoggedInUserId === userId) {
-    log(`Usuario ya logueado: ${userId}`)
-  } else {
-    try {
-      const oneSignal = getOneSignal()
-      if (!oneSignal) return
-
-      oneSignal.login?.(userId)
-      lastLoggedInUserId = userId
-      log(`Usuario logueado con external_id ${userId}`)
-    } catch (err) {
-      error('Error en login del usuario', err)
-    }
-  }
-
-  if (email) {
-    await syncEmail(email)
-  }
-}
-
-export const logoutUser = async () => {
-  if (!initialized) {
-    warn('logout omitido: SDK aún no inicializado')
-    return
-  }
-
-  try {
-    const oneSignal = getOneSignal()
-    if (!oneSignal) return
-
-    oneSignal.logout?.()
-    lastLoggedInUserId = null
-    await syncEmail(null)
-    await syncTags({})
-    lastSyncedEmail = null
-    log('Usuario deslogueado de OneSignal')
-  } catch (err) {
-    error('Error al hacer logout', err)
-  }
-}
-
-export const syncEmail = async (email: string | null) => {
-  const ready = await initializeOneSignal()
-  if (!ready) return
-
-  const oneSignal = getOneSignal()
-  if (!oneSignal) return
-
-  try {
-    const normalizedEmail = email?.trim().toLowerCase() || null
-    if (lastSyncedEmail === normalizedEmail) return
-
-    if (normalizedEmail) {
-      await oneSignal.User?.addEmail?.(normalizedEmail)
-      lastSyncedEmail = normalizedEmail
-      log(`Email sincronizado: ${normalizedEmail}`)
-    } else if (lastSyncedEmail) {
-      await oneSignal.User?.removeEmail?.(lastSyncedEmail)
-      lastSyncedEmail = null
-      log('Email removido de OneSignal')
-    }
-  } catch (err) {
-    error('Error al sincronizar email', err)
-  }
-}
-
-export const syncTags = async (tags: Record<string, string | number | boolean>) => {
-  const ready = await initializeOneSignal()
-  if (!ready) return
-
-  const oneSignal = getOneSignal()
-  if (!oneSignal) return
-
-  try {
-    const normalizedEntries = Object.entries(tags).reduce<Record<string, string>>(
-      (acc, [key, value]) => {
-        acc[key] = String(value)
-        return acc
-      },
-      {},
-    )
-
-    const keysToRemove = Object.keys(lastSyncedTags).filter(key => !(key in normalizedEntries))
-
-    await Promise.all(
-      keysToRemove.map(async key => {
-        try {
-          await oneSignal.User?.removeTag?.(key)
-        } catch (err) {
-          error(`Error al remover tag ${key}`, err)
-        }
-      }),
-    )
-
-    await Promise.all(
-      Object.entries(normalizedEntries).map(async ([key, value]) => {
-        if (lastSyncedTags[key] === value) return
-        await oneSignal.User?.addTag?.(key, value)
-      }),
-    )
-
-    lastSyncedTags = normalizedEntries
-    log('Tags sincronizados', normalizedEntries)
-  } catch (err) {
-    error('Error al sincronizar tags', err)
-  }
-}
-
-export const updatePushSubscription = async (enabled: boolean) => {
-  const ready = await initializeOneSignal()
-  if (!ready) return
-
-  try {
-    const oneSignal = getOneSignal()
-    if (!oneSignal) return
-
-    const pushSubscription = oneSignal.User?.pushSubscription
-
-    if (!pushSubscription) {
-      warn('pushSubscription no disponible todavía')
-      return
-    }
-
-    if (enabled) {
-      pushSubscription.optIn?.()
-    } else {
-      pushSubscription.optOut?.()
-    }
-
-    log(`Push ${enabled ? 'activadas' : 'desactivadas'}`)
-  } catch (err) {
-    error('Error al actualizar la suscripción push', err)
-  }
 }
 
 export const promptForPushPermission = async (): Promise<boolean> => {
@@ -264,9 +85,155 @@ export const promptForPushPermission = async (): Promise<boolean> => {
     const granted = Boolean(permission)
     await updatePushSubscription(granted)
     return granted
-  } catch (err) {
-    error('Error al solicitar permiso de notificaciones', err)
+  } catch (error) {
+    logError('Error solicitando permiso de notificaciones', error)
     await updatePushSubscription(false)
     return false
   }
+}
+
+export const updatePushSubscription = async (enabled: boolean) => {
+  const ready = await initializeOneSignal()
+  if (!ready) return
+
+  try {
+    const pushSubscription = OneSignal.User?.pushSubscription
+    if (!pushSubscription) {
+      warn('pushSubscription aún no disponible')
+      return
+    }
+
+    if (enabled) {
+      pushSubscription.optIn?.()
+    } else {
+      pushSubscription.optOut?.()
+    }
+
+    log(`Push ${enabled ? 'activadas' : 'desactivadas'}`)
+  } catch (error) {
+    logError('No se pudo actualizar pushSubscription', error)
+  }
+}
+
+export const syncEmail = async (email: string | null) => {
+  const ready = await initializeOneSignal()
+  if (!ready) return
+
+  const normalized = email?.trim().toLowerCase() || null
+  if (normalized === lastEmail) return
+
+  try {
+    if (normalized) {
+      await OneSignal.User?.addEmail?.(normalized)
+      lastEmail = normalized
+      log(`Email sincronizado: ${normalized}`)
+    } else if (lastEmail) {
+      await OneSignal.User?.removeEmail?.(lastEmail)
+      lastEmail = null
+      log('Email removido de OneSignal')
+    }
+  } catch (error) {
+    logError('No se pudo sincronizar email', error)
+  }
+}
+
+export const syncTags = async (tags: Record<string, string | number | boolean>) => {
+  const ready = await initializeOneSignal()
+  if (!ready) return
+
+  const next = Object.entries(tags).reduce<Record<string, string>>((acc, [key, value]) => {
+    acc[key] = String(value)
+    return acc
+  }, {})
+
+  const keysToRemove = Object.keys(lastTags).filter(key => !(key in next))
+
+  try {
+    await Promise.all(
+      keysToRemove.map(async key => {
+        try {
+          await OneSignal.User?.removeTag?.(key)
+        } catch (error) {
+          logError(`Error removiendo tag ${key}`, error)
+        }
+      }),
+    )
+
+    await Promise.all(
+      Object.entries(next).map(async ([key, value]) => {
+        if (lastTags[key] === value) return
+        await OneSignal.User?.addTag?.(key, value)
+      }),
+    )
+
+    lastTags = next
+    log('Tags sincronizados', next)
+  } catch (error) {
+    logError('No se pudieron sincronizar tags', error)
+  }
+}
+
+export const loginUser = async (
+  userId?: string | null,
+  email?: string | null,
+  communityId?: string | null,
+) => {
+  if (!userId) {
+    warn('login omitido: falta userId')
+    return
+  }
+
+  const ready = await initializeOneSignal()
+  if (!ready) return
+
+  if (lastExternalId !== userId) {
+    try {
+      OneSignal.login(userId)
+      lastExternalId = userId
+      log(`Usuario logueado con external_id ${userId}`)
+    } catch (error) {
+      logError('No se pudo hacer login en OneSignal', error)
+    }
+  }
+
+  if (email !== undefined) {
+    await syncEmail(email)
+  }
+
+  if (communityId) {
+    const listenerKey = `${userId}-${communityId}`
+    if (listenerCleanup && listenerKey !== lastListenerKey) {
+      listenerCleanup()
+    }
+    if (!listenerCleanup || listenerKey !== lastListenerKey) {
+      listenerCleanup = registerPushSubscriptionListener(userId, communityId)
+      lastListenerKey = listenerKey
+    }
+
+    await ensureCurrentPlayerSynced(userId, communityId)
+  }
+}
+
+export const logoutUser = async () => {
+  if (!initialized) return
+
+  try {
+    OneSignal.logout()
+    lastExternalId = null
+    await syncEmail(null)
+    await syncTags({})
+    listenerCleanup?.()
+    listenerCleanup = null
+    lastListenerKey = null
+    log('Usuario deslogueado de OneSignal')
+  } catch (error) {
+    logError('Error en logout de OneSignal', error)
+  }
+}
+
+export const getPlayerId = async (): Promise<string | null> => {
+  const ready = await initializeOneSignal()
+  if (!ready) return null
+
+  return getCurrentPlayerId()
 }
