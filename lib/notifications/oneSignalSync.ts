@@ -24,8 +24,8 @@ type PushSubscriptionModule = {
 const LOG_PREFIX = '[OneSignal]'
 const ERR_PREFIX = '[OneSignal:ERR]'
 const MAX_RETRIES = 3
-const PLAYER_POLL_RETRIES = 5
-const PLAYER_POLL_DELAY = 350
+const PLAYER_POLL_RETRIES = 12
+const PLAYER_POLL_DELAY = 500
 
 const log = (message: string, ...args: unknown[]) => {
   console.log(`${LOG_PREFIX} ${message}`, ...args)
@@ -121,7 +121,8 @@ export const registerPushSubscriptionListener = (
   const handler = (event: PushSubscriptionChangeEvent) => {
     const newPlayerId = event?.pushSubscription?.id ?? pushSubscription.id
     if (!newPlayerId) {
-      log('pushSubscription change recibido sin player_id, se omitió sync')
+      log('pushSubscription change recibido sin player_id, se iniciará polling')
+      void pollAndSyncPlayerId(userId, communityId, 'pushSubscription.change')
       return
     }
 
@@ -159,7 +160,9 @@ export const getCurrentPlayerId = async (): Promise<string | null> => {
   }
 }
 
-const getCurrentPlayerIdWithRetry = async (): Promise<string | null> => {
+const getCurrentPlayerIdWithRetry = async (
+  reason?: string,
+): Promise<string | null> => {
   let lastId: string | null = null
 
   for (let attempt = 1; attempt <= PLAYER_POLL_RETRIES; attempt += 1) {
@@ -167,16 +170,34 @@ const getCurrentPlayerIdWithRetry = async (): Promise<string | null> => {
 
     if (lastId) {
       if (attempt > 1) {
-        log('player_id obtenido tras reintento', { attempt, lastId })
+        log('player_id obtenido tras reintento', { attempt, lastId, reason })
       }
       break
     }
 
-    log('player_id no disponible, reintentando', { attempt, max: PLAYER_POLL_RETRIES })
+    log('player_id no disponible, reintentando', {
+      attempt,
+      max: PLAYER_POLL_RETRIES,
+      reason,
+    })
     await sleep(PLAYER_POLL_DELAY * attempt)
   }
 
   return lastId
+}
+
+const pollAndSyncPlayerId = async (
+  userId: string,
+  communityId: string,
+  reason?: string,
+) => {
+  const currentId = await getCurrentPlayerIdWithRetry(reason)
+  if (!currentId) {
+    log('No se encontró player_id tras polling, se omite sync', { reason })
+    return
+  }
+
+  await syncPlayerIdWithRetry(currentId, userId, communityId)
 }
 
 export const ensureCurrentPlayerSynced = async (
@@ -184,13 +205,7 @@ export const ensureCurrentPlayerSynced = async (
   communityId: string,
 ) => {
   log('Iniciando sync de player_id actual', { userId, communityId })
-  const currentId = await getCurrentPlayerIdWithRetry()
-  if (!currentId) {
-    log('No se encontró player_id actual para sincronizar')
-    return
-  }
-
-  await syncPlayerIdWithRetry(currentId, userId, communityId)
+  await pollAndSyncPlayerId(userId, communityId, 'ensureCurrentPlayerSynced')
 }
 
 export const useOneSignalPlayer = () => {
