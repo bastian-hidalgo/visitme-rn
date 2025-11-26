@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import OneSignal from '@onesignal/react-native'
+import OneSignal from 'react-native-onesignal'
 
 import { supabase } from '@/lib/supabase'
 

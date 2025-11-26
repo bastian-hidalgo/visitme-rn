@@ -1,6 +1,6 @@
 // Usage: node scripts/debug-onesignal.js
 // Requires running inside a native environment (Dev Client or production build)
-const OneSignal = require('@onesignal/react-native').default
+const OneSignal = require('react-native-onesignal').default
 
 const APP_ID = process.env.EXPO_PUBLIC_ONESIGNAL_APP_ID || ''
 

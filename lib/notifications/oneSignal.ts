@@ -1,5 +1,5 @@
 import { InteractionManager, Platform } from 'react-native'
-import OneSignal from '@onesignal/react-native'
+import OneSignal from 'react-native-onesignal'
 
 import { env } from '@/constants/env'
 import {
