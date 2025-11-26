@@ -254,3 +254,19 @@ export const updatePushSubscription = async (enabled: boolean) => {
     error('Error al actualizar la suscripción push', err)
   }
 }
+
+export const promptForPushPermission = async (): Promise<boolean> => {
+  const ready = await initializeOneSignal()
+  if (!ready) return false
+
+  try {
+    const permission = await OneSignal.Notifications?.requestPermission?.(true)
+    const granted = Boolean(permission)
+    await updatePushSubscription(granted)
+    return granted
+  } catch (err) {
+    error('Error al solicitar permiso de notificaciones', err)
+    await updatePushSubscription(false)
+    return false
+  }
+}
