@@ -151,10 +151,11 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
     if (!id) return null
 
     const normalizedEmail = email?.trim().toLowerCase() || undefined
+    const normalizedPrimaryCommunity = communitySlug?.trim().toLowerCase() || 'none'
     const baseTags: Record<string, string | number | boolean> = {
       user_id: id,
       role: role || 'resident',
-      primary_community: communitySlug || 'none',
+      primary_community: normalizedPrimaryCommunity,
       community_memberships: membershipSlugs.length,
       accepts_notifications: acceptsNotifications,
     }
@@ -182,7 +183,17 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
   }, [ready, loading, tagPayload])
 
   useEffect(() => {
-    if (!ready || loading || !id || !communityId) return
+    if (!ready || loading) return
+
+    if (!id) {
+      console.log('[OneSignal] Sync omitido: usuario no autenticado todavía')
+      return
+    }
+
+    if (!communityId) {
+      console.log('[OneSignal] Sync omitido: communityId no disponible aún')
+      return
+    }
 
     const cleanup = registerPushSubscriptionListener(id, communityId)
 
@@ -192,6 +203,18 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
       cleanup?.()
     }
   }, [ready, loading, id, communityId])
+
+  useEffect(() => {
+    if (!ready || loading) return
+    if (!id || !communityId) return
+    if (!acceptsNotifications) {
+      console.log('[OneSignal] Sync omitido: usuario no acepta notificaciones')
+      return
+    }
+
+    console.log('[OneSignal] Sync explícito por acceptsNotifications=true')
+    void ensureCurrentPlayerSynced(id, communityId)
+  }, [ready, loading, id, communityId, acceptsNotifications])
 
   return <>{children}</>
 }

@@ -1,29 +1,12 @@
 import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
-import { OneSignal } from 'react-native-onesignal'
-
-type PushSubscriptionChangeEvent = {
-  pushSubscription?: {
-    id?: string | null
-  }
-}
-
-type PushSubscriptionModule = {
-  id?: string | null
-  getId?: () => Promise<string | null> | string | null
-  addEventListener?: (
-    event: 'change',
-    listener: (event: PushSubscriptionChangeEvent) => void,
-  ) => void
-  removeEventListener?: (
-    event: 'change',
-    listener: (event: PushSubscriptionChangeEvent) => void,
-  ) => void
-}
+import { OneSignal, PushSubscriptionChangedState } from 'react-native-onesignal'
 
 const LOG_PREFIX = '[OneSignal]'
 const ERR_PREFIX = '[OneSignal:ERR]'
 const MAX_RETRIES = 3
+const PLAYER_POLL_RETRIES = 5
+const PLAYER_POLL_DELAY = 350
 
 const log = (message: string, ...args: unknown[]) => {
   console.log(`${LOG_PREFIX} ${message}`, ...args)
@@ -33,9 +16,7 @@ const logError = (message: string, ...args: unknown[]) => {
   console.error(`${ERR_PREFIX} ${message}`, ...args)
 }
 
-const getPushSubscription = (): PushSubscriptionModule | undefined => {
-  return OneSignal?.User?.pushSubscription as PushSubscriptionModule | undefined
-}
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export const syncPlayerIdToSupabase = async (
   playerId: string | null | undefined,
@@ -53,19 +34,20 @@ export const syncPlayerIdToSupabase = async (
     return
   }
 
-  const { error } = await supabase.from('onesignal_players').upsert(
-    {
-      user_id: userId,
-      community_id: communityId,
-      player_id: normalizedPlayerId,
-    },
-    {
-      onConflict: 'user_id,community_id,player_id',
-      ignoreDuplicates: true,
-    },
-  )
+  log('Sincronizando player_id → Supabase', { normalizedPlayerId, userId, communityId })
+
+  const { error } = await supabase.from('onesignal_players').insert({
+    user_id: userId,
+    community_id: communityId,
+    player_id: normalizedPlayerId,
+  })
 
   if (error) {
+    // Si ya existe (violación de unique constraint), lo ignoramos
+    if (error.code === '23505') {
+      log('player_id ya existía en Supabase, omitido')
+      return
+    }
     throw error
   }
 
@@ -105,47 +87,70 @@ export const registerPushSubscriptionListener = (
   userId: string,
   communityId: string,
 ) => {
-  const pushSubscription = getPushSubscription()
+  const handler = (event: PushSubscriptionChangedState) => {
+    const newPlayerId = event.current.id
+    if (!newPlayerId) {
+      log('pushSubscription change recibido sin player_id, se omitió sync')
+      return
+    }
 
-  if (!pushSubscription?.addEventListener) {
-    log('pushSubscription listener omitido: módulo no disponible')
-    return () => {}
-  }
-
-  const handler = (event: PushSubscriptionChangeEvent) => {
-    const newPlayerId = event?.pushSubscription?.id ?? pushSubscription.id
-    if (!newPlayerId) return
-
+    log('pushSubscription change → player_id detectado, sincronizando', newPlayerId)
     void syncPlayerIdWithRetry(newPlayerId, userId, communityId)
   }
 
-  pushSubscription.addEventListener('change', handler)
+  OneSignal.User.pushSubscription.addEventListener('change', handler)
   log('Listener de pushSubscription registrado')
 
   return () => {
-    pushSubscription.removeEventListener?.('change', handler)
+    OneSignal.User.pushSubscription.removeEventListener('change', handler)
     log('Listener de pushSubscription removido')
   }
 }
 
 export const getCurrentPlayerId = async (): Promise<string | null> => {
   try {
-    const pushSubscription = getPushSubscription()
-    if (!pushSubscription) return null
+    // Método correcto para v5 (actualizado a getIdAsync)
+    const currentId = await OneSignal.User.pushSubscription.getIdAsync()
+    
+    const resolved = currentId ?? null
+    
+    if (!resolved) {
+      log('pushSubscription disponible pero sin player_id actual')
+    }
 
-    const currentId = await pushSubscription.getId?.()
-    return currentId ?? pushSubscription.id ?? null
+    return resolved
   } catch (err) {
     logError('No se pudo obtener el player_id actual', err)
     return null
   }
 }
 
+const getCurrentPlayerIdWithRetry = async (): Promise<string | null> => {
+  let lastId: string | null = null
+
+  for (let attempt = 1; attempt <= PLAYER_POLL_RETRIES; attempt += 1) {
+    lastId = await getCurrentPlayerId()
+
+    if (lastId) {
+      if (attempt > 1) {
+        log('player_id obtenido tras reintento', { attempt, lastId })
+      }
+      break
+    }
+
+    log('player_id no disponible, reintentando', { attempt, max: PLAYER_POLL_RETRIES })
+    await sleep(PLAYER_POLL_DELAY * attempt)
+  }
+
+  return lastId
+}
+
 export const ensureCurrentPlayerSynced = async (
   userId: string,
   communityId: string,
 ) => {
-  const currentId = await getCurrentPlayerId()
+  log('Iniciando sync de player_id actual', { userId, communityId })
+  const currentId = await getCurrentPlayerIdWithRetry()
   if (!currentId) {
     log('No se encontró player_id actual para sincronizar')
     return
@@ -159,7 +164,6 @@ export const useOneSignalPlayer = () => {
 
   useEffect(() => {
     let active = true
-    const pushSubscription = getPushSubscription()
 
     const loadCurrent = async () => {
       const current = await getCurrentPlayerId()
@@ -168,18 +172,18 @@ export const useOneSignalPlayer = () => {
       }
     }
 
-    const handler = (event: PushSubscriptionChangeEvent) => {
-      const nextId = event?.pushSubscription?.id ?? pushSubscription?.id ?? null
+    const handler = (event: PushSubscriptionChangedState) => {
+      const nextId = event.current.id ?? null
       setPlayerId(nextId)
     }
 
     void loadCurrent()
 
-    pushSubscription?.addEventListener?.('change', handler)
+    OneSignal.User.pushSubscription.addEventListener('change', handler)
 
     return () => {
       active = false
-      pushSubscription?.removeEventListener?.('change', handler)
+      OneSignal.User.pushSubscription.removeEventListener('change', handler)
     }
   }, [])
 
