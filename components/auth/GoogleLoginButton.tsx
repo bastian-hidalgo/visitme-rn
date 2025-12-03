@@ -109,7 +109,9 @@ export default function GoogleLoginButton({ onSuccess, onStatusChange, disabled 
           <ActivityIndicator color="#0F172A" />
         ) : (
           <>
-            <Image source={googleLogo} style={styles.logo} contentFit="contain" />
+            <View style={styles.iconContainer}>
+              <Image source={googleLogo} style={styles.logo} contentFit="contain" />
+            </View>
             <Text style={styles.label}>Continuar con Google</Text>
           </>
         )}
@@ -129,10 +131,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 10,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 999,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#CBD5F5',
     backgroundColor: '#FFFFFF',
@@ -140,6 +142,12 @@ const styles = StyleSheet.create({
   buttonPressed: { backgroundColor: '#F1F5F9' },
   buttonDisabled: { opacity: 0.6 },
   label: { fontSize: 16, fontWeight: '600', color: '#0F172A' },
+  iconContainer: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   logo: { width: 20, height: 20 },
   errorText: { fontSize: 14, color: '#DC2626' },
   successText: { fontSize: 14, color: '#15803D' },

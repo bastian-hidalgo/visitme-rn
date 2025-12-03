@@ -1,15 +1,15 @@
 import AppleLoginButton, {
-  type AppleLoginButtonStatus,
-  type AppleLoginStatusChangeDetails,
-} from '@/components/auth/AppleLoginButton'
+    type AppleLoginButtonStatus,
+    type AppleLoginStatusChangeDetails,
+} from '@/components/auth/AppleLoginButton';
 import GoogleLoginButton, {
-  type GoogleLoginButtonStatus,
-  type GoogleLoginStatusChangeDetails,
+    type GoogleLoginButtonStatus,
+    type GoogleLoginStatusChangeDetails,
 } from '@/components/auth/GoogleLoginButton';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
 import { env } from '@/constants/env';
+import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { supabase } from '@/lib/supabase';
 import { useSupabaseAuth } from '@/providers/supabase-auth-provider';
@@ -18,15 +18,15 @@ import * as Linking from 'expo-linking';
 import { Redirect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  TextInput,
-  useWindowDimensions,
-  View,
+    ActivityIndicator,
+    Animated,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    StyleSheet,
+    TextInput,
+    useWindowDimensions,
+    View,
 } from 'react-native';
 
 const AnimatedImage = Animated.createAnimatedComponent(Image);
@@ -45,9 +45,13 @@ export default function LoginScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme ?? 'light'];
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [logoTapCount, setLogoTapCount] = useState(0);
+  const [showPasswordInput, setShowPasswordInput] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isMagicLinkLoading, setIsMagicLinkLoading] = useState(false);
+  const [isPasswordLoading, setIsPasswordLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isAppleLoading, setIsAppleLoading] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -60,6 +64,18 @@ export default function LoginScreen() {
     }
   }, [authRestrictionMessage]);
 
+  const handleLogoPress = () => {
+    setLogoTapCount((prev) => {
+      const newCount = prev + 1;
+      if (newCount === 6) {
+        setShowPasswordInput(true);
+        setStatusMessage('Modo de prueba activado: Ingreso con contraseña habilitado.');
+        return 0;
+      }
+      return newCount;
+    });
+  };
+
   const handleSubmit = async () => {
     clearAuthRestrictionMessage();
     if (!email.trim()) {
@@ -67,6 +83,32 @@ export default function LoginScreen() {
       setStatusMessage(null);
       return;
     }
+
+    if (showPasswordInput) {
+      if (!password.trim()) {
+        setErrorMessage('Ingresa tu contraseña.');
+        setStatusMessage(null);
+        return;
+      }
+
+      try {
+        setIsPasswordLoading(true);
+        setErrorMessage(null);
+        setStatusMessage(null);
+        const { error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password: password.trim(),
+        });
+        if (error) throw error;
+        // Successful login will be handled by the session listener in the provider/layout
+      } catch (error: any) {
+        setErrorMessage(error.message || 'Error al iniciar sesión con contraseña.');
+      } finally {
+        setIsPasswordLoading(false);
+      }
+      return;
+    }
+
     try {
       setIsMagicLinkLoading(true);
       setErrorMessage(null);
@@ -161,7 +203,7 @@ export default function LoginScreen() {
     return <Redirect href="/(tabs)" />;
   }
 
-  const isBusy = isMagicLinkLoading || isGoogleLoading || isAppleLoading;
+  const isBusy = isMagicLinkLoading || isPasswordLoading || isGoogleLoading || isAppleLoading;
   const isDarkMode = colorScheme === 'dark';
   const baseBackgroundColor = isDarkMode ? '#0f172a' : '#f5f3ff';
 
@@ -199,12 +241,16 @@ export default function LoginScreen() {
           <View style={[styles.contentWrapper, { minHeight: windowHeight }]}>
             <ThemedView lightColor="rgba(255, 255, 255, 0.5)" darkColor="rgba(255, 255, 255, 0.1)" style={[styles.card, isDarkMode && styles.cardDark]}>
               <View style={styles.branding}>
-                <Image source={require('@/assets/logo.png')} style={styles.brandIcon} contentFit="contain" />
+                <Pressable onPress={handleLogoPress}>
+                  <Image source={require('@/assets/logo.png')} style={styles.brandIcon} contentFit="contain" />
+                </Pressable>
               </View>
               <View style={styles.header}>
                 <ThemedText type="title" style={styles.title}>Bienvenido</ThemedText>
                 <ThemedText style={[styles.subtitle, isDarkMode && styles.subtitleDark]}>
-                  Ingresa tu correo y te enviaremos un enlace mágico para iniciar sesión.
+                  {showPasswordInput 
+                    ? 'Ingresa tus credenciales para iniciar sesión.'
+                    : 'Ingresa tu correo y te enviaremos un enlace mágico para iniciar sesión.'}
                 </ThemedText>
               </View>
               <AppleLoginButton
@@ -241,6 +287,34 @@ export default function LoginScreen() {
                   textContentType="emailAddress"
                 />
               </View>
+              
+              {showPasswordInput && (
+                <View style={styles.formControl}>
+                  <ThemedText type="defaultSemiBold" style={[styles.label, isDarkMode && styles.labelDark]}>
+                    Contraseña
+                  </ThemedText>
+                  <TextInput
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    secureTextEntry
+                    placeholder="Tu contraseña"
+                    placeholderTextColor={isDarkMode ? '#64748B' : '#94A3B8'}
+                    style={[
+                      styles.input,
+                      {
+                        borderColor: isDarkMode ? '#1f2937' : '#E4E4F7',
+                        color: palette.text,
+                        backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
+                      },
+                    ]}
+                    value={password}
+                    onChangeText={setPassword}
+                    editable={!isBusy}
+                    textContentType="password"
+                  />
+                </View>
+              )}
+
               <Pressable
                 style={[
                   styles.submitButton,
@@ -250,11 +324,11 @@ export default function LoginScreen() {
                 onPress={handleSubmit}
                 disabled={isBusy}
               >
-                {isMagicLinkLoading ? (
+                {isMagicLinkLoading || isPasswordLoading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <ThemedText type="defaultSemiBold" style={styles.submitText}>
-                    Enviar enlace mágico
+                    {showPasswordInput ? 'Iniciar sesión' : 'Enviar enlace mágico'}
                   </ThemedText>
                 )}
               </Pressable>
