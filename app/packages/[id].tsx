@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { format, fromNow } from '@/lib/time'
 import { BottomSheetModal } from '@gorhom/bottom-sheet'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 
 export default function PackageDetailModal() {
@@ -19,7 +19,16 @@ export default function PackageDetailModal() {
     if (!id) return
 
     const fetchPackage = async () => {
-      console.log('[PackageDetailModal] Fetching package...', id)
+      console.log('[PackageDetailModal] Checking session...')
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+          console.warn('[PackageDetailModal] No Active Session during fetch! Fetch might fail due to RLS.')
+          // Opcional: Podríamos esperar o intentar igual. Intentemos igual por si es público (poco probable).
+      } else {
+          console.log('[PackageDetailModal] Active Session found for user:', session.user.id)
+      }
+
+      console.log('[PackageDetailModal] Fetching package from DB...', id)
       setLoading(true)
       const { data, error } = await supabase
         .from('parcels')
@@ -28,9 +37,9 @@ export default function PackageDetailModal() {
         .single()
 
       if (error) {
-        console.error('[PackageDetailModal] Error fetching package:', error)
+        console.error('[PackageDetailModal] Error fetching package:', error, JSON.stringify(error))
       } else {
-        console.log('[PackageDetailModal] Package fetched successfully')
+        console.log('[PackageDetailModal] Package fetched successfully:', data ? 'FOUND' : 'NULL')
         setPkg(data)
       }
       setLoading(false)
@@ -39,21 +48,39 @@ export default function PackageDetailModal() {
     fetchPackage()
   }, [id])
 
+  // Callback ref pattern to ensure we call present() as soon as the component is mounted
   const bottomSheetRef = useRef<BottomSheetModal>(null)
-
-  useEffect(() => {
-    if (pkg) {
-      console.log('[PackageDetailModal] Presenting BottomSheet...')
-      // Small delay to ensure mount
-      setTimeout(() => {
-        bottomSheetRef.current?.present()
-      }, 100)
+  
+  const handleSheetRef = useCallback((ref: BottomSheetModal | null) => {
+    if (ref) {
+        console.log('[PackageDetailModal] BottomSheet ref attached. calling present().')
+        bottomSheetRef.current = ref
+        // Force present immediately when mounted
+        ref.present()
     }
+  }, []) // Empty dependency array ensures we only attach once per mount instance, 
+         // BUT since the component is conditional on `sheetProps` (derived from pkg), 
+         // it will mount exactly when we want it to open.
+
+  // We can remove the useEffect for presentation now, as the callback handles the "on mount" open.
+  // Unless we need to re-open if pkg changes? 
+  // If pkg changes, the component likely re-renders. passing the same ref callback is fine.
+  // If we want to support ID change without unmount -> we might need to call present again?
+  // But usually this modal is for one ID.
+  
+  useEffect(() => {
+    // Log for debugging state changes
+    console.log('[PackageDetailModal] State update - pkg:', pkg ? 'LOADED' : 'NULL')
   }, [pkg])
 
   const sheetProps = React.useMemo<PackageExpandableCardProps | null>(() => {
-    if (!pkg) return null
+    console.log('[PackageDetailModal] Computing sheetProps. pkg exists:', !!pkg)
+    if (!pkg) {
+        console.log('[PackageDetailModal] sheetProps = NULL (no pkg)')
+        return null
+    }
 
+    console.log('[PackageDetailModal] Building sheetProps from pkg:', pkg.id)
     const statusKey = (pkg.status ?? 'received') as 'received' | 'pending' | 'picked_up' | 'cancelled'
     
     // Status config (Simplified version of PackageCard logic since we don't have the icon components here easily usually, 
@@ -96,7 +123,7 @@ export default function PackageDetailModal() {
       ? getUrlImageFromStorage(pkg.signature_url, 'parcel-photos')
       : undefined
 
-    return {
+    const props = {
       id: pkg.id,
       imageUrl,
       status: statusLabel,
@@ -110,6 +137,13 @@ export default function PackageDetailModal() {
       signatureImageUrl,
       detailDescription: pkg.description,
     }
+    console.log('[PackageDetailModal] sheetProps built successfully:', {
+        id: props.id,
+        status: props.status,
+        apartment: props.apartment,
+        hasImage: !!props.imageUrl
+    })
+    return props
   }, [pkg])
 
   if (loading) {
@@ -128,13 +162,16 @@ export default function PackageDetailModal() {
     )
   }
 
+  console.log('[PackageDetailModal] 🎨 RENDERING. sheetProps exists:', !!sheetProps, 'loading:', loading)
+  
   return (
     <View style={styles.container}>
       {sheetProps && (
         <PackageDetailSheet
-          ref={bottomSheetRef}
+          ref={handleSheetRef}
           {...sheetProps}
           onClose={() => {
+            console.log('[PackageDetailModal] Sheet onClose called')
             if (router.canGoBack()) {
               router.back()
             } else {
