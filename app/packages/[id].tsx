@@ -6,13 +6,14 @@ import { format, fromNow } from '@/lib/time'
 import { BottomSheetModal } from '@gorhom/bottom-sheet'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
 export default function PackageDetailModal() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const [pkg, setPkg] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const hasPresented = useRef(false)
 
   useEffect(() => {
     console.log('[PackageDetailModal] Mounted. Params ID:', id)
@@ -53,10 +54,14 @@ export default function PackageDetailModal() {
   
   const handleSheetRef = useCallback((ref: BottomSheetModal | null) => {
     if (ref) {
-        console.log('[PackageDetailModal] BottomSheet ref attached. calling present().')
         bottomSheetRef.current = ref
-        // Force present immediately when mounted
-        ref.present()
+        if (!hasPresented.current) {
+            console.log('[PackageDetailModal] BottomSheet ref attached. calling present() ONCE.')
+            ref.present()
+            hasPresented.current = true
+        } else {
+            console.log('[PackageDetailModal] BottomSheet ref attached, but already presented. Skipping.')
+        }
     }
   }, []) // Empty dependency array ensures we only attach once per mount instance, 
          // BUT since the component is conditional on `sheetProps` (derived from pkg), 
@@ -80,92 +85,97 @@ export default function PackageDetailModal() {
         return null
     }
 
-    console.log('[PackageDetailModal] Building sheetProps from pkg:', pkg.id)
-    const statusKey = (pkg.status ?? 'received') as 'received' | 'pending' | 'picked_up' | 'cancelled'
+    try {
+        console.log('[PackageDetailModal] Building sheetProps from pkg:', pkg.id)
+        const statusKey = (pkg.status ?? 'received') as 'received' | 'pending' | 'picked_up' | 'cancelled'
+        
+        const STATUS_LABELS: Record<string, string> = {
+          received: 'Recibida',
+          pending: 'Esperando',
+          picked_up: 'Retirada',
+          cancelled: 'Anulada',
+        }
+        const statusLabel = (STATUS_LABELS[statusKey] ?? 'Recibida') as any
     
-    // Status config (Simplified version of PackageCard logic since we don't have the icon components here easily usually, 
-    // but the sheet actually only needs the label text string for 'status' prop)
-    const STATUS_LABELS: Record<string, string> = {
-      received: 'Recibida',
-      pending: 'Esperando',
-      picked_up: 'Retirada',
-      cancelled: 'Anulada',
+        const fallbackImage = 'https://www.visitme.cl/img/placeholder-package.webp'
+        
+        const rawPhotoUrl = pkg.image_url || pkg.photo_url
+        const imageUrl = rawPhotoUrl
+              ? getUrlImageFromStorage(rawPhotoUrl, 'parcel-photos') 
+              : fallbackImage
+    
+        const departmentNumber = pkg?.department?.number
+        
+        // Format helpers from lib/time
+        // We wrap date logic in mini try-catch to be safe
+        let receivedAtLabel, receivedRelativeLabel, pickedUpAtLabel, pickedUpRelativeLabel, summaryDate
+        try {
+            receivedAtLabel = format(pkg.created_at, 'DD MMM YYYY • HH:mm')
+            receivedRelativeLabel = pkg.created_at ? fromNow(pkg.created_at) : undefined
+            
+            pickedUpAtLabel = pkg.picked_up_at ? format(pkg.picked_up_at, 'DD MMM YYYY • HH:mm') : undefined
+            pickedUpRelativeLabel = pkg.picked_up_at ? fromNow(pkg.picked_up_at) : undefined
+        
+            const summaryBaseDate = pkg.picked_up_at || pkg.created_at
+            summaryDate = summaryBaseDate ? format(summaryBaseDate, 'DD MMM • HH:mm') : 'Sin fecha'
+        } catch (err) {
+            console.error('[PackageDetailModal] Date formatting error:', err)
+            receivedAtLabel = 'Fecha desconocida'
+            summaryDate = 'Sin fecha'
+        }
+
+        const summaryPrefix = statusKey === 'picked_up' ? 'Retirada' : 'Recibida'
+    
+        const signatureCompleted = Boolean(pkg.signature_url)
+        const signatureImageUrl = signatureCompleted
+          ? getUrlImageFromStorage(pkg.signature_url, 'parcel-photos')
+          : undefined
+    
+        const props = {
+          id: pkg.id,
+          imageUrl,
+          status: statusLabel,
+          apartment: departmentNumber ? String(departmentNumber) : undefined,
+          date: `${summaryPrefix} • ${summaryDate}`,
+          receivedAtLabel,
+          receivedRelativeLabel,
+          pickedUpAtLabel,
+          pickedUpRelativeLabel,
+          signatureCompleted,
+          signatureImageUrl,
+          detailDescription: pkg.description,
+        }
+        console.log('[PackageDetailModal] sheetProps built successfully:', {
+            id: props.id,
+            status: props.status,
+            apartment: props.apartment,
+            hasImage: !!props.imageUrl
+        })
+        return props
+    } catch (e) {
+        console.error('[PackageDetailModal] CRASH in useMemo:', e)
+        // Return a basic fallback object so we can see the "DEBUG: LOADED" screen at least
+        return {
+            id: pkg.id,
+            status: 'Error Data',
+            imageUrl: 'https://placeholder.com',
+            date: 'Error',
+        } as any
     }
-    const statusLabel = (STATUS_LABELS[statusKey] ?? 'Recibida') as any
-
-    const fallbackImage = 'https://www.visitme.cl/img/placeholder-package.webp'
-    
-    // Logic from PackageCard.tsx
-    // The photo_url field name might be different in Supabase query depending on schema. 
-    // The previous code used pkg.image_url, PackageCard uses parcel.photo_url. 
-    // I need to be careful here. Step 298 showed `pkg.image_url`. PackageCard shows `parcel.photo_url`.
-    // I will check both to be safe.
-    const rawPhotoUrl = pkg.image_url || pkg.photo_url
-    const imageUrl = rawPhotoUrl
-          ? getUrlImageFromStorage(rawPhotoUrl, 'parcel-photos') 
-          : fallbackImage
-
-    const departmentNumber = pkg?.department?.number
-    
-    // Format helpers from lib/time
-    const receivedAtLabel = format(pkg.created_at, 'DD MMM YYYY • HH:mm')
-    const receivedRelativeLabel = pkg.created_at ? fromNow(pkg.created_at) : undefined
-    
-    const pickedUpAtLabel = pkg.picked_up_at ? format(pkg.picked_up_at, 'DD MMM YYYY • HH:mm') : undefined
-    const pickedUpRelativeLabel = pkg.picked_up_at ? fromNow(pkg.picked_up_at) : undefined
-
-    const summaryBaseDate = pkg.picked_up_at || pkg.created_at
-    const summaryDate = summaryBaseDate ? format(summaryBaseDate, 'DD MMM • HH:mm') : 'Sin fecha'
-    const summaryPrefix = statusKey === 'picked_up' ? 'Retirada' : 'Recibida'
-
-    const signatureCompleted = Boolean(pkg.signature_url)
-    const signatureImageUrl = signatureCompleted
-      ? getUrlImageFromStorage(pkg.signature_url, 'parcel-photos')
-      : undefined
-
-    const props = {
-      id: pkg.id,
-      imageUrl,
-      status: statusLabel,
-      apartment: departmentNumber ? String(departmentNumber) : undefined,
-      date: `${summaryPrefix} • ${summaryDate}`,
-      receivedAtLabel,
-      receivedRelativeLabel,
-      pickedUpAtLabel,
-      pickedUpRelativeLabel,
-      signatureCompleted,
-      signatureImageUrl,
-      detailDescription: pkg.description,
-    }
-    console.log('[PackageDetailModal] sheetProps built successfully:', {
-        id: props.id,
-        status: props.status,
-        apartment: props.apartment,
-        hasImage: !!props.imageUrl
-    })
-    return props
   }, [pkg])
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#6B4EFF" />
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#FFD700" />
       </View>
     )
   }
 
-  if (!pkg) {
-    return (
-      <View style={styles.center}>
-        <Text>No se encontró la encomienda.</Text>
-      </View>
-    )
-  }
-
-  console.log('[PackageDetailModal] 🎨 RENDERING. sheetProps exists:', !!sheetProps, 'loading:', loading)
+  console.log('[PackageDetailModal] 🎨 RENDERING REAL COMPONENT. sheetProps exists:', !!sheetProps)
   
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: 'transparent' }]}>
       {sheetProps && (
         <PackageDetailSheet
           ref={handleSheetRef}
