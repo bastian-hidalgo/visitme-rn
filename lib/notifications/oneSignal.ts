@@ -88,10 +88,6 @@ export const initializeOneSignal = async (): Promise<boolean> => {
       await waitForNativeReady()
       oneSignal.initialize?.(ONESIGNAL_APP_ID)
 
-      oneSignal.Notifications?.addEventListener?.('click', event => {
-        log('Notificación abierta', event?.notification?.notificationId)
-      })
-
       oneSignal.Notifications?.addEventListener?.('foregroundWillDisplay', event => {
         log('Notificación recibida en foreground', event?.notification?.notificationId)
         event?.getNotification?.()?.display?.()

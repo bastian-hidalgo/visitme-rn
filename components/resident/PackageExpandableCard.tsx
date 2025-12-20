@@ -1,10 +1,10 @@
 // components/resident/PackageExpandableCard.tsx
-import { BottomSheetModal } from '@gorhom/bottom-sheet'
 import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
-import React, { ReactNode, useCallback, useMemo, useRef } from 'react'
+import React, { ReactNode, useCallback, useMemo } from 'react'
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
-import { PackageDetailSheet } from './PackageDetailSheet'
+
+import { useResidentContext } from '@/components/contexts/ResidentContext'
 
 export type PackageStatusLabel = 'Recibida' | 'Retirada' | 'Esperando' | 'Anulada'
 
@@ -49,17 +49,21 @@ export default function PackageExpandableCard({
   statusTextColor,
   detailDescription,
 }: PackageExpandableCardProps) {
-  const bottomSheetRef = useRef<BottomSheetModal>(null)
+  const { setParcelDetail } = useResidentContext()
+
   const openSheet = useCallback(() => {
-    bottomSheetRef.current?.present()
-  }, [])
-
-  const closeSheet = useCallback(() => {
-    bottomSheetRef.current?.dismiss()
-    onClose?.()
-  }, [onClose])
-
-  // renderBackdrop extracted to PackageDetailSheet
+    setParcelDetail({
+      id,
+      imageUrl,
+      status,
+      department: apartment ? { number: apartment } : undefined,
+      created_at: receivedAtLabel || '', // Approximation for types
+      picked_up_at: pickedUpAtLabel,
+      photo_url: imageUrl,
+      signature_url: signatureImageUrl,
+      description: detailDescription,
+    } as any)
+  }, [id, imageUrl, status, apartment, receivedAtLabel, pickedUpAtLabel, signatureImageUrl, detailDescription, setParcelDetail])
 
   const statusBadgeColors = useMemo(() => {
     const palette: Record<PackageStatusLabel, { backgroundColor: string; text: string }> = {
@@ -76,38 +80,20 @@ export default function PackageExpandableCard({
   }, [status, statusBadgeColor, statusTextColor])
 
   return (
-    <>
-      <TouchableOpacity activeOpacity={0.9} onPress={openSheet}>
-        <View style={[styles.card]}>
-          <Image source={{ uri: imageUrl }} style={styles.image} contentFit="cover" />
-          <LinearGradient colors={['rgba(0,0,0,0.6)', 'transparent']} style={styles.overlay} />
-          <View style={styles.cardContent}>
-            <View style={[styles.statusBadge, { backgroundColor: statusBadgeColors.backgroundColor }]}>
-              {statusIcon ? <View style={styles.statusIcon}>{statusIcon}</View> : null}
-              <Text style={[styles.statusText, { color: statusBadgeColors.text }]}>{status}</Text>
-            </View>
-            {apartment ? <Text style={styles.apartmentText}>Depto. {apartment}</Text> : null}
-            <Text style={styles.dateText}>{date}</Text>
+    <TouchableOpacity activeOpacity={0.9} onPress={openSheet}>
+      <View style={[styles.card]}>
+        <Image source={{ uri: imageUrl }} style={styles.image} contentFit="cover" />
+        <LinearGradient colors={['rgba(0,0,0,0.6)', 'transparent']} style={styles.overlay} />
+        <View style={styles.cardContent}>
+          <View style={[styles.statusBadge, { backgroundColor: statusBadgeColors.backgroundColor }]}>
+            {statusIcon ? <View style={styles.statusIcon}>{statusIcon}</View> : null}
+            <Text style={[styles.statusText, { color: statusBadgeColors.text }]}>{status}</Text>
           </View>
+          {apartment ? <Text style={styles.apartmentText}>Depto. {apartment}</Text> : null}
+          <Text style={styles.dateText}>{date}</Text>
         </View>
-      </TouchableOpacity>
-
-      <PackageDetailSheet
-        ref={bottomSheetRef}
-        imageUrl={imageUrl}
-        status={status}
-        apartment={apartment}
-        date={date}
-        receivedAtLabel={receivedAtLabel}
-        receivedRelativeLabel={receivedRelativeLabel}
-        pickedUpAtLabel={pickedUpAtLabel}
-        pickedUpRelativeLabel={pickedUpRelativeLabel}
-        signatureImageUrl={signatureImageUrl}
-        signatureCompleted={signatureCompleted}
-        detailDescription={detailDescription}
-        onClose={closeSheet}
-      />
-    </>
+      </View>
+    </TouchableOpacity>
   )
 }
 

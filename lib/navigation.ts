@@ -9,9 +9,14 @@ export function navigateToDeepLink(route: string, params: Record<string, any> = 
   console.log(`[Navigation] 🚀 Attempting router.push to: ${route} with params:`, JSON.stringify(params))
   
   try {
-    // @ts-ignore - Expo router types can be strict with dynamic strings
-    router.push({ pathname: route, params })
-    console.log('[Navigation] ✅ Router.push called successfully')
+    // 🛡️ De-duplicate stack: if going to dashboard, use replace
+    if (route === '/(tabs)') {
+      router.replace({ pathname: route, params })
+      console.log(`[Navigation] ✅ Router.replace called successfully for ${route}`)
+    } else {
+      router.push({ pathname: route, params })
+      console.log(`[Navigation] ✅ Router.push called successfully for ${route}`)
+    }
   } catch (error) {
     console.error('[Navigation] ❌ Error executing router.push:', error)
   }

@@ -11,108 +11,91 @@ import {
   registerPushSubscriptionListener,
 } from '@/lib/notifications/oneSignalSync'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { PropsWithChildren, useEffect, useMemo, useState } from 'react'
+import { PropsWithChildren, useEffect, useMemo, useRef, useState } from 'react'
 import { OneSignal } from 'react-native-onesignal'
 
 import { useUser } from './user-provider'
 
 const PERMISSION_STORAGE_KEY = 'onesignal_permission_prompt'
 
+// 🛡️ Global guard to ensure only one listener is EVER added to the SDK
+let globalClickListenerAdded = false
+
 export function OneSignalProvider({ children }: PropsWithChildren) {
   const { id, email, role, communitySlug, communityId, acceptsNotifications, loading } = useUser()
   const [memberships, setMemberships] = useState<{ id: string; slug: string }[]>([])
   const [ready, setReady] = useState(false)
+  const clickHandlerRef = useRef<(event: any) => void>(null)
+  const lastNotificationIdRef = useRef<string | null>(null)
 
   // 1. Efecto único para inicialización y listeners globales (Clicks)
   useEffect(() => {
     let mounted = true
 
-    // Listener de clicks en notificaciones (Global)
+    // Definimos el handler estable
     const handleNotificationClick = (event: any) => {
-      console.log('🔴🔴🔴 [OneSignal] CLICK LISTENER FIRED! 🔴🔴🔴')
-      console.log('--------------------------------------------------')
-      console.log('[OneSignal] Notification Clicked Event Received')
-
       const { notification } = event
-      const data = notification.additionalData
-
-      console.log('[OneSignal] Full Notification Object:', JSON.stringify(notification, null, 2))
-      console.log('[OneSignal] Additional Data:', JSON.stringify(data, null, 2))
-
-      if (!data) {
-        console.log('[OneSignal] No additional data found. Do nothing.')
+      const notificationId = notification.notificationId
+      
+      // 🛡️ Debounce simple: ignorar si es el mismo ID en menos de 2s
+      if (lastNotificationIdRef.current === notificationId) {
+        console.log(`[OneSignal] 🛡️ Ignoring duplicate click for notification: ${notificationId}`)
         return
       }
+      lastNotificationIdRef.current = notificationId
+      setTimeout(() => { if (lastNotificationIdRef.current === notificationId) lastNotificationIdRef.current = null }, 2000)
 
-      // Usar nuestro helper para navegar con seguridad
-      // 1. Manejo de Encomiendas
-      if (data.route === 'encomienda') {
-        const id = data.id || data.encomienda_id
-        console.log(`[OneSignal] Processing ENCOMIENDA route. ID: ${id}`)
-        if (id) {
-          console.log('[OneSignal] Navigating to /packages/[id]')
-          navigateToDeepLink('/packages/[id]', { id })
-        } else {
-            console.warn('[OneSignal] Missing ID for ENCOMIENDA')
+      console.log('🔴🔴🔴 [OneSignal] CLICK LISTENER FIRED! 🔴🔴🔴')
+      console.log('--------------------------------------------------')
+      const data = notification.additionalData
+      if (!data) return
+      
+      if (data.route === 'encomienda' || data.type === 'package-arrived') {
+        const parcelId = data.parcelId || data.id || data.encomienda_id
+        if (parcelId) {
+          console.log(`[OneSignal] 🚀 Navigating to DASHBOARD in-context for parcel: ${parcelId}`)
+          navigateToDeepLink('/(tabs)', { parcelId })
         }
       } 
-      // 2. Manejo de Reservas
+      // ... rest of the code remains the same ...
       else if (data.route === 'reserva') {
         const id = data.id || data.reservation_id
-        console.log(`[OneSignal] Processing RESERVA route. ID: ${id}`)
-        if (id) {
-          console.log('[OneSignal] Navigating to /reservations/[id]')
-          navigateToDeepLink('/reservations/[id]', { id })
-        } else {
-            console.warn('[OneSignal] Missing ID for RESERVA')
-        }
+        if (id) navigateToDeepLink('/reservations/[id]', { id })
       }
-      // 3. Manejo de Alertas
       else if (data.type === 'ALERTA' || data.route === 'alerta') {
-        console.log('[OneSignal] Processing ALERTA/route')
         navigateToDeepLink('/alerts/index', {
           title: data.title || notification.title,
           message: data.message || notification.body,
           type: data.type || 'ALERTA',
-          // Pass additional standard fields if available
           id: data.id,
           created_at: data.created_at,
           image_url: data.image_url
         })
-      } else {
-        console.log('[OneSignal] Unknown route/type in data:', data)
-      }
-      console.log('--------------------------------------------------')
+      } 
     }
 
+    // @ts-ignore
+    clickHandlerRef.current = handleNotificationClick
+
     // Inicializar OneSignal
-    console.log('[OneSignalProvider] 🟢 Mounting Provider - triggering init immediately')
-    
-    // Eliminamos retardos artificiales localmente para asegurar el listener ASAP
+    console.log('[OneSignalProvider] 🟢 Mounting Provider')
     initializeOneSignal().then(isReady => {
-      console.log('[OneSignalProvider] 🟢 Initialization done. isReady:', isReady)
       if (mounted && isReady) {
-        // SOLO agregar el listener cuando OneSignal esté inicializado
-        console.log('[OneSignalProvider] Adding click listener')
-        OneSignal.Notifications.addEventListener('click', handleNotificationClick)
+        if (!globalClickListenerAdded) {
+          console.log('[OneSignalProvider] Adding GLOBAL click listener')
+          OneSignal.Notifications.addEventListener('click', handleNotificationClick)
+          globalClickListenerAdded = true
+        } else {
+          console.log('[OneSignalProvider] 🛡️ Global click listener already exists. Skipping add.')
+        }
         setReady(true)
       }
     })
 
     return () => {
       mounted = false
-      // Es seguro llamar removeEventListener incluso si no se agregó, o podríamos chequear ready, 
-      // pero para evitar memory leaks en desmontajes rápidos, lo dejamos.
-      // Sin embargo, si init no terminó, esto podría (raramente) fallar si el SDK no está listo.
-      // Pero 'removeEventListener' suele ser seguro. De todos modos, try/catch por si acaso.
-      try {
-        console.log('[OneSignalProvider] Removing click listener')
-        OneSignal.Notifications.removeEventListener('click', handleNotificationClick)
-      } catch(e) {
-        console.warn('[OneSignalProvider] Error removing listener (might not be inited)', e)
-      }
     }
-  }, []) // 👈 Sin dependencias, corre siempre al montar el provider
+  }, []) // 👈 Sin dependencias
 
   // 2. Efecto para Login/Logout y Permisos (Depende de usuario y ready)
   useEffect(() => {

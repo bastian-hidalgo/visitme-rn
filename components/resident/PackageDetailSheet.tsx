@@ -1,8 +1,8 @@
 import {
-    BottomSheetBackdrop,
-    BottomSheetModal,
-    BottomSheetScrollView,
-    type BottomSheetBackdropProps,
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet'
 import { Image } from 'expo-image'
 import React, { forwardRef, useCallback } from 'react'
@@ -57,8 +57,14 @@ export const PackageDetailSheet = forwardRef<BottomSheetModal, PackageDetailShee
     )
 
     const handleDismiss = useCallback(() => {
+        console.log('[PackageDetailSheet] 💨 onDismiss triggered')
         onClose?.()
     }, [onClose])
+
+    React.useEffect(() => {
+      console.log(`[PackageDetailSheet] 🎭 Mounted with status: ${status}, apartment: ${apartment}`)
+      return () => console.log('[PackageDetailSheet] 🎭 Unmounted')
+    }, [status, apartment])
 
     return (
       <BottomSheetModal
