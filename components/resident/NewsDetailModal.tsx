@@ -9,8 +9,10 @@ export default function NewsDetailModal() {
 
   useEffect(() => {
     if (isAlertPanelOpen && alertDetail) {
+      console.log(`[NewsDetailModal] 🏁 Presenting sheet for alert: ${alertDetail.id}`)
       bottomSheetRef.current?.present()
     } else {
+      if (isAlertPanelOpen) console.log('[NewsDetailModal] ⚠️ Panel open but NO alertDetail')
       bottomSheetRef.current?.dismiss()
     }
   }, [isAlertPanelOpen, alertDetail])

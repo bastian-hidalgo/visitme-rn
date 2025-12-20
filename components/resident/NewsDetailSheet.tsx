@@ -1,19 +1,19 @@
 import { format, fromNow } from '@/lib/time'
 import {
-    BottomSheetBackdrop,
-    BottomSheetModal,
-    BottomSheetScrollView,
-    type BottomSheetBackdropProps,
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet'
 import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
 import { AlertTriangle, Flame, Newspaper, Tag, X } from 'lucide-react-native'
 import React, { forwardRef, useCallback } from 'react'
 import {
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native'
 
 const ICONS = {
@@ -45,6 +45,10 @@ export type NewsDetailSheetProps = {
 }
 
 const NewsDetailSheet = forwardRef<BottomSheetModal, NewsDetailSheetProps>(({ alert, onClose }, ref) => {
+  React.useEffect(() => {
+    console.log(`[NewsDetailSheet] 🎭 Mounted with alert: ${alert?.title || 'None'}`)
+    return () => console.log('[NewsDetailSheet] 🎭 Unmounted')
+  }, [])
   const type = alert?.type ?? 'comunicado'
   const Icon = ICONS[type as keyof typeof ICONS] ?? Newspaper
   const palette = HEADER_COLORS[type] ?? HEADER_COLORS.comunicado

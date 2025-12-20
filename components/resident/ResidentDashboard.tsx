@@ -43,21 +43,22 @@ export default function ResidentDashboard() {
       shadowOpacity: progress ? 0.3 : 0,
     }
   })
-  const { packages, selectedParcel, setParcelDetail, setPendingParcelId, reservations, refreshAll } = useResidentContext()
-  const { parcelId } = useLocalSearchParams<{ parcelId: string }>()
+  const { packages, selectedParcel, setParcelDetail, setPendingParcelId, setPendingAlertId, reservations, refreshAll } = useResidentContext()
+  const { parcelId, alertId } = useLocalSearchParams<{ parcelId: string; alertId: string }>()
 
   const router = useRouter()
 
   // 🆔 Instance tracking for debugging
   const instanceIdRef = useRef(Math.random().toString(36).substring(7))
   const processedParcelIdRef = useRef<string | null>(null)
+  const processedAlertIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    console.log(`[ResidentDashboard] 🧩 Instance ${instanceIdRef.current} MOUNTED`)
+    console.log(`[ResidentDashboard] 🧩 Instance ${instanceIdRef.current} MOUNTED. Params:`, JSON.stringify({ parcelId, alertId }))
     return () => console.log(`[ResidentDashboard] 🧩 Instance ${instanceIdRef.current} UNMOUNTED`)
   }, [])
 
-  // 🔹 Manejo de Deep Link de Notificación
+  // 🔹 Manejo de Deep Link de Notificación (Paquetes)
   useEffect(() => {
     if (parcelId && parcelId !== processedParcelIdRef.current) {
       console.log(`[ResidentDashboard] (${instanceIdRef.current}) 🚀 New parcelId detected: ${parcelId}. Forwarding to context.`)
@@ -70,6 +71,19 @@ export default function ResidentDashboard() {
       }, 500)
     }
   }, [parcelId, setPendingParcelId, router])
+
+  // 🔹 Manejo de Deep Link de Notificación (Alertas)
+  useEffect(() => {
+    if (alertId && alertId !== processedAlertIdRef.current) {
+      console.log(`[ResidentDashboard] (${instanceIdRef.current}) 🚀 New alertId detected: ${alertId}. Forwarding to context.`)
+      processedAlertIdRef.current = alertId
+      setPendingAlertId(alertId)
+      
+      setTimeout(() => {
+        router.setParams({ alertId: undefined })
+      }, 500)
+    }
+  }, [alertId, setPendingAlertId, router])
 
   // Estado del banner de reserva (hoy / mañana / pasada)
   const { status, formattedDate } = getReservationBannerStatus(reservations)

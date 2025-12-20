@@ -25,10 +25,16 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
     { department_id: string; label: string }[]
   >([])
   const [pendingParcelId, setPendingParcelId] = useState<string | null>(null)
+  const [pendingAlertId, setPendingAlertId] = useState<string | null>(null)
   
   const setPendingParcelIdMemoized = useCallback((id: string | null) => {
     console.log(`[ResidentContext] 📝 setPendingParcelId CALLED with: ${id}`)
     setPendingParcelId(id)
+  }, [])
+
+  const setPendingAlertIdMemoized = useCallback((id: string | null) => {
+    console.log(`[ResidentContext] 📝 setPendingAlertId CALLED with: ${id}`)
+    setPendingAlertId(id)
   }, [])
 
   // 🔹 Estados de paneles
@@ -345,6 +351,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   }, [communityId, id])
 
   const hasRefreshedForPending = useRef(false)
+  const hasRefreshedForAlert = useRef(false)
 
   // 🔹 Auto-selección de paquete pendiente
   useEffect(() => {
@@ -372,6 +379,31 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
       }
     }
   }, [loadingPackages, packages, pendingParcelId, fetchPackages])
+
+  // 🔹 Auto-selección de alerta pendiente
+  useEffect(() => {
+    if (loadingAlerts || !pendingAlertId) return
+
+    console.log(`[ResidentContext] 🔍 Searching for pending alert ${pendingAlertId} (count: ${alerts.length})...`)
+    const found = alerts.find(a => String(a.id) === String(pendingAlertId))
+    
+    if (found) {
+      console.log(`[ResidentContext] ✅ FOUND MATCH! Alert ID: ${found.id}. Setting alertDetail and opening panel.`)
+      setAlertDetailState(found)
+      setAlertPanelOpen(true)
+      setPendingAlertId(null)
+      hasRefreshedForAlert.current = false
+    } else {
+      if (!hasRefreshedForAlert.current) {
+        console.log(`[ResidentContext] 🔄 Alert ${pendingAlertId} NOT found. Triggering REFRESH...`)
+        hasRefreshedForAlert.current = true
+        fetchAlerts()
+      } else {
+        console.log(`[ResidentContext] ❌ Alert ${pendingAlertId} NOT found even after refresh. giving up.`)
+        setPendingAlertId(null)
+      }
+    }
+  }, [loadingAlerts, alerts, pendingAlertId, fetchAlerts])
 
   const refreshAll = useCallback(async () => {
     if (!id || !communityId) {
@@ -467,6 +499,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         setParcelDetail: setSelectedParcel,
         setLoadingAlerts,
         setPendingParcelId: setPendingParcelIdMemoized,
+        setPendingAlertId: setPendingAlertIdMemoized,
       }}
     >
       {children}

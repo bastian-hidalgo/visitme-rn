@@ -46,32 +46,28 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
       setTimeout(() => { if (lastNotificationIdRef.current === notificationId) lastNotificationIdRef.current = null }, 2000)
 
       console.log('🔴🔴🔴 [OneSignal] CLICK LISTENER FIRED! 🔴🔴🔴')
-      console.log('--------------------------------------------------')
       const data = notification.additionalData
+      console.log('[OneSignal] Click data:', JSON.stringify(data, null, 2))
+      console.log('--------------------------------------------------')
       if (!data) return
       
       if (data.route === 'encomienda' || data.type === 'package-arrived') {
-        const parcelId = data.parcelId || data.id || data.encomienda_id
-        if (parcelId) {
-          console.log(`[OneSignal] 🚀 Navigating to DASHBOARD in-context for parcel: ${parcelId}`)
-          navigateToDeepLink('/(tabs)', { parcelId })
-        }
+        const parcelId = data.parcel_id || data.id
+        console.log(`[OneSignal] 🚀 Navigating to DASHBOARD in-context for parcel: ${parcelId}`)
+        navigateToDeepLink('/(tabs)', { parcelId })
       } 
-      // ... rest of the code remains the same ...
-      else if (data.route === 'reserva') {
+      else if (data.route === 'reservation') {
         const id = data.id || data.reservation_id
+        console.log(`[OneSignal] 🗓️ Navigating to RESERVATION. ID: ${id}`)
         if (id) navigateToDeepLink('/reservations/[id]', { id })
       }
-      else if (data.type === 'ALERTA' || data.route === 'alerta') {
-        navigateToDeepLink('/alerts/index', {
-          title: data.title || notification.title,
-          message: data.message || notification.body,
-          type: data.type || 'ALERTA',
-          id: data.id,
-          created_at: data.created_at,
-          image_url: data.image_url
-        })
-      } 
+      else if (data.type === 'ALERTA' || data.route === 'alerta' || data.route === 'alert' || data.type === 'info') {
+        const alertId = data.id || data.alert_id
+        console.log(`[OneSignal] 📢 Processing ALERT notification. ID: ${alertId}`)
+        navigateToDeepLink('/(tabs)', { alertId })
+      } else {
+        console.log('[OneSignal] ❓ Unknown notification type. No specific routing applied.')
+      }
     }
 
     // @ts-ignore
