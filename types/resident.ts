@@ -53,4 +53,6 @@ export interface ResidentContextType {
   setAlertDetail: (alert: Alert | null) => void
   setLoadingAlerts: (loading: boolean) => void
   setParcelDetail: (parcel: Parcel | null) => void
+  setPendingParcelId: (id: string | null) => void
+  setPendingAlertId: (id: string | null) => void
 }

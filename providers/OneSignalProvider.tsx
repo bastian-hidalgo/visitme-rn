@@ -1,48 +1,99 @@
+import { navigateToDeepLink } from '@/lib/navigation'
 import {
   initializeOneSignal,
   loginUser,
   logoutUser,
-  syncEmail,
   syncTags,
-  updatePushSubscription,
+  updatePushSubscription
 } from '@/lib/notifications/oneSignal'
 import {
   ensureCurrentPlayerSynced,
   registerPushSubscriptionListener,
 } from '@/lib/notifications/oneSignalSync'
-import { supabase } from '@/lib/supabase'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { PropsWithChildren, useEffect, useMemo, useState } from 'react'
-import { InteractionManager } from 'react-native'
+import { PropsWithChildren, useEffect, useMemo, useRef, useState } from 'react'
 import { OneSignal } from 'react-native-onesignal'
 
 import { useUser } from './user-provider'
 
 const PERMISSION_STORAGE_KEY = 'onesignal_permission_prompt'
 
+// 🛡️ Global guard to ensure only one listener is EVER added to the SDK
+let globalClickListenerAdded = false
+
 export function OneSignalProvider({ children }: PropsWithChildren) {
   const { id, email, role, communitySlug, communityId, acceptsNotifications, loading } = useUser()
   const [memberships, setMemberships] = useState<{ id: string; slug: string }[]>([])
   const [ready, setReady] = useState(false)
+  const clickHandlerRef = useRef<(event: any) => void>(null)
+  const lastNotificationIdRef = useRef<string | null>(null)
 
+  // 1. Efecto único para inicialización y listeners globales (Clicks)
   useEffect(() => {
     let mounted = true
 
-    InteractionManager.runAfterInteractions(() => {
-      setTimeout(() => {
-        initializeOneSignal().then(isReady => {
-          if (mounted && isReady) {
-            setReady(true)
-          }
-        })
-      }, 120)
+    // Definimos el handler estable
+    const handleNotificationClick = (event: any) => {
+      const { notification } = event
+      const notificationId = notification.notificationId
+      
+      // 🛡️ Debounce simple: ignorar si es el mismo ID en menos de 2s
+      if (lastNotificationIdRef.current === notificationId) {
+        console.log(`[OneSignal] 🛡️ Ignoring duplicate click for notification: ${notificationId}`)
+        return
+      }
+      lastNotificationIdRef.current = notificationId
+      setTimeout(() => { if (lastNotificationIdRef.current === notificationId) lastNotificationIdRef.current = null }, 2000)
+
+      console.log('🔴🔴🔴 [OneSignal] CLICK LISTENER FIRED! 🔴🔴🔴')
+      const data = notification.additionalData
+      console.log('[OneSignal] Click data:', JSON.stringify(data, null, 2))
+      console.log('--------------------------------------------------')
+      if (!data) return
+      
+      if (data.route === 'encomienda' || data.type === 'package-arrived') {
+        const parcelId = data.parcel_id || data.id
+        console.log(`[OneSignal] 🚀 Navigating to DASHBOARD in-context for parcel: ${parcelId}`)
+        navigateToDeepLink('/(tabs)', { parcelId })
+      } 
+      else if (data.route === 'reservation') {
+        const id = data.id || data.reservation_id
+        console.log(`[OneSignal] 🗓️ Navigating to RESERVATION. ID: ${id}`)
+        if (id) navigateToDeepLink('/reservations/[id]', { id })
+      }
+      else if (data.type === 'ALERTA' || data.route === 'alerta' || data.route === 'alert' || data.type === 'info') {
+        const alertId = data.id || data.alert_id
+        console.log(`[OneSignal] 📢 Processing ALERT notification. ID: ${alertId}`)
+        navigateToDeepLink('/(tabs)', { alertId })
+      } else {
+        console.log('[OneSignal] ❓ Unknown notification type. No specific routing applied.')
+      }
+    }
+
+    // @ts-ignore
+    clickHandlerRef.current = handleNotificationClick
+
+    // Inicializar OneSignal
+    console.log('[OneSignalProvider] 🟢 Mounting Provider')
+    initializeOneSignal().then(isReady => {
+      if (mounted && isReady) {
+        if (!globalClickListenerAdded) {
+          console.log('[OneSignalProvider] Adding GLOBAL click listener')
+          OneSignal.Notifications.addEventListener('click', handleNotificationClick)
+          globalClickListenerAdded = true
+        } else {
+          console.log('[OneSignalProvider] 🛡️ Global click listener already exists. Skipping add.')
+        }
+        setReady(true)
+      }
     })
 
     return () => {
       mounted = false
     }
-  }, [])
+  }, []) // 👈 Sin dependencias
 
+  // 2. Efecto para Login/Logout y Permisos (Depende de usuario y ready)
   useEffect(() => {
     if (!ready || loading) return
 
@@ -51,76 +102,12 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
     } else {
       void logoutUser()
     }
-  }, [ready, loading, id, email])
-
-  useEffect(() => {
-    if (!ready || loading || !id) return
-
-    if (email) {
-      void syncEmail(email)
-    } else {
-      void syncEmail(null)
-    }
-  }, [ready, loading, id, email])
-
-  useEffect(() => {
-    if (!id) {
-      setMemberships([])
-      return
-    }
-
-    let active = true
-
-    const fetchMemberships = async () => {
-      const { data, error } = await supabase
-        .from('user_communities')
-        .select('community_id, community:community_id(id,slug)')
-        .eq('user_id', id)
-
-      if (error) {
-        console.error('[OneSignalProvider] Error cargando comunidades del usuario:', error)
-        return
-      }
-
-      if (!active) return
-
-      const uniqueById = new Map<string, { id: string; slug: string }>()
-
-      ;(data ?? []).forEach(entry => {
-        const slug = entry?.community?.slug?.trim().toLowerCase()
-        const commId = entry?.community?.id ?? entry?.community_id
-
-        if (!slug || !commId) return
-        uniqueById.set(commId, { id: commId, slug })
-      })
-
-      setMemberships(Array.from(uniqueById.values()))
-    }
-
-    fetchMemberships()
-
-    return () => {
-      active = false
-    }
-  }, [id])
-
-  useEffect(() => {
-    if (!ready || loading) return
-
+    
+    // Manejo de permisos basado en estado del usuario
     const handlePermissions = async () => {
       const stored = await AsyncStorage.getItem(PERMISSION_STORAGE_KEY)
 
-      if (!id) {
-        await updatePushSubscription(false)
-        return
-      }
-
-      if (!acceptsNotifications) {
-        await updatePushSubscription(false)
-        return
-      }
-
-      if (stored === 'denied') {
+      if (!id || !acceptsNotifications || stored === 'denied') {
         await updatePushSubscription(false)
         return
       }
@@ -143,7 +130,8 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
     }
 
     void handlePermissions()
-  }, [ready, loading, acceptsNotifications, id])
+
+  }, [ready, loading, id, email, acceptsNotifications])
 
   const membershipSlugs = useMemo(() => memberships.map(m => m.slug), [memberships])
 

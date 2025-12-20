@@ -1,5 +1,6 @@
 import ResidentDashboard from '@/components/resident/ResidentDashboard'
 import { SKIP_COMMUNITY_AUTO_REDIRECT_KEY } from '@/constants/storageKeys'
+import { promptForPushPermission } from '@/lib/notifications/oneSignal'
 import { useSupabaseAuth } from '@/providers/supabase-auth-provider'
 import { useUser } from '@/providers/user-provider'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -7,7 +8,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import React, { useEffect, useState } from 'react'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 import Toast from 'react-native-toast-message'
-import { promptForPushPermission } from '@/lib/notifications/oneSignal'
 
 export default function ResidentPage() {
   const { session, isLoading: authLoading } = useSupabaseAuth()
@@ -34,8 +34,6 @@ export default function ResidentPage() {
     }
 
     const checkCommunity = async () => {
-      setAllowed(false)
-
       const selected =
         (await AsyncStorage.getItem('selected_community')) || userCommunitySlug
 
@@ -46,7 +44,7 @@ export default function ResidentPage() {
       }
 
       if (routeCommunitySlug !== selected) {
-        router.replace({ pathname: '/(tabs)', params: { community: selected } })
+        router.replace({ pathname: '/(tabs)', params: { ...params, community: selected } })
         return
       }
 

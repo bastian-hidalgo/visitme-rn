@@ -1,9 +1,10 @@
 // components/resident/PackageExpandableCard.tsx
-import { BottomSheetBackdrop, BottomSheetModal, BottomSheetScrollView, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet'
 import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
-import React, { ReactNode, useCallback, useMemo, useRef } from 'react'
+import React, { ReactNode, useCallback, useMemo } from 'react'
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+
+import { useResidentContext } from '@/components/contexts/ResidentContext'
 
 export type PackageStatusLabel = 'Recibida' | 'Retirada' | 'Esperando' | 'Anulada'
 
@@ -48,28 +49,21 @@ export default function PackageExpandableCard({
   statusTextColor,
   detailDescription,
 }: PackageExpandableCardProps) {
-  const bottomSheetRef = useRef<BottomSheetModal>(null)
+  const { setParcelDetail } = useResidentContext()
+
   const openSheet = useCallback(() => {
-    bottomSheetRef.current?.present()
-  }, [])
-
-  const closeSheet = useCallback(() => {
-    bottomSheetRef.current?.dismiss()
-    onClose?.()
-  }, [onClose])
-
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        opacity={0.6}
-        style={{ backgroundColor: 'rgba(15,23,42,0.65)' }}
-      />
-    ),
-    []
-  )
+    setParcelDetail({
+      id,
+      imageUrl,
+      status,
+      department: apartment ? { number: apartment } : undefined,
+      created_at: receivedAtLabel || '', // Approximation for types
+      picked_up_at: pickedUpAtLabel,
+      photo_url: imageUrl,
+      signature_url: signatureImageUrl,
+      description: detailDescription,
+    } as any)
+  }, [id, imageUrl, status, apartment, receivedAtLabel, pickedUpAtLabel, signatureImageUrl, detailDescription, setParcelDetail])
 
   const statusBadgeColors = useMemo(() => {
     const palette: Record<PackageStatusLabel, { backgroundColor: string; text: string }> = {
@@ -86,106 +80,20 @@ export default function PackageExpandableCard({
   }, [status, statusBadgeColor, statusTextColor])
 
   return (
-    <>
-      <TouchableOpacity activeOpacity={0.9} onPress={openSheet}>
-        <View style={[styles.card]}>
-          <Image source={{ uri: imageUrl }} style={styles.image} contentFit="cover" />
-          <LinearGradient colors={['rgba(0,0,0,0.6)', 'transparent']} style={styles.overlay} />
-          <View style={styles.cardContent}>
-            <View style={[styles.statusBadge, { backgroundColor: statusBadgeColors.backgroundColor }]}>
-              {statusIcon ? <View style={styles.statusIcon}>{statusIcon}</View> : null}
-              <Text style={[styles.statusText, { color: statusBadgeColors.text }]}>{status}</Text>
-            </View>
-            {apartment ? <Text style={styles.apartmentText}>Depto. {apartment}</Text> : null}
-            <Text style={styles.dateText}>{date}</Text>
+    <TouchableOpacity activeOpacity={0.9} onPress={openSheet}>
+      <View style={[styles.card]}>
+        <Image source={{ uri: imageUrl }} style={styles.image} contentFit="cover" />
+        <LinearGradient colors={['rgba(0,0,0,0.6)', 'transparent']} style={styles.overlay} />
+        <View style={styles.cardContent}>
+          <View style={[styles.statusBadge, { backgroundColor: statusBadgeColors.backgroundColor }]}>
+            {statusIcon ? <View style={styles.statusIcon}>{statusIcon}</View> : null}
+            <Text style={[styles.statusText, { color: statusBadgeColors.text }]}>{status}</Text>
           </View>
+          {apartment ? <Text style={styles.apartmentText}>Depto. {apartment}</Text> : null}
+          <Text style={styles.dateText}>{date}</Text>
         </View>
-      </TouchableOpacity>
-
-      <BottomSheetModal
-        ref={bottomSheetRef}
-        index={0}
-        snapPoints={['90%']}
-        enablePanDownToClose
-        backdropComponent={renderBackdrop}
-        backgroundStyle={styles.sheetBackground}
-        handleIndicatorStyle={styles.handleIndicator}
-        onDismiss={closeSheet}
-        animateOnMount
-        stackBehavior="push"
-      >
-        <BottomSheetScrollView style={styles.sheetBody} showsVerticalScrollIndicator={false}>
-          <Image source={{ uri: imageUrl }} style={styles.sheetImage} contentFit="cover" />
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>{status}</Text>
-            {apartment ? (
-              <Text style={styles.sheetSubTitle}>Departamento {apartment}</Text>
-            ) : (
-              <Text style={styles.sheetSubTitle}>Encomienda</Text>
-            )}
-            <Text style={styles.sheetDate}>{date}</Text>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionBody}>
-              {detailDescription ??
-                (status === 'Retirada'
-                  ? 'Esta encomienda ya fue retirada de conserjería.'
-                  : 'Tu encomienda está disponible para retiro en conserjería.')}
-            </Text>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Movimientos</Text>
-            <View style={styles.timeline}>
-              <View style={styles.timelineRow}>
-                <View style={styles.timelineDot} />
-                <View style={styles.timelineContent}>
-                  <Text style={styles.timelineLabel}>Llegó a conserjería</Text>
-                  <Text style={styles.timelineValue}>{receivedAtLabel ?? 'Sin registro'}</Text>
-                  {receivedRelativeLabel ? <Text style={styles.timelineHint}>{receivedRelativeLabel}</Text> : null}
-                </View>
-              </View>
-              <View style={styles.timelineRow}>
-                <View
-                  style={[
-                    styles.timelineDot,
-                    signatureCompleted || pickedUpAtLabel
-                      ? styles.timelineDotCompleted
-                      : styles.timelineDotPending,
-                  ]}
-                />
-                <View style={styles.timelineContent}>
-                  <Text style={styles.timelineLabel}>
-                    {pickedUpAtLabel ? 'Retirada por el residente' : 'Pendiente de retiro'}
-                  </Text>
-                  <Text style={styles.timelineValue}>{pickedUpAtLabel ?? 'Aún disponible en conserjería'}</Text>
-                  {pickedUpRelativeLabel ? <Text style={styles.timelineHint}>{pickedUpRelativeLabel}</Text> : null}
-                </View>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Firma</Text>
-            {signatureCompleted ? (
-              <View style={styles.signatureContainer}>
-                {signatureImageUrl ? (
-                  <Image source={{ uri: signatureImageUrl }} style={styles.signatureImage} contentFit="contain" />
-                ) : (
-                  <Text style={styles.signatureConfirmedText}>Firma confirmada</Text>
-                )}
-                <Text style={styles.signatureCaption}>Firma registrada al retirar</Text>
-              </View>
-            ) : (
-              <View style={styles.signaturePlaceholder}>
-                <Text style={styles.signatureText}>Se solicitará al retirar</Text>
-              </View>
-            )}
-          </View>
-        </BottomSheetScrollView>
-      </BottomSheetModal>
-    </>
+      </View>
+    </TouchableOpacity>
   )
 }
 

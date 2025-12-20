@@ -5,7 +5,7 @@ import type { Alert } from '@/types/alert'
 import type { Parcel } from '@/types/parcel'
 import type { Reservation } from '@/types/reservation'
 import type { ResidentContextType } from '@/types/resident'
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 
 const ResidentContext = createContext<ResidentContextType | undefined>(undefined)
 
@@ -24,6 +24,18 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   const [residentDepartments, setResidentDepartments] = useState<
     { department_id: string; label: string }[]
   >([])
+  const [pendingParcelId, setPendingParcelId] = useState<string | null>(null)
+  const [pendingAlertId, setPendingAlertId] = useState<string | null>(null)
+  
+  const setPendingParcelIdMemoized = useCallback((id: string | null) => {
+    console.log(`[ResidentContext] 📝 setPendingParcelId CALLED with: ${id}`)
+    setPendingParcelId(id)
+  }, [])
+
+  const setPendingAlertIdMemoized = useCallback((id: string | null) => {
+    console.log(`[ResidentContext] 📝 setPendingAlertId CALLED with: ${id}`)
+    setPendingAlertId(id)
+  }, [])
 
   // 🔹 Estados de paneles
   const [isSurveyPanelOpen, setSurveyPanelOpen] = useState(false)
@@ -338,6 +350,61 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
     }
   }, [communityId, id])
 
+  const hasRefreshedForPending = useRef(false)
+  const hasRefreshedForAlert = useRef(false)
+
+  // 🔹 Auto-selección de paquete pendiente
+  useEffect(() => {
+    // Si no hay ID pendiente o estamos cargando, no hacemos nada
+    if (loadingPackages || !pendingParcelId) return
+
+    console.log(`[ResidentContext] 🔍 Searching for pending parcel ${pendingParcelId} (count: ${packages.length})...`)
+    const found = packages.find(p => String(p.id) === String(pendingParcelId))
+    
+    if (found) {
+      console.log(`[ResidentContext] ✅ FOUND MATCH! Parcel ID: ${found.id}. Setting selectedParcel.`)
+      setSelectedParcel(found)
+      setPendingParcelId(null) // Reset handler
+      hasRefreshedForPending.current = false // Reset for next time
+    } else {
+      // ⚠️ Si no está en la lista y no hemos refrescado todavía, intentamos UN refresh
+      if (!hasRefreshedForPending.current) {
+        console.log(`[ResidentContext] 🔄 Parcel ${pendingParcelId} NOT found. Triggering REFRESH...`)
+        hasRefreshedForPending.current = true
+        fetchPackages()
+      } else {
+        console.log(`[ResidentContext] ❌ Parcel ${pendingParcelId} NOT found even after refresh. giving up.`)
+        // Opcional: Podríamos limpiar el pendingId aquí para no seguir intentando
+        setPendingParcelId(null)
+      }
+    }
+  }, [loadingPackages, packages, pendingParcelId, fetchPackages])
+
+  // 🔹 Auto-selección de alerta pendiente
+  useEffect(() => {
+    if (loadingAlerts || !pendingAlertId) return
+
+    console.log(`[ResidentContext] 🔍 Searching for pending alert ${pendingAlertId} (count: ${alerts.length})...`)
+    const found = alerts.find(a => String(a.id) === String(pendingAlertId))
+    
+    if (found) {
+      console.log(`[ResidentContext] ✅ FOUND MATCH! Alert ID: ${found.id}. Setting alertDetail and opening panel.`)
+      setAlertDetailState(found)
+      setAlertPanelOpen(true)
+      setPendingAlertId(null)
+      hasRefreshedForAlert.current = false
+    } else {
+      if (!hasRefreshedForAlert.current) {
+        console.log(`[ResidentContext] 🔄 Alert ${pendingAlertId} NOT found. Triggering REFRESH...`)
+        hasRefreshedForAlert.current = true
+        fetchAlerts()
+      } else {
+        console.log(`[ResidentContext] ❌ Alert ${pendingAlertId} NOT found even after refresh. giving up.`)
+        setPendingAlertId(null)
+      }
+    }
+  }, [loadingAlerts, alerts, pendingAlertId, fetchAlerts])
+
   const refreshAll = useCallback(async () => {
     if (!id || !communityId) {
       return
@@ -431,6 +498,8 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         setAlertDetail: setAlertDetailState,
         setParcelDetail: setSelectedParcel,
         setLoadingAlerts,
+        setPendingParcelId: setPendingParcelIdMemoized,
+        setPendingAlertId: setPendingAlertIdMemoized,
       }}
     >
       {children}

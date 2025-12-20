@@ -30,6 +30,19 @@ export default function RootLayout() {
                 name="reservations/new"
                 options={{ headerShown: false, presentation: 'card' }}
               />
+              <Stack.Screen
+                name="reservations/[id]"
+                options={{ headerShown: false, presentation: 'transparentModal', animation: 'fade' }}
+              />
+              <Stack.Screen
+                name="packages/[id]"
+                options={{ headerShown: false, presentation: 'transparentModal', animation: 'fade' }}
+              />
+              <Stack.Screen
+                name="alerts/index"
+                options={{ headerShown: false, presentation: 'transparentModal', animation: 'fade' }}
+              />
+
             </Stack>
             <StatusBar style="auto" />
           </ThemeProvider>

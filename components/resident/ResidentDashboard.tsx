@@ -18,7 +18,12 @@ import SurveyPanel from '@/components/resident/SurveyPanel'
 import SurveysSlider from '@/components/resident/SurveysSlider'
 import UserMenuPanel from '@/components/resident/sidepanels/UserMenuPanel'
 import getReservationBannerStatus from '@/lib/getReservationsBannerStatus'
+import getUrlImageFromStorage from '@/lib/getUrlImageFromStorage'
+import { format, fromNow } from '@/lib/time'
+import { BottomSheetModal } from '@gorhom/bottom-sheet'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated'
+import { PackageDetailSheet } from './PackageDetailSheet'
 
 export default function ResidentDashboard() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -38,7 +43,47 @@ export default function ResidentDashboard() {
       shadowOpacity: progress ? 0.3 : 0,
     }
   })
-  const { reservations, refreshAll } = useResidentContext()
+  const { packages, selectedParcel, setParcelDetail, setPendingParcelId, setPendingAlertId, reservations, refreshAll } = useResidentContext()
+  const { parcelId, alertId } = useLocalSearchParams<{ parcelId: string; alertId: string }>()
+
+  const router = useRouter()
+
+  // 🆔 Instance tracking for debugging
+  const instanceIdRef = useRef(Math.random().toString(36).substring(7))
+  const processedParcelIdRef = useRef<string | null>(null)
+  const processedAlertIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    console.log(`[ResidentDashboard] 🧩 Instance ${instanceIdRef.current} MOUNTED. Params:`, JSON.stringify({ parcelId, alertId }))
+    return () => console.log(`[ResidentDashboard] 🧩 Instance ${instanceIdRef.current} UNMOUNTED`)
+  }, [])
+
+  // 🔹 Manejo de Deep Link de Notificación (Paquetes)
+  useEffect(() => {
+    if (parcelId && parcelId !== processedParcelIdRef.current) {
+      console.log(`[ResidentDashboard] (${instanceIdRef.current}) 🚀 New parcelId detected: ${parcelId}. Forwarding to context.`)
+      processedParcelIdRef.current = parcelId
+      setPendingParcelId(parcelId)
+      
+      // Limpiar el parámetro después de un pequeño delay para no interferir con la apertura
+      setTimeout(() => {
+        router.setParams({ parcelId: undefined })
+      }, 500)
+    }
+  }, [parcelId, setPendingParcelId, router])
+
+  // 🔹 Manejo de Deep Link de Notificación (Alertas)
+  useEffect(() => {
+    if (alertId && alertId !== processedAlertIdRef.current) {
+      console.log(`[ResidentDashboard] (${instanceIdRef.current}) 🚀 New alertId detected: ${alertId}. Forwarding to context.`)
+      processedAlertIdRef.current = alertId
+      setPendingAlertId(alertId)
+      
+      setTimeout(() => {
+        router.setParams({ alertId: undefined })
+      }, 500)
+    }
+  }, [alertId, setPendingAlertId, router])
 
   // Estado del banner de reserva (hoy / mañana / pasada)
   const { status, formattedDate } = getReservationBannerStatus(reservations)
@@ -48,6 +93,22 @@ export default function ResidentDashboard() {
 
   const [sectionPositions, setSectionPositions] = useState<Record<string, number>>({})
   const [refreshing, setRefreshing] = useState(false)
+
+  const packageSheetRef = useRef<BottomSheetModal>(null)
+  const hasPresentedPackage = useRef<string | null>(null)
+
+  // 🔹 Efecto para sincronizar el ref de la hoja con el estado del contexto
+  useEffect(() => {
+    if (selectedParcel && packageSheetRef.current) {
+      if (hasPresentedPackage.current !== selectedParcel.id) {
+        console.log(`[ResidentDashboard] 🏁 NEW selection: ${selectedParcel.id}. Calling present().`)
+        packageSheetRef.current.present()
+        hasPresentedPackage.current = selectedParcel.id
+      }
+    } else if (!selectedParcel) {
+      hasPresentedPackage.current = null
+    }
+  }, [selectedParcel])
 
   const registerSection = (sectionId: string) => ({ nativeEvent }: LayoutChangeEvent) => {
     setSectionPositions((prev) => ({
@@ -203,6 +264,49 @@ export default function ResidentDashboard() {
             </MotiView>
           </Animated.View>
           <NewsDetailModal />
+
+          {/* Siempre montado para estabilidad de refs, pero solo 'presentado' si hay selección */}
+          <PackageDetailSheet
+            ref={packageSheetRef}
+            {...useMemo(() => {
+              const p = selectedParcel
+              const fallbackImage = 'https://www.visitme.cl/img/placeholder-package.webp'
+              
+              if (!p) {
+                return {
+                  imageUrl: fallbackImage,
+                  status: 'Recibida' as const,
+                  date: '',
+                  receivedAtLabel: '',
+                }
+              }
+
+              const statusKey = (p.status ?? 'received') as 'received' | 'pending' | 'picked_up' | 'cancelled'
+              const labels: Record<string, any> = { received: 'Recibida', pending: 'Esperando', picked_up: 'Retirada', cancelled: 'Anulada' }
+              const imageUrl = p.photo_url ? getUrlImageFromStorage(p.photo_url, 'parcel-photos') || fallbackImage : fallbackImage
+              const summaryPrefix = statusKey === 'picked_up' ? 'Retirada' : 'Recibida'
+              const summaryBaseDate = p.picked_up_at || p.created_at
+              const summaryDate = summaryBaseDate ? format(summaryBaseDate, 'DD MMM • HH:mm') : 'Sin fecha'
+              
+              return {
+                imageUrl,
+                status: labels[statusKey] ?? 'Recibida',
+                apartment: p.department?.number ? String(p.department.number) : undefined,
+                date: `${summaryPrefix} • ${summaryDate}`,
+                receivedAtLabel: format(p.created_at, 'DD MMM YYYY • HH:mm'),
+                receivedRelativeLabel: p.created_at ? fromNow(p.created_at) : undefined,
+                pickedUpAtLabel: p.picked_up_at ? format(p.picked_up_at, 'DD MMM YYYY • HH:mm') : undefined,
+                pickedUpRelativeLabel: p.picked_up_at ? fromNow(p.picked_up_at) : undefined,
+                signatureCompleted: Boolean(p.signature_url),
+                signatureImageUrl: p.signature_url ? getUrlImageFromStorage(p.signature_url, 'parcel-photos') : undefined,
+                detailDescription: (p as any).description,
+              }
+            }, [selectedParcel])}
+            onClose={() => {
+              console.log(`[ResidentDashboard] 🚪 PackageDetailSheet onClose triggered. Clearing selection.`)
+              setParcelDetail(null)
+            }}
+          />
         </LinearGradient>
         <UserMenuPanel
           isOpen={isMenuOpen}
