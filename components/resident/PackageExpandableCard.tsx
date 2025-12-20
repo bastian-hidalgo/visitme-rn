@@ -1,9 +1,10 @@
 // components/resident/PackageExpandableCard.tsx
-import { BottomSheetBackdrop, BottomSheetModal, BottomSheetScrollView, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet'
+import { BottomSheetModal } from '@gorhom/bottom-sheet'
 import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
 import React, { ReactNode, useCallback, useMemo, useRef } from 'react'
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { PackageDetailSheet } from './PackageDetailSheet'
 
 export type PackageStatusLabel = 'Recibida' | 'Retirada' | 'Esperando' | 'Anulada'
 
@@ -58,18 +59,7 @@ export default function PackageExpandableCard({
     onClose?.()
   }, [onClose])
 
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        opacity={0.6}
-        style={{ backgroundColor: 'rgba(15,23,42,0.65)' }}
-      />
-    ),
-    []
-  )
+  // renderBackdrop extracted to PackageDetailSheet
 
   const statusBadgeColors = useMemo(() => {
     const palette: Record<PackageStatusLabel, { backgroundColor: string; text: string }> = {
@@ -102,89 +92,21 @@ export default function PackageExpandableCard({
         </View>
       </TouchableOpacity>
 
-      <BottomSheetModal
+      <PackageDetailSheet
         ref={bottomSheetRef}
-        index={0}
-        snapPoints={['90%']}
-        enablePanDownToClose
-        backdropComponent={renderBackdrop}
-        backgroundStyle={styles.sheetBackground}
-        handleIndicatorStyle={styles.handleIndicator}
-        onDismiss={closeSheet}
-        animateOnMount
-        stackBehavior="push"
-      >
-        <BottomSheetScrollView style={styles.sheetBody} showsVerticalScrollIndicator={false}>
-          <Image source={{ uri: imageUrl }} style={styles.sheetImage} contentFit="cover" />
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>{status}</Text>
-            {apartment ? (
-              <Text style={styles.sheetSubTitle}>Departamento {apartment}</Text>
-            ) : (
-              <Text style={styles.sheetSubTitle}>Encomienda</Text>
-            )}
-            <Text style={styles.sheetDate}>{date}</Text>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionBody}>
-              {detailDescription ??
-                (status === 'Retirada'
-                  ? 'Esta encomienda ya fue retirada de conserjería.'
-                  : 'Tu encomienda está disponible para retiro en conserjería.')}
-            </Text>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Movimientos</Text>
-            <View style={styles.timeline}>
-              <View style={styles.timelineRow}>
-                <View style={styles.timelineDot} />
-                <View style={styles.timelineContent}>
-                  <Text style={styles.timelineLabel}>Llegó a conserjería</Text>
-                  <Text style={styles.timelineValue}>{receivedAtLabel ?? 'Sin registro'}</Text>
-                  {receivedRelativeLabel ? <Text style={styles.timelineHint}>{receivedRelativeLabel}</Text> : null}
-                </View>
-              </View>
-              <View style={styles.timelineRow}>
-                <View
-                  style={[
-                    styles.timelineDot,
-                    signatureCompleted || pickedUpAtLabel
-                      ? styles.timelineDotCompleted
-                      : styles.timelineDotPending,
-                  ]}
-                />
-                <View style={styles.timelineContent}>
-                  <Text style={styles.timelineLabel}>
-                    {pickedUpAtLabel ? 'Retirada por el residente' : 'Pendiente de retiro'}
-                  </Text>
-                  <Text style={styles.timelineValue}>{pickedUpAtLabel ?? 'Aún disponible en conserjería'}</Text>
-                  {pickedUpRelativeLabel ? <Text style={styles.timelineHint}>{pickedUpRelativeLabel}</Text> : null}
-                </View>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Firma</Text>
-            {signatureCompleted ? (
-              <View style={styles.signatureContainer}>
-                {signatureImageUrl ? (
-                  <Image source={{ uri: signatureImageUrl }} style={styles.signatureImage} contentFit="contain" />
-                ) : (
-                  <Text style={styles.signatureConfirmedText}>Firma confirmada</Text>
-                )}
-                <Text style={styles.signatureCaption}>Firma registrada al retirar</Text>
-              </View>
-            ) : (
-              <View style={styles.signaturePlaceholder}>
-                <Text style={styles.signatureText}>Se solicitará al retirar</Text>
-              </View>
-            )}
-          </View>
-        </BottomSheetScrollView>
-      </BottomSheetModal>
+        imageUrl={imageUrl}
+        status={status}
+        apartment={apartment}
+        date={date}
+        receivedAtLabel={receivedAtLabel}
+        receivedRelativeLabel={receivedRelativeLabel}
+        pickedUpAtLabel={pickedUpAtLabel}
+        pickedUpRelativeLabel={pickedUpRelativeLabel}
+        signatureImageUrl={signatureImageUrl}
+        signatureCompleted={signatureCompleted}
+        detailDescription={detailDescription}
+        onClose={closeSheet}
+      />
     </>
   )
 }

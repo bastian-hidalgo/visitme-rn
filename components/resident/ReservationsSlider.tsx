@@ -1,49 +1,36 @@
 import {
-  BottomSheetBackdrop,
-  BottomSheetModal,
-  BottomSheetScrollView,
-  BottomSheetTextInput,
-  type BottomSheetBackdropProps,
+    BottomSheetModal
 } from '@gorhom/bottom-sheet'
 import dayjs from 'dayjs'
 import 'dayjs/locale/es'
 import timezone from 'dayjs/plugin/timezone'
 import utc from 'dayjs/plugin/utc'
 import * as FileSystem from 'expo-file-system/legacy'
-import { Image } from 'expo-image'
-import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import {
-  CalendarDays,
-  Clock3,
-  Download,
-  MapPin,
-  ShieldAlert,
-  XCircle,
+    CalendarDays
 } from 'lucide-react-native'
 import { MotiView } from 'moti'
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  FlatList,
-  Platform,
-  Share,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Dimensions,
+    FlatList,
+    Platform,
+    Share,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native'
 import Toast from 'react-native-toast-message'
 
 import { useResidentContext } from '@/components/contexts/ResidentContext'
 import EmptyActionCard from '@/components/ui/EmptyActionCard'
-import getUrlImageFromStorage from '@/lib/getUrlImageFromStorage'
 import { supabase } from '@/lib/supabase'
 import { useWeatherForReservations, type ReservationWithWeather } from '@/lib/useWeatherForReservations'
 import { useUser } from '@/providers/user-provider'
 import ReservationCard from './ReservationCard'
+import { ReservationDetailSheet } from './ReservationDetailSheet'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -95,18 +82,7 @@ export default function ReservationsSlider() {
       }, 250)
   }, [])
 
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        opacity={0.6}
-        style={{ backgroundColor: 'rgba(15,23,42,0.65)' }}
-      />
-    ),
-    []
-  )
+
 
   const validateCancellation = useCallback(() => {
     if (!selectedReservation?.id || !userId) {
@@ -127,8 +103,16 @@ export default function ReservationsSlider() {
     return true
   }, [justification, selectedReservation, userId])
 
-  const performCancelReservation = useCallback(async () => {
-    if (!validateCancellation()) {
+  const performCancelReservation = useCallback(async (reasonArg?: string) => {
+    const reasonToUse = reasonArg ?? justification
+    
+    // Simple validation if reasonArg is provided directly
+    if (reasonArg && reasonArg.trim().length < 5) {
+        setCancellationError('Ingresa una justificación de al menos 5 caracteres.')
+        return
+    }
+
+    if (!reasonArg && !validateCancellation()) {
       return
     }
 
@@ -140,9 +124,9 @@ export default function ReservationsSlider() {
         .from('common_space_reservations')
         .update({
           status: 'cancelado',
-          cancellation_reason: justification.trim(),
+          cancellation_reason: reasonToUse.trim(),
         })
-        .eq('id', selectedReservation.id)
+        .eq('id', selectedReservation?.id)
         .eq('reserved_by', userId)
 
       if (error) {
@@ -162,20 +146,7 @@ export default function ReservationsSlider() {
     }
   }, [closeDetail, fetchReservations, justification, selectedReservation, userId, validateCancellation])
 
-  const handleConfirmCancelPress = useCallback(() => {
-    if (!validateCancellation()) {
-      return
-    }
 
-    Alert.alert(
-      'Confirmar anulación',
-      '¿Estás seguro de que deseas anular esta reserva?',
-      [
-        { text: 'Mantener', style: 'cancel' },
-        { text: 'Sí, anular', style: 'destructive', onPress: performCancelReservation },
-      ]
-    )
-  }, [performCancelReservation, validateCancellation])
 
   const escapeICS = useCallback((value: string) => {
     return value.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;')
@@ -260,7 +231,7 @@ export default function ReservationsSlider() {
     }
   }, [escapeICS, selectedReservation])
 
-  const snapPoints = useMemo(() => ['92%'], [])
+
 
   return (
     <MotiView
@@ -302,186 +273,25 @@ export default function ReservationsSlider() {
         contentContainerStyle={styles.listContent}
       />
 
-      <BottomSheetModal
+      <ReservationDetailSheet
         ref={bottomSheetRef}
-        index={0}
-        snapPoints={snapPoints}
-        enablePanDownToClose
-        backdropComponent={renderBackdrop}
-        backgroundStyle={styles.sheetBackground}
-        handleIndicatorStyle={styles.sheetHandle}
-        onDismiss={closeDetail}
-        keyboardBehavior="interactive"
-        keyboardBlurBehavior="restore"
-        bottomInset={Platform.OS === 'ios' ? 36 : 24}
-      >
-        {selectedReservation ? (
-          <BottomSheetScrollView
-            style={styles.sheetScroll}
-            contentContainerStyle={styles.sheetContentContainer}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={styles.sheetHeroContainer}>
-              <Image
-                source={{
-                  uri:
-                    getUrlImageFromStorage(
-                      selectedReservation.common_space_image_url ?? '',
-                      'common-spaces'
-                    ) ||
-                    getUrlImageFromStorage(
-                      selectedReservation.common_space_image_url ?? '',
-                      'common-space-images'
-                    ) ||
-                    'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb',
-                }}
-                style={styles.sheetHeroImage}
-                contentFit="cover"
-              />
-              <LinearGradient colors={['rgba(15,23,42,0.85)', 'transparent']} style={styles.sheetHeroOverlay} />
-
-              <View style={styles.sheetHeroContent}>
-                <Text style={styles.sheetStatus}>
-                  {selectedReservation.status === 'cancelado'
-                    ? 'Reserva cancelada'
-                    : selectedReservation.status === 'pendiente'
-                      ? 'Reserva pendiente'
-                      : 'Reserva confirmada'}
-                </Text>
-                <Text style={styles.sheetTitle}>{selectedReservation.common_space_name ?? 'Espacio VisitMe'}</Text>
-                <View style={styles.sheetInfoRow}>
-                  <Clock3 size={18} color="#fff" />
-                  <Text style={styles.sheetInfoText}>
-                    {dayjs.utc(selectedReservation.date).tz(tz, true).format('dddd DD [de] MMMM YYYY')}
-                  </Text>
-                </View>
-                <View style={styles.sheetInfoRow}>
-                  <MapPin size={18} color="#fff" />
-                  <Text style={styles.sheetInfoText}>Departamento {selectedReservation.department_number ?? '-'}</Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.sheetSection}>
-              <Text style={styles.sheetSectionTitle}>Detalles</Text>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Bloque</Text>
-                <Text style={styles.detailValue}>
-                  {selectedReservation.block === 'morning'
-                    ? 'Mañana (AM)'
-                    : selectedReservation.block === 'afternoon'
-                      ? 'Tarde (PM)'
-                      : 'Sin horario definido'}
-                </Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Duración</Text>
-                <Text style={styles.detailValue}>
-                  {selectedReservation.duration_hours
-                    ? `${selectedReservation.duration_hours} hora(s)`
-                    : 'Sin información'}
-                </Text>
-              </View>
-            </View>
-
-            {selectedReservation.status === 'cancelado' && selectedReservation.cancellation_reason ? (
-              <View style={styles.sheetSection}>
-                <Text style={styles.sheetSectionTitle}>Motivo de cancelación</Text>
-                <View style={styles.cancellationReasonBox}>
-                  <ShieldAlert size={18} color="#F87171" />
-                  <Text style={styles.cancellationReasonText}>{selectedReservation.cancellation_reason}</Text>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.sheetSection}>
-                <Text style={styles.sheetSectionTitle}>Anular reserva</Text>
-                <Text style={styles.sheetSectionDescription}>
-                  Cuéntanos el motivo para que podamos notificar al equipo de la comunidad.
-                </Text>
-
-                {!showCancellationForm ? (
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    onPress={() => {
-                      setShowCancellationForm(true)
-                      setCancellationError('')
-                    }}
-                    style={styles.expandCancelButton}
-                  >
-                    <ShieldAlert size={18} color="#ef4444" />
-                    <Text style={styles.expandCancelText}>Escribir justificación</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <>
-                    <BottomSheetTextInput
-                      placeholder="Escribe tu justificación"
-                      placeholderTextColor="rgba(255,255,255,0.5)"
-                      multiline
-                      value={justification}
-                      onChangeText={setJustification}
-                      style={styles.input}
-                      textAlignVertical="top"
-                      enablesReturnKeyAutomatically
-                    />
-                    {cancellationError ? (
-                      <Text style={styles.errorText}>{cancellationError}</Text>
-                    ) : null}
-                    <View style={styles.cancelActionsRow}>
-                      <TouchableOpacity
-                        activeOpacity={0.85}
-                        onPress={() => {
-                          setShowCancellationForm(false)
-                          setJustification('')
-                          setCancellationError('')
-                        }}
-                        style={styles.cancelSecondaryButton}
-                      >
-                        <XCircle size={18} color="#cbd5f5" />
-                        <Text style={styles.cancelSecondaryText}>Descartar</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        activeOpacity={0.85}
-                        onPress={handleConfirmCancelPress}
-                        disabled={isCancelling}
-                        style={[styles.cancelButton, isCancelling && styles.cancelButtonDisabled]}
-                      >
-                        {isCancelling ? (
-                          <ActivityIndicator color="#fff" />
-                        ) : (
-                          <Text style={styles.cancelButtonText}>Confirmar anulación</Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                )}
-              </View>
-            )}
-
-            <View style={styles.sheetSection}>
-              <Text style={styles.sheetSectionTitle}>Agregar a tu calendario</Text>
-              <Text style={styles.sheetSectionDescription}>
-                Descarga el evento en formato compatible con tu calendario personal.
-              </Text>
-              <TouchableOpacity
-                activeOpacity={0.88}
-                onPress={handleDownloadCalendar}
-                disabled={isDownloading}
-                style={[styles.calendarButton, isDownloading && styles.calendarButtonDisabled]}
-              >
-                {isDownloading ? (
-                  <ActivityIndicator color="#111827" />
-                ) : (
-                  <>
-                    <Download size={18} color="#111827" />
-                    <Text style={styles.calendarButtonText}>Descargar evento (.ics)</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          </BottomSheetScrollView>
-        ) : null}
-      </BottomSheetModal>
+        reservation={selectedReservation}
+        onClose={closeDetail}
+        onCancelReservation={async (id, reason) => {
+          // Wrapped to match signature, logic handled in component generally but here we pass the action
+          // Actually, the new component handles the UI, but we need to pass the logic.
+          // Let's adapt the performCancelReservation to receive params if needed, or update state before calling.
+          // Wait, the shared component calls onCancelReservation(id, reason).
+          // We need to implement a wrapper here.
+          
+          // Re-implementing logic lightly or refactoring performCancelReservation to accept args?
+          // Let's refactor performCancelReservation below to be flexible.
+          await performCancelReservation(reason)
+        }}
+        onDownloadCalendar={handleDownloadCalendar}
+        isCancelling={isCancelling}
+        isDownloading={isDownloading}
+      />
     </MotiView>
   )
 }

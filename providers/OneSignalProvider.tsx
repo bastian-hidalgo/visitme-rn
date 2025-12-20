@@ -1,19 +1,17 @@
+import { navigateToDeepLink } from '@/lib/navigation'
 import {
   initializeOneSignal,
   loginUser,
   logoutUser,
-  syncEmail,
   syncTags,
-  updatePushSubscription,
+  updatePushSubscription
 } from '@/lib/notifications/oneSignal'
 import {
   ensureCurrentPlayerSynced,
   registerPushSubscriptionListener,
 } from '@/lib/notifications/oneSignalSync'
-import { supabase } from '@/lib/supabase'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { PropsWithChildren, useEffect, useMemo, useState } from 'react'
-import { InteractionManager } from 'react-native'
 import { OneSignal } from 'react-native-onesignal'
 
 import { useUser } from './user-provider'
@@ -25,24 +23,98 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
   const [memberships, setMemberships] = useState<{ id: string; slug: string }[]>([])
   const [ready, setReady] = useState(false)
 
+  // 1. Efecto único para inicialización y listeners globales (Clicks)
   useEffect(() => {
     let mounted = true
 
-    InteractionManager.runAfterInteractions(() => {
-      setTimeout(() => {
-        initializeOneSignal().then(isReady => {
-          if (mounted && isReady) {
-            setReady(true)
-          }
+    // Listener de clicks en notificaciones (Global)
+    const handleNotificationClick = (event: any) => {
+      console.log('🔴🔴🔴 [OneSignal] CLICK LISTENER FIRED! 🔴🔴🔴')
+      console.log('--------------------------------------------------')
+      console.log('[OneSignal] Notification Clicked Event Received')
+
+      const { notification } = event
+      const data = notification.additionalData
+
+      console.log('[OneSignal] Full Notification Object:', JSON.stringify(notification, null, 2))
+      console.log('[OneSignal] Additional Data:', JSON.stringify(data, null, 2))
+
+      if (!data) {
+        console.log('[OneSignal] No additional data found. Do nothing.')
+        return
+      }
+
+      // Usar nuestro helper para navegar con seguridad
+      // 1. Manejo de Encomiendas
+      if (data.route === 'encomienda') {
+        const id = data.id || data.encomienda_id
+        console.log(`[OneSignal] Processing ENCOMIENDA route. ID: ${id}`)
+        if (id) {
+          console.log('[OneSignal] Navigating to /packages/[id]')
+          navigateToDeepLink('/packages/[id]', { id })
+        } else {
+            console.warn('[OneSignal] Missing ID for ENCOMIENDA')
+        }
+      } 
+      // 2. Manejo de Reservas
+      else if (data.route === 'reserva') {
+        const id = data.id || data.reservation_id
+        console.log(`[OneSignal] Processing RESERVA route. ID: ${id}`)
+        if (id) {
+          console.log('[OneSignal] Navigating to /reservations/[id]')
+          navigateToDeepLink('/reservations/[id]', { id })
+        } else {
+            console.warn('[OneSignal] Missing ID for RESERVA')
+        }
+      }
+      // 3. Manejo de Alertas
+      else if (data.type === 'ALERTA' || data.route === 'alerta') {
+        console.log('[OneSignal] Processing ALERTA/route')
+        navigateToDeepLink('/alerts/index', {
+          title: data.title || notification.title,
+          message: data.message || notification.body,
+          type: data.type || 'ALERTA',
+          // Pass additional standard fields if available
+          id: data.id,
+          created_at: data.created_at,
+          image_url: data.image_url
         })
-      }, 120)
+      } else {
+        console.log('[OneSignal] Unknown route/type in data:', data)
+      }
+      console.log('--------------------------------------------------')
+    }
+
+    // Inicializar OneSignal
+    console.log('[OneSignalProvider] 🟢 Mounting Provider - triggering init immediately')
+    
+    // Eliminamos retardos artificiales localmente para asegurar el listener ASAP
+    initializeOneSignal().then(isReady => {
+      console.log('[OneSignalProvider] 🟢 Initialization done. isReady:', isReady)
+      if (mounted && isReady) {
+        // SOLO agregar el listener cuando OneSignal esté inicializado
+        console.log('[OneSignalProvider] Adding click listener')
+        OneSignal.Notifications.addEventListener('click', handleNotificationClick)
+        setReady(true)
+      }
     })
 
     return () => {
       mounted = false
+      // Es seguro llamar removeEventListener incluso si no se agregó, o podríamos chequear ready, 
+      // pero para evitar memory leaks en desmontajes rápidos, lo dejamos.
+      // Sin embargo, si init no terminó, esto podría (raramente) fallar si el SDK no está listo.
+      // Pero 'removeEventListener' suele ser seguro. De todos modos, try/catch por si acaso.
+      try {
+        console.log('[OneSignalProvider] Removing click listener')
+        OneSignal.Notifications.removeEventListener('click', handleNotificationClick)
+      } catch(e) {
+        console.warn('[OneSignalProvider] Error removing listener (might not be inited)', e)
+      }
     }
-  }, [])
+  }, []) // 👈 Sin dependencias, corre siempre al montar el provider
 
+  // 2. Efecto para Login/Logout y Permisos (Depende de usuario y ready)
   useEffect(() => {
     if (!ready || loading) return
 
@@ -51,76 +123,12 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
     } else {
       void logoutUser()
     }
-  }, [ready, loading, id, email])
-
-  useEffect(() => {
-    if (!ready || loading || !id) return
-
-    if (email) {
-      void syncEmail(email)
-    } else {
-      void syncEmail(null)
-    }
-  }, [ready, loading, id, email])
-
-  useEffect(() => {
-    if (!id) {
-      setMemberships([])
-      return
-    }
-
-    let active = true
-
-    const fetchMemberships = async () => {
-      const { data, error } = await supabase
-        .from('user_communities')
-        .select('community_id, community:community_id(id,slug)')
-        .eq('user_id', id)
-
-      if (error) {
-        console.error('[OneSignalProvider] Error cargando comunidades del usuario:', error)
-        return
-      }
-
-      if (!active) return
-
-      const uniqueById = new Map<string, { id: string; slug: string }>()
-
-      ;(data ?? []).forEach(entry => {
-        const slug = entry?.community?.slug?.trim().toLowerCase()
-        const commId = entry?.community?.id ?? entry?.community_id
-
-        if (!slug || !commId) return
-        uniqueById.set(commId, { id: commId, slug })
-      })
-
-      setMemberships(Array.from(uniqueById.values()))
-    }
-
-    fetchMemberships()
-
-    return () => {
-      active = false
-    }
-  }, [id])
-
-  useEffect(() => {
-    if (!ready || loading) return
-
+    
+    // Manejo de permisos basado en estado del usuario
     const handlePermissions = async () => {
       const stored = await AsyncStorage.getItem(PERMISSION_STORAGE_KEY)
 
-      if (!id) {
-        await updatePushSubscription(false)
-        return
-      }
-
-      if (!acceptsNotifications) {
-        await updatePushSubscription(false)
-        return
-      }
-
-      if (stored === 'denied') {
+      if (!id || !acceptsNotifications || stored === 'denied') {
         await updatePushSubscription(false)
         return
       }
@@ -143,7 +151,8 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
     }
 
     void handlePermissions()
-  }, [ready, loading, acceptsNotifications, id])
+
+  }, [ready, loading, id, email, acceptsNotifications])
 
   const membershipSlugs = useMemo(() => memberships.map(m => m.slug), [memberships])
 
