@@ -177,11 +177,14 @@ export type Database = {
           cancellation_reason: string | null
           common_space_id: string | null
           community_id: string | null
+          cost_applied: number | null
           created_at: string | null
           date: string
           department_id: string | null
           duration_hours: number
           id: string
+          is_grace_use: boolean | null
+          payment_status: string | null
           reserved_by: string | null
           status: Database["public"]["Enums"]["reservation_status"]
         }
@@ -190,11 +193,14 @@ export type Database = {
           cancellation_reason?: string | null
           common_space_id?: string | null
           community_id?: string | null
+          cost_applied?: number | null
           created_at?: string | null
           date: string
           department_id?: string | null
           duration_hours: number
           id?: string
+          is_grace_use?: boolean | null
+          payment_status?: string | null
           reserved_by?: string | null
           status?: Database["public"]["Enums"]["reservation_status"]
         }
@@ -203,11 +209,14 @@ export type Database = {
           cancellation_reason?: string | null
           common_space_id?: string | null
           community_id?: string | null
+          cost_applied?: number | null
           created_at?: string | null
           date?: string
           department_id?: string | null
           duration_hours?: number
           id?: string
+          is_grace_use?: boolean | null
+          payment_status?: string | null
           reserved_by?: string | null
           status?: Database["public"]["Enums"]["reservation_status"]
         }
@@ -258,34 +267,43 @@ export type Database = {
       }
       common_spaces: {
         Row: {
+          booking_block_days: number | null
           community_id: string
           created_at: string | null
           description: string | null
           event_price: number | null
+          grace_days_threshold: number | null
           id: string
           image_url: string | null
+          is_free_by_default: boolean | null
           name: string
           status: string | null
           time_block_hours: number
         }
         Insert: {
+          booking_block_days?: number | null
           community_id: string
           created_at?: string | null
           description?: string | null
           event_price?: number | null
+          grace_days_threshold?: number | null
           id?: string
           image_url?: string | null
+          is_free_by_default?: boolean | null
           name: string
           status?: string | null
           time_block_hours: number
         }
         Update: {
+          booking_block_days?: number | null
           community_id?: string
           created_at?: string | null
           description?: string | null
           event_price?: number | null
+          grace_days_threshold?: number | null
           id?: string
           image_url?: string | null
+          is_free_by_default?: boolean | null
           name?: string
           status?: string | null
           time_block_hours?: number
@@ -685,6 +703,103 @@ export type Database = {
           },
         ]
       }
+      nightly_check_logs: {
+        Row: {
+          camera_status_ok: boolean | null
+          check_time: string | null
+          community_id: string | null
+          concierge_id: string | null
+          id: string
+          incidents_reported: string | null
+          metadata: Json | null
+          signature_url: string | null
+        }
+        Insert: {
+          camera_status_ok?: boolean | null
+          check_time?: string | null
+          community_id?: string | null
+          concierge_id?: string | null
+          id?: string
+          incidents_reported?: string | null
+          metadata?: Json | null
+          signature_url?: string | null
+        }
+        Update: {
+          camera_status_ok?: boolean | null
+          check_time?: string | null
+          community_id?: string | null
+          concierge_id?: string | null
+          id?: string
+          incidents_reported?: string | null
+          metadata?: Json | null
+          signature_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nightly_check_logs_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nightly_check_logs_concierge_id_fkey"
+            columns: ["concierge_id"]
+            isOneToOne: false
+            referencedRelation: "user_identities_google"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "nightly_check_logs_concierge_id_fkey"
+            columns: ["concierge_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nightly_check_logs_concierge_id_fkey"
+            columns: ["concierge_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nightly_checks_config: {
+        Row: {
+          community_id: string | null
+          end_time: string
+          id: string
+          is_active: boolean | null
+          required_checks_count: number | null
+          start_time: string
+        }
+        Insert: {
+          community_id?: string | null
+          end_time: string
+          id?: string
+          is_active?: boolean | null
+          required_checks_count?: number | null
+          start_time: string
+        }
+        Update: {
+          community_id?: string | null
+          end_time?: string
+          id?: string
+          is_active?: boolean | null
+          required_checks_count?: number | null
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nightly_checks_config_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       onesignal_players: {
         Row: {
           community_id: string
@@ -955,6 +1070,170 @@ export type Database = {
           version?: string
         }
         Relationships: []
+      }
+      provider_activities: {
+        Row: {
+          community_id: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          provider_id: string | null
+          required_monthly_frequency: number | null
+        }
+        Insert: {
+          community_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          provider_id?: string | null
+          required_monthly_frequency?: number | null
+        }
+        Update: {
+          community_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          provider_id?: string | null
+          required_monthly_frequency?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_activities_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_activities_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provider_activity_logs: {
+        Row: {
+          activity_id: string | null
+          check_in: string | null
+          check_out: string | null
+          checklist_results: Json | null
+          comments: string | null
+          concierge_id: string | null
+          id: string
+          provider_id: string | null
+          provider_signature_url: string | null
+          status: string | null
+        }
+        Insert: {
+          activity_id?: string | null
+          check_in?: string | null
+          check_out?: string | null
+          checklist_results?: Json | null
+          comments?: string | null
+          concierge_id?: string | null
+          id?: string
+          provider_id?: string | null
+          provider_signature_url?: string | null
+          status?: string | null
+        }
+        Update: {
+          activity_id?: string | null
+          check_in?: string | null
+          check_out?: string | null
+          checklist_results?: Json | null
+          comments?: string | null
+          concierge_id?: string | null
+          id?: string
+          provider_id?: string | null
+          provider_signature_url?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_activity_logs_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "provider_activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_activity_logs_concierge_id_fkey"
+            columns: ["concierge_id"]
+            isOneToOne: false
+            referencedRelation: "user_identities_google"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "provider_activity_logs_concierge_id_fkey"
+            columns: ["concierge_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_activity_logs_concierge_id_fkey"
+            columns: ["concierge_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_activity_logs_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      providers: {
+        Row: {
+          category: string | null
+          community_id: string | null
+          contact_name: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          phone: string | null
+          rut: string | null
+        }
+        Insert: {
+          category?: string | null
+          community_id?: string | null
+          contact_name?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          phone?: string | null
+          rut?: string | null
+        }
+        Update: {
+          category?: string | null
+          community_id?: string | null
+          contact_name?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          phone?: string | null
+          rut?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "providers_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       push_tokens: {
         Row: {
@@ -1459,7 +1738,6 @@ export type Database = {
       }
       users: {
         Row: {
-          birthday: string | null
           accepts_notifications: boolean
           active: boolean
           avatar_url: string | null
@@ -1477,7 +1755,6 @@ export type Database = {
           role: string | null
         }
         Insert: {
-          birthday?: string | null
           accepts_notifications?: boolean
           active?: boolean
           avatar_url?: string | null
@@ -1495,7 +1772,6 @@ export type Database = {
           role?: string | null
         }
         Update: {
-          birthday?: string | null
           accepts_notifications?: boolean
           active?: boolean
           avatar_url?: string | null
@@ -1576,6 +1852,8 @@ export type Database = {
           contact: string | null
           department: string | null
           department_id: string | null
+          document_mrz: string | null
+          document_type: string | null
           exited_at: string | null
           expected_at: string | null
           expires_at: string | null
@@ -1599,6 +1877,8 @@ export type Database = {
           contact?: string | null
           department?: string | null
           department_id?: string | null
+          document_mrz?: string | null
+          document_type?: string | null
           exited_at?: string | null
           expected_at?: string | null
           expires_at?: string | null
@@ -1622,6 +1902,8 @@ export type Database = {
           contact?: string | null
           department?: string | null
           department_id?: string | null
+          document_mrz?: string | null
+          document_type?: string | null
           exited_at?: string | null
           expected_at?: string | null
           expires_at?: string | null
