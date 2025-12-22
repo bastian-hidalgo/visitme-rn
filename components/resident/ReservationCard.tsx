@@ -45,18 +45,31 @@ export default function ReservationCard({ data, onPress }: ReservationCardProps)
     }
   }, [data.weather])
 
+  const isPast = useMemo(() => dayjs(data.date).isBefore(dayjs(), 'day'), [data.date])
+
   const statusPill = useMemo(() => {
     if (data.status === 'cancelado') {
       return { label: 'Cancelada', textColor: '#FEE2E2', background: 'rgba(239,68,68,0.42)' }
     }
+    if (isPast) {
+      return { label: 'Concretada', textColor: '#E2E8F0', background: 'rgba(71,85,105,0.5)' }
+    }
     return { label: 'Confirmada', textColor: '#DCFCE7', background: 'rgba(34,197,94,0.4)' }
-  }, [data.status])
+  }, [data.status, isPast])
 
   return (
     <MotiView from={{ opacity: 0, translateY: 16 }} animate={{ opacity: 1, translateY: 0 }} style={styles.wrapper}>
       <TouchableOpacity activeOpacity={0.9} style={styles.card} onPress={() => onPress?.(data)}>
-        <Image source={{ uri: finalImageUrl }} style={styles.image} contentFit="cover" />
-        <LinearGradient colors={['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.6)', 'rgba(15,23,42,0.95)']} style={styles.overlay} />
+        <Image 
+          source={{ uri: finalImageUrl }} 
+          style={[styles.image, isPast && { opacity: 0.55 }]} 
+          contentFit="cover" 
+        />
+        <LinearGradient 
+          colors={isPast ? ['rgba(0,0,0,0.6)', 'rgba(0,0,0,0.85)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.6)', 'rgba(15,23,42,0.95)']} 
+          style={styles.overlay} 
+        />
+        {isPast && <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.1)', mixBlendMode: 'saturation' } as any]} />}
 
         <View style={styles.header}>
           <View style={[styles.statusBadge, { backgroundColor: statusPill.background }]}>

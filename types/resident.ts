@@ -12,6 +12,7 @@ export interface ResidentContextType {
   surveys: any[]
   selectedSurvey: any | null
   selectedParcel: Parcel | null
+  selectedReservation: Reservation | null
   alertDetail: Alert | null
   residentDepartments: { department_id: string; label: string }[]
 
@@ -22,6 +23,7 @@ export interface ResidentContextType {
   isAnyPanelOpen: boolean
   isPackagesPanelOpen: boolean
   isAlertPanelOpen: boolean
+  isReservationPanelOpen: boolean
 
   // 🔹 Cargas
   loadingSurveys: boolean
@@ -32,7 +34,7 @@ export interface ResidentContextType {
 
   // 🔹 Acciones principales (fetch)
   fetchAlerts: () => void
-  fetchReservations: () => void
+  fetchReservations: (showAll?: boolean) => void
   fetchVisits: () => void
   fetchPackages: () => void
   refreshSurveys: () => Promise<void>
@@ -45,6 +47,7 @@ export interface ResidentContextType {
   openInvitationPanel: () => void
   openAlertPanel: () => void
   openPackagesPanel: () => void
+  openReservationPanel: () => void
   closeAlertPanel: () => void
   closePanels: () => void
 
@@ -53,6 +56,8 @@ export interface ResidentContextType {
   setAlertDetail: (alert: Alert | null) => void
   setLoadingAlerts: (loading: boolean) => void
   setParcelDetail: (parcel: Parcel | null) => void
+  setReservationDetail: (reservation: Reservation | null) => void
+  setReservationPanelOpen: (open: boolean) => void
   setPendingParcelId: (id: string | null) => void
   setPendingAlertId: (id: string | null) => void
 }

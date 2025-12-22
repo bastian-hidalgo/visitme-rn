@@ -20,6 +20,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   const [surveys, setSurveys] = useState<any[]>([])
   const [selectedSurvey, setSelectedSurvey] = useState<any | null>(null)
   const [selectedParcel, setSelectedParcel] = useState<Parcel | null>(null)
+  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
   const [alertDetail, setAlertDetailState] = useState<Alert | null>(null)
   const [residentDepartments, setResidentDepartments] = useState<
     { department_id: string; label: string }[]
@@ -43,6 +44,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   const [isInvitationPanelOpen, setInvitationPanelOpen] = useState(false)
   const [isPackagesPanelOpen, setPackagesPanelOpen] = useState(false)
   const [isAlertPanelOpen, setAlertPanelOpen] = useState(false)
+  const [isReservationPanelOpen, setReservationPanelOpen] = useState(false)
 
   // 🔹 Cargas
   const [loadingAlerts, setLoadingAlerts] = useState(true)
@@ -57,9 +59,15 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   const openInvitationPanel = () => setInvitationPanelOpen(true)
   const openPackagesPanel = () => setPackagesPanelOpen(true)
   const openAlertPanel = () => setAlertPanelOpen(true)
+  const openReservationPanel = () => setReservationPanelOpen(true)
   const closeAlertPanel = useCallback(() => {
     setAlertPanelOpen(false)
     setAlertDetailState(null)
+  }, [])
+
+  const closeReservationPanel = useCallback(() => {
+    setReservationPanelOpen(false)
+    setSelectedReservation(null)
   }, [])
 
   // 🔹 Cerrar todos los paneles
@@ -70,7 +78,8 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
     setPackagesPanelOpen(false)
     setSelectedSurvey(null)
     closeAlertPanel()
-  }, [closeAlertPanel])
+    closeReservationPanel()
+  }, [closeAlertPanel, closeReservationPanel])
 
   const resetCommunityData = useCallback(
     (options?: { loadingState?: boolean }) => {
@@ -85,12 +94,14 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
       setSelectedSurvey(null)
       setSelectedParcel(null)
       setAlertDetailState(null)
+      setSelectedReservation(null)
 
       setSurveyPanelOpen(false)
       setFeedbackPanelOpen(false)
       setInvitationPanelOpen(false)
       setPackagesPanelOpen(false)
       setAlertPanelOpen(false)
+      setReservationPanelOpen(false)
 
       setLoadingAlerts(loadingState)
       setLoadingReservations(loadingState)
@@ -107,7 +118,8 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
     isFeedbackPanelOpen ||
     isInvitationPanelOpen ||
     isPackagesPanelOpen ||
-    isAlertPanelOpen
+    isAlertPanelOpen ||
+    isReservationPanelOpen
 
   // 🔹 Encuestas
   const refreshSurveys = useCallback(async () => {
@@ -253,7 +265,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   }, [communityId])
 
   // 🔹 Reservas
-  const fetchReservations = useCallback(async () => {
+  const fetchReservations = useCallback(async (showAll: boolean = false) => {
     if (!communityId || !id) {
       setReservations([])
       setLoadingReservations(false)
@@ -262,14 +274,19 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
 
     setLoadingReservations(true)
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('common_space_reservations_with_user')
         .select('*')
         .eq('community_id', communityId)
         .eq('reserved_by', id)
-        .gte('date', toServerUTC(now().startOf('day')))
-        .order('date', { ascending: true })
-        .limit(10)
+
+      if (!showAll) {
+        query = query.gte('date', toServerUTC(now().subtract(7, 'day').startOf('day')))
+      }
+
+      const { data, error } = await query
+        .order('date', { ascending: !showAll })
+        .limit(showAll ? 50 : 10)
 
       if (error) throw error
 
@@ -455,6 +472,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         surveys,
         selectedSurvey,
         selectedParcel,
+        selectedReservation,
         alertDetail,
         residentDepartments,
 
@@ -464,6 +482,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         isInvitationPanelOpen,
         isPackagesPanelOpen,
         isAlertPanelOpen,
+        isReservationPanelOpen,
         isAnyPanelOpen,
 
         // 🔹 Cargas
@@ -488,6 +507,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         openInvitationPanel,
         openAlertPanel,
         openPackagesPanel,
+        openReservationPanel,
         closeAlertPanel,
 
         // 🔹 Cierre general
@@ -497,6 +517,8 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         setSelectedSurvey,
         setAlertDetail: setAlertDetailState,
         setParcelDetail: setSelectedParcel,
+        setReservationDetail: setSelectedReservation,
+        setReservationPanelOpen,
         setLoadingAlerts,
         setPendingParcelId: setPendingParcelIdMemoized,
         setPendingAlertId: setPendingAlertIdMemoized,

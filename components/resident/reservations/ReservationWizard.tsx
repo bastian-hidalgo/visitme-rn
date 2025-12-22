@@ -6,21 +6,21 @@ import type { Database } from '@/types/supabase'
 import dayjs from 'dayjs'
 import 'dayjs/locale/es'
 import { LinearGradient } from 'expo-linear-gradient'
-import { Check, ChevronLeft, Clock, MapPin, Timer, Users } from 'lucide-react-native'
+import { Check, ChevronLeft, Clock, MapPin, ShieldAlert, Timer, Users } from 'lucide-react-native'
 import { MotiView } from 'moti'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ActivityIndicator,
-  Dimensions,
-  FlatList,
-  Image,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Dimensions,
+    FlatList,
+    Image,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native'
 import SoundPlayer from 'react-native-sound-player'
 import Toast from 'react-native-toast-message'
@@ -145,6 +145,14 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
   const [success, setSuccess] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
+  // 📝 Estados para Bloqueo y Cobros
+  const [blockingDays, setBlockingDays] = useState<number>(0)
+  const [lastReservationDate, setLastReservationDate] = useState<string | null>(null)
+  const [blockingMessage, setBlockingMessage] = useState<string | null>(null)
+  const [costInfo, setCostInfo] = useState<{ cost: number; isGrace: boolean } | null>(null)
+  const [communityGraceDays, setCommunityGraceDays] = useState<number>(0)
+  const [monthReservationsCount, setMonthReservationsCount] = useState<number>(0)
+
   const stepper = useStepperize<StepId>({ steps: STEP_DEFINITIONS, initialStep: 'space' })
 
   const carouselRef = useRef<FlatList<CommonSpace>>(null)
@@ -157,6 +165,23 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
     () => spaces.find((item) => item.id === selectedSpaceId) ?? null,
     [selectedSpaceId, spaces],
   )
+
+  useEffect(() => {
+    if (!selectedSpace) {
+      setCostInfo(null)
+      return
+    }
+    const price = selectedSpace.event_price || 0
+    if (price === 0) {
+      setCostInfo({ cost: 0, isGrace: false })
+      return
+    }
+    const isGraceAvailable = monthReservationsCount < communityGraceDays
+    setCostInfo({
+      cost: isGraceAvailable ? 0 : price,
+      isGrace: isGraceAvailable,
+    })
+  }, [selectedSpace, monthReservationsCount, communityGraceDays])
   const selectedDayInfo = useMemo(
     () => availability.find((day) => day.iso === selectedDate) ?? null,
     [availability, selectedDate],
@@ -188,13 +213,17 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
 
   const canNavigateToStep = useCallback(
     (target: StepId) => {
+      // 🚫 Bloqueo preventivo: no permite avanzar si hay un mensaje de bloqueo activo
+      if (blockingMessage && (target === 'department' || target === 'availability' || target === 'schedule')) {
+        return false
+      }
       const index = stepper.order.indexOf(target)
       if (index === -1) return false
       if (index <= stepper.activeIndex) return true
       const required = stepper.order.slice(0, index)
       return required.every((id) => completedSteps.has(id))
     },
-    [completedSteps, stepper.activeIndex, stepper.order],
+    [blockingMessage, completedSteps, stepper.activeIndex, stepper.order],
   )
 
   const resetAfterSpaceChange = useCallback(() => {
@@ -297,7 +326,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
     const loadInitialData = async () => {
       setLoading(true)
       try {
-        const [departmentsResponse, spacesResponse] = await Promise.all([
+        const [departmentsResponse, spacesResponse, communityResponse, lastReservationResponse] = await Promise.all([
           supabase
             .from('user_departments')
             .select('department_id, can_reserve, department:department_id(number, reservations_blocked)')
@@ -310,12 +339,54 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
             .eq('community_id', communityId)
             .in('status', ['activo', 'habilitado'])
             .order('name', { ascending: true }),
+          supabase
+            .from('communities')
+            .select('booking_block_days, grace_days' as any)
+            .eq('id', communityId)
+            .single(),
+          supabase
+            .from('common_space_reservations')
+            .select('date')
+            .eq('community_id', communityId)
+            .eq('reserved_by', userId)
+            .not('status', 'eq', 'cancelado')
+            .order('date', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
         ])
 
         if (cancelled) return
 
         if (departmentsResponse.error) throw departmentsResponse.error
         if (spacesResponse.error) throw spacesResponse.error
+
+        const { booking_block_days = 0, grace_days = 0 } = (communityResponse.data as any) || {}
+        setBlockingDays(booking_block_days)
+        setCommunityGraceDays(grace_days)
+
+        const lastResDate = lastReservationResponse.data?.date
+        setLastReservationDate(lastResDate || null)
+
+        if (lastResDate && booking_block_days > 0) {
+          const diff = dayjs().diff(dayjs(lastResDate), 'day')
+          if (diff < booking_block_days) {
+            setBlockingMessage(
+              `No puedes reservar aún. Debes esperar ${booking_block_days - diff} días desde tu última reserva (${dayjs(lastResDate).format('DD/MM')}).`,
+            )
+          }
+        }
+
+        // 📊 Consultar reservas del mes para cálculo de gracia
+        const startOfMonth = dayjs().startOf('month').format('YYYY-MM-DD')
+        const { count: monthResCount } = await supabase
+          .from('common_space_reservations')
+          .select('id', { count: 'exact', head: true })
+          .eq('community_id', communityId as string)
+          .eq('reserved_by', userId as string)
+          .gte('date', startOfMonth)
+          .not('status', 'eq', 'cancelado')
+
+        setMonthReservationsCount(monthResCount || 0)
 
         const departmentOptions = (departmentsResponse.data || [])
           .map((row) => ({
@@ -474,7 +545,9 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
         duration_hours: selectedSpace.time_block_hours || 1,
         created_at: new Date().toISOString(),
         status: 'agendado',
-      })
+        cost_applied: costInfo?.cost || 0,
+        is_grace_use: costInfo?.isGrace || false,
+      } as any)
 
       if (error) throw error
 
@@ -561,6 +634,17 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
             Sigue los pasos y agenda tu espacio común con una experiencia guiada.
           </Text>
         </View>
+
+        {blockingMessage && (
+          <MotiView
+            from={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            style={styles.blockingBanner}
+          >
+            <ShieldAlert size={20} color="#b91c1c" />
+            <Text style={styles.blockingText}>{blockingMessage}</Text>
+          </MotiView>
+        )}
 
         <View style={styles.stepperWrapper}>
           <View style={styles.stepperTrackRow}>
@@ -717,9 +801,11 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
                             <View style={styles.spaceChip}>
                               <Timer size={14} color="#ede9fe" />
                               <Text style={styles.spaceChipText}>
-                                {item.event_price
-                                  ? `$${Math.round(item.event_price).toLocaleString('es-CL')}`
-                                  : 'Sin costo adicional'}
+                                {isSelected && costInfo
+                                  ? `Costo: $${Math.round(costInfo.cost).toLocaleString('es-CL')} ${costInfo.isGrace ? '(Gracia)' : ''}`
+                                  : item.event_price
+                                    ? `$${Math.round(item.event_price).toLocaleString('es-CL')}`
+                                    : 'Sin costo adicional'}
                               </Text>
                             </View>
                           </View>
@@ -1492,6 +1578,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 15,
     lineHeight: 22,
+  },
+  blockingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 20,
+    gap: 12,
+  },
+  blockingText: {
+    flex: 1,
+    color: '#991b1b',
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
   },
 })
 

@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useUser } from '@/providers/user-provider'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
-import { ArrowLeftRight, FileText, Lightbulb, LogOut, UserRound } from 'lucide-react-native'
+import { ArrowLeftRight, Calendar, FileText, Lightbulb, LogOut, UserRound } from 'lucide-react-native'
 import React, { useEffect, useState } from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { SharedValue } from 'react-native-reanimated'
@@ -53,6 +53,12 @@ export default function UserMenuPanel({ isOpen, onClose, progress }: UserMenuPan
         handleNavigate(
           communitySlug ? { pathname: '/library', params: { community: communitySlug } } : '/library'
         ),
+    },
+    {
+      id: 'reservations',
+      text: 'Mis Reservas',
+      icon: <Calendar size={18} color="#fff" />,
+      onPress: () => handleNavigate('/reservations'),
     },
     {
       id: 'profile',
