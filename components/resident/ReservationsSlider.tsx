@@ -1,6 +1,7 @@
 import {
-    BottomSheetModal
+  BottomSheetModal
 } from '@gorhom/bottom-sheet'
+import { useIsFocused } from '@react-navigation/native'
 import dayjs from 'dayjs'
 import 'dayjs/locale/es'
 import timezone from 'dayjs/plugin/timezone'
@@ -8,19 +9,20 @@ import utc from 'dayjs/plugin/utc'
 import * as FileSystem from 'expo-file-system/legacy'
 import { useRouter } from 'expo-router'
 import {
-    CalendarDays
+  CalendarDays,
+  History
 } from 'lucide-react-native'
 import { MotiView } from 'moti'
-import React, { useCallback, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-    Dimensions,
-    FlatList,
-    Platform,
-    Share,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  FlatList,
+  Platform,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native'
 import Toast from 'react-native-toast-message'
 
@@ -42,12 +44,23 @@ const { width } = Dimensions.get('window')
 type ReservationsWithAction = ReservationWithWeather | { id: 'new' }
 
 export default function ReservationsSlider() {
-  const { reservations, fetchReservations } = useResidentContext()
+  const { 
+    reservations, 
+    fetchReservations, 
+    selectedReservation, 
+    setReservationDetail, 
+    isReservationPanelOpen, 
+    setReservationPanelOpen 
+  } = useResidentContext()
   const { communitySlug, id: userId } = useUser()
   const router = useRouter()
-  const reservationsWithWeather = useWeatherForReservations(reservations)
+  const filteredReservations = useMemo(() => {
+    const sevenDaysAgo = dayjs().subtract(7, 'day').startOf('day')
+    return reservations.filter(res => dayjs(res.date).isAfter(sevenDaysAgo) || dayjs(res.date).isSame(sevenDaysAgo))
+  }, [reservations])
 
-  const [selectedReservation, setSelectedReservation] = useState<ReservationWithWeather | null>(null)
+  const reservationsWithWeather = useWeatherForReservations(filteredReservations)
+
   const [justification, setJustification] = useState('')
   const [cancellationError, setCancellationError] = useState('')
   const [isCancelling, setIsCancelling] = useState(false)
@@ -55,6 +68,17 @@ export default function ReservationsSlider() {
   const [showCancellationForm, setShowCancellationForm] = useState(false)
 
   const bottomSheetRef = useRef<BottomSheetModal>(null)
+
+  const isFocused = useIsFocused()
+
+  // Sync ref with context state
+  useEffect(() => {
+    if (isFocused && isReservationPanelOpen && selectedReservation) {
+      bottomSheetRef.current?.present()
+    } else {
+      bottomSheetRef.current?.dismiss()
+    }
+  }, [isReservationPanelOpen, selectedReservation, isFocused])
 
   const handleNavigateToWizard = useCallback(() => {
     if (communitySlug) {
@@ -65,22 +89,22 @@ export default function ReservationsSlider() {
   }, [communitySlug, router])
 
   const openDetail = useCallback((reservation: ReservationWithWeather) => {
-    setSelectedReservation(reservation)
+    setReservationDetail(reservation)
     setJustification('')
     setCancellationError('')
     setShowCancellationForm(false)
-    bottomSheetRef.current?.present()
-  }, [])
+    setReservationPanelOpen(true)
+  }, [setReservationDetail, setReservationPanelOpen])
 
   const closeDetail = useCallback(() => {
-    bottomSheetRef.current?.dismiss()
-      setTimeout(() => {
-        setSelectedReservation(null)
-        setJustification('')
-        setCancellationError('')
-        setShowCancellationForm(false)
-      }, 250)
-  }, [])
+    setReservationPanelOpen(false)
+    setTimeout(() => {
+      setReservationDetail(null)
+      setJustification('')
+      setCancellationError('')
+      setShowCancellationForm(false)
+    }, 250)
+  }, [setReservationDetail, setReservationPanelOpen])
 
 
 
@@ -194,7 +218,7 @@ export default function ReservationsSlider() {
         'PRODID:-//VisitMe//Reservas//ES',
         'CALSCALE:GREGORIAN',
         'BEGIN:VEVENT',
-        `UID:${selectedReservation.id}`,
+        `UID:${selectedReservation?.id}`,
         `DTSTAMP:${nowStamp}`,
         `DTSTART;TZID=${tz}:${dtStart}`,
         `DTEND;TZID=${tz}:${dtEnd}`,
@@ -207,7 +231,7 @@ export default function ReservationsSlider() {
 
       const ics = `${icsLines.join('\r\n')}\r\n`
 
-      const fileName = `reserva-${selectedReservation.id}.ics`
+      const fileName = `reserva-${selectedReservation?.id}.ics`
       const fileUri = `${FileSystem.cacheDirectory ?? ''}${fileName}`
       await FileSystem.writeAsStringAsync(fileUri, ics, {
         encoding: FileSystem.EncodingType.UTF8,
@@ -218,11 +242,17 @@ export default function ReservationsSlider() {
         shareUrl = await FileSystem.getContentUriAsync(fileUri)
       }
 
-      await Share.share({
-        url: shareUrl,
-        title: 'Agregar al calendario',
-        subject: 'Reserva VisitMe',
-      })
+      await Share.share(
+        {
+          url: shareUrl,
+          title: 'Agregar al calendario',
+          message: 'Reserva VisitMe',
+        },
+        {
+          subject: 'Reserva VisitMe',
+          dialogTitle: 'Agregar al calendario',
+        }
+      )
     } catch (error) {
       console.error('Error al generar archivo ICS:', error)
       Toast.show({ type: 'error', text1: 'No se pudo descargar el evento' })
@@ -246,10 +276,20 @@ export default function ReservationsSlider() {
           <Text style={styles.headerTitle}>Tus reservas</Text>
         </View>
 
-        <TouchableOpacity activeOpacity={0.92} onPress={handleNavigateToWizard} style={styles.ctaButton}>
-          <CalendarDays size={18} color="#fff" />
-          <Text style={styles.ctaButtonText}>Reservar</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity 
+            activeOpacity={0.7} 
+            onPress={() => router.push('/reservations')}
+            style={styles.historyIconButton}
+          >
+            <History size={20} color="#4338ca" />
+          </TouchableOpacity>
+
+          <TouchableOpacity activeOpacity={0.92} onPress={handleNavigateToWizard} style={styles.ctaButton}>
+            <CalendarDays size={18} color="#fff" />
+            <Text style={styles.ctaButtonText}>Reservar</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FlatList
@@ -275,7 +315,7 @@ export default function ReservationsSlider() {
 
       <ReservationDetailSheet
         ref={bottomSheetRef}
-        reservation={selectedReservation}
+        reservation={selectedReservation as any}
         onClose={closeDetail}
         onCancelReservation={async (id, reason) => {
           // Wrapped to match signature, logic handled in component generally but here we pass the action
@@ -319,14 +359,28 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  historyIconButton: {
+    width: 42,
+    height: 42,
+    backgroundColor: '#ebeaff',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   ctaButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     backgroundColor: '#f97316',
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 14,
+    height: 42,
   },
   ctaButtonText: {
     color: '#ffffff',

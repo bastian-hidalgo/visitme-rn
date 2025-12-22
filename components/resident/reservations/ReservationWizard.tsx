@@ -6,7 +6,7 @@ import type { Database } from '@/types/supabase'
 import dayjs from 'dayjs'
 import 'dayjs/locale/es'
 import { LinearGradient } from 'expo-linear-gradient'
-import { Check, ChevronLeft, Clock, MapPin, Timer, Users } from 'lucide-react-native'
+import { Banknote, Check, ChevronLeft, Clock, MapPin, Timer, Users } from 'lucide-react-native'
 import { MotiView } from 'moti'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -28,9 +28,8 @@ import Toast from 'react-native-toast-message'
 const WINDOW_WIDTH = Dimensions.get('window').width
 const SCREEN_HORIZONTAL_PADDING = 20
 const STEP_CARD_WIDTH = WINDOW_WIDTH - SCREEN_HORIZONTAL_PADDING * 2
-const SPACE_CARD_SIDE_PADDING = 4
-const SPACE_CARD_WIDTH = STEP_CARD_WIDTH - SPACE_CARD_SIDE_PADDING * 2
-const SPACE_CARD_GAP = 16
+const SPACE_CARD_GAP = 12
+const SPACE_CARD_WIDTH = STEP_CARD_WIDTH * 0.88 // 👈 Peek effect: shows part of the next card
 const SPACE_CARD_SNAP_INTERVAL = SPACE_CARD_WIDTH + SPACE_CARD_GAP
 
 type StepId = 'space' | 'department' | 'availability' | 'schedule'
@@ -47,6 +46,10 @@ type CommonSpace = {
   event_price: number | null
   image_url: string | null
   time_block_hours: number
+  booking_block_days: number | null
+  grace_days_threshold: number | null
+  is_free_by_default: boolean | null
+  last_reservation_date?: string | null // 📝 Added to track cooldown per card
 }
 
 type ReservationRow = Pick<
@@ -75,14 +78,14 @@ const BLOCKS = [
     title: 'Bloque AM',
     range: '08:00 - 14:00',
     description: 'Ideal para actividades familiares o reuniones matutinas.',
-    gradient: ['#6d28d9', '#7c3aed'],
+    gradient: ['#6d28d9', '#7c3aed'] as const,
   },
   {
     id: 'afternoon' as const,
     title: 'Bloque PM',
     range: '15:00 - 21:00',
     description: 'Perfecto para celebraciones y encuentros al atardecer.',
-    gradient: ['#4338ca', '#6366f1'],
+    gradient: ['#4338ca', '#6366f1'] as const,
   },
 ]
 
@@ -145,6 +148,13 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
   const [success, setSuccess] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
+  // 📝 Estados para Bloqueo y Cobros
+  const [blockingDays, setBlockingDays] = useState<number>(0)
+  const [blockingMessage, setBlockingMessage] = useState<string | null>(null)
+  const [costInfo, setCostInfo] = useState<{ cost: number; isGrace: boolean } | null>(null)
+  const [communityGraceDays, setCommunityGraceDays] = useState<number>(0)
+  const [monthReservationsCount, setMonthReservationsCount] = useState<number>(0)
+
   const stepper = useStepperize<StepId>({ steps: STEP_DEFINITIONS, initialStep: 'space' })
 
   const carouselRef = useRef<FlatList<CommonSpace>>(null)
@@ -157,6 +167,28 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
     () => spaces.find((item) => item.id === selectedSpaceId) ?? null,
     [selectedSpaceId, spaces],
   )
+
+  useEffect(() => {
+    if (!selectedSpace) {
+      setCostInfo(null)
+      setBlockingMessage(null)
+      return
+    }
+
+    // 💰 Lógica de Costo y Gracia
+    const price = selectedSpace.event_price || 0
+    if (selectedSpace.is_free_by_default || price === 0) {
+      setCostInfo({ cost: 0, isGrace: false })
+    } else {
+      const threshold = selectedSpace.grace_days_threshold ?? communityGraceDays
+      const isGraceAvailable = monthReservationsCount < threshold
+      setCostInfo({
+        cost: isGraceAvailable ? 0 : price,
+        isGrace: isGraceAvailable,
+      })
+    }
+
+  }, [selectedSpace, spaceIndex, spaces, monthReservationsCount, blockingDays, communityGraceDays])
   const selectedDayInfo = useMemo(
     () => availability.find((day) => day.iso === selectedDate) ?? null,
     [availability, selectedDate],
@@ -188,13 +220,17 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
 
   const canNavigateToStep = useCallback(
     (target: StepId) => {
+      // 🚫 Bloqueo preventivo: no permite avanzar si hay un mensaje de bloqueo activo
+      if (blockingMessage && (target === 'department' || target === 'availability' || target === 'schedule')) {
+        return false
+      }
       const index = stepper.order.indexOf(target)
       if (index === -1) return false
       if (index <= stepper.activeIndex) return true
       const required = stepper.order.slice(0, index)
       return required.every((id) => completedSteps.has(id))
     },
-    [completedSteps, stepper.activeIndex, stepper.order],
+    [blockingMessage, completedSteps, stepper.activeIndex, stepper.order],
   )
 
   const resetAfterSpaceChange = useCallback(() => {
@@ -297,7 +333,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
     const loadInitialData = async () => {
       setLoading(true)
       try {
-        const [departmentsResponse, spacesResponse] = await Promise.all([
+        const [departmentsResponse, spacesResponse, communityResponse, lastReservationResponse] = await Promise.all([
           supabase
             .from('user_departments')
             .select('department_id, can_reserve, department:department_id(number, reservations_blocked)')
@@ -306,10 +342,22 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
             .eq('active', true),
           supabase
             .from('common_spaces')
-            .select('id, name, description, event_price, image_url, time_block_hours, status')
+            .select('id, name, description, event_price, image_url, time_block_hours, status, booking_block_days, grace_days_threshold, is_free_by_default')
             .eq('community_id', communityId)
             .in('status', ['activo', 'habilitado'])
             .order('name', { ascending: true }),
+          supabase
+            .from('communities')
+            .select('booking_block_days, grace_days' as any)
+            .eq('id', communityId)
+            .single(),
+          supabase
+            .from('common_space_reservations')
+            .select('created_at, common_space_id')
+            .eq('community_id', communityId)
+            .eq('reserved_by', userId)
+            .not('status', 'eq', 'cancelado')
+            .order('created_at', { ascending: false }),
         ])
 
         if (cancelled) return
@@ -317,13 +365,40 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
         if (departmentsResponse.error) throw departmentsResponse.error
         if (spacesResponse.error) throw spacesResponse.error
 
+        const { booking_block_days: communityCooldown = 0, grace_days: communityGrace = 0 } = (communityResponse.data as any) || {}
+        setBlockingDays(communityCooldown)
+        setCommunityGraceDays(communityGrace)
+
+        const latestDates: Record<string, string> = {}
+        const allRes = (lastReservationResponse.data || []) as { created_at: string; common_space_id: string }[]
+        allRes.forEach((res) => {
+          if (res.common_space_id && (!latestDates[res.common_space_id] || dayjs(res.created_at).isAfter(dayjs(latestDates[res.common_space_id])))) {
+            latestDates[res.common_space_id] = res.created_at
+          }
+        })
+
+        // 📊 Consultar reservas del mes para cálculo de gracia
+        const startOfMonth = dayjs().startOf('month').format('YYYY-MM-DD')
+        const { count: monthResCount } = await supabase
+          .from('common_space_reservations')
+          .select('id', { count: 'exact', head: true })
+          .eq('community_id', communityId as string)
+          .eq('reserved_by', userId as string)
+          .gte('date', startOfMonth)
+          .not('status', 'eq', 'cancelado')
+
+        setMonthReservationsCount(monthResCount || 0)
+
         const departmentOptions = (departmentsResponse.data || [])
-          .map((row) => ({
-            id: row.department_id,
-            label: row.department?.number ? `Depto ${row.department.number}` : 'Departamento',
-            canReserve: row.can_reserve !== false,
-            blocked: row.department?.reservations_blocked === true,
-          }))
+          .map((row) => {
+            const dept = Array.isArray(row.department) ? row.department[0] : row.department
+            return {
+              id: row.department_id,
+              label: dept?.number ? `Depto ${dept.number}` : 'Departamento',
+              canReserve: row.can_reserve !== false,
+              blocked: dept?.reservations_blocked === true,
+            }
+          })
           .filter((item) => item.canReserve && !item.blocked)
           .map(({ id, label }) => ({ id, label }))
 
@@ -335,7 +410,11 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
             event_price: space.event_price,
             image_url: space.image_url,
             time_block_hours: space.time_block_hours || 1,
-          }))
+            booking_block_days: space.booking_block_days,
+            grace_days_threshold: space.grace_days_threshold,
+            is_free_by_default: space.is_free_by_default,
+            last_reservation_date: latestDates[space.id] || null,
+          })) as CommonSpace[]
 
         if (cancelled) return
 
@@ -363,10 +442,32 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
   }, [communityId, userId])
 
   useEffect(() => {
-    if (!selectedSpaceId) return
-    resetAfterSpaceChange()
-    loadAvailability(selectedSpaceId)
-  }, [loadAvailability, resetAfterSpaceChange, selectedSpaceId])
+    if (!selectedSpaceId || !communityId || !userId) return
+    
+    let cancelled = false
+    const fetchSpaceMonthStats = async () => {
+      resetAfterSpaceChange()
+      
+      // 📊 Consultar reservas del mes para ESTE ESPACIO para cálculo de gracia
+      const startOfMonth = dayjs().startOf('month').format('YYYY-MM-DD')
+      const { count } = await supabase
+        .from('common_space_reservations')
+        .select('id', { count: 'exact', head: true })
+        .eq('community_id', communityId)
+        .eq('reserved_by', userId)
+        .eq('common_space_id', selectedSpaceId)
+        .gte('date', startOfMonth)
+        .not('status', 'eq', 'cancelado')
+
+      if (!cancelled) {
+        setMonthReservationsCount(count || 0)
+        loadAvailability(selectedSpaceId)
+      }
+    }
+
+    fetchSpaceMonthStats()
+    return () => { cancelled = true }
+  }, [communityId, userId, selectedSpaceId, loadAvailability, resetAfterSpaceChange])
 
   useEffect(() => {
     if (
@@ -405,16 +506,43 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
 
   const handleSelectSpace = useCallback(
     (space: CommonSpace, index: number) => {
-      if (selectedSpaceId !== space.id) {
-        setSelectedSpaceId(space.id)
+      setSpaceIndex(index)
+      
+      // 🚫 No bloquear la selección inicial, permitir el foco
+      // para que el banner explicativo se muestre.
+      
+      // 🚫 Lógica de Bloqueo (Cooldown)
+      const spaceCooldown = space.booking_block_days ?? blockingDays
+      const spaceLastResDate = space.last_reservation_date
+      let isLocked = false
+      let remainingDaysCount = 0
+      if (spaceLastResDate && spaceCooldown > 0) {
+        const lastCreatedDate = dayjs(spaceLastResDate)
+        const nextAvailable = lastCreatedDate.add(spaceCooldown, 'day')
+        const diffFromToday = nextAvailable.diff(dayjs(), 'day')
+
+        if (diffFromToday > 0) {
+          isLocked = true
+          remainingDaysCount = diffFromToday
+        }
       }
+
       if (spaceIndex !== index) {
-        setSpaceIndex(index)
         carouselRef.current?.scrollToIndex({ index, animated: true })
       }
-      stepper.goTo('department')
+
+      if (!isLocked) {
+        setSelectedSpaceId(space.id)
+        stepper.goTo('department')
+      } else {
+        Toast.show({
+          type: 'info',
+          text1: 'Pausa reglamentaria ⏱️',
+          text2: `Debes esperar ${remainingDaysCount} ${remainingDaysCount === 1 ? 'día' : 'días'} más para reservar este espacio.`,
+        })
+      }
     },
-    [carouselRef, selectedSpaceId, spaceIndex, stepper],
+    [blockingDays, carouselRef, spaceIndex, stepper],
   )
 
   const handleSelectDot = useCallback(
@@ -474,7 +602,9 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
         duration_hours: selectedSpace.time_block_hours || 1,
         created_at: new Date().toISOString(),
         status: 'agendado',
-      })
+        cost_applied: costInfo?.cost || 0,
+        is_grace_use: costInfo?.isGrace || false,
+      } as any)
 
       if (error) throw error
 
@@ -644,6 +774,33 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
           </View>
         </View>
 
+        {costInfo && stepper.activeIndex > 0 && (
+          <MotiView 
+            from={{ opacity: 0, scale: 0.95, translateY: -10 }}
+            animate={{ opacity: 1, scale: 1, translateY: 0 }}
+            style={[
+              styles.costBadgeBanner,
+              costInfo.isGrace ? styles.costBadgeBannerGrace : styles.costBadgeBannerPaid
+            ]}
+          >
+            <View style={[styles.costBadgeIcon, costInfo.isGrace ? styles.costBadgeIconGrace : styles.costBadgeIconPaid]}>
+              <Banknote size={20} color="#fff" />
+            </View>
+            <View style={styles.costBadgeTextContent}>
+              <Text style={[styles.costBadgeLabel, costInfo.isGrace ? styles.costBadgeLabelGrace : styles.costBadgeLabelPaid]}>
+                {costInfo.isGrace 
+                  ? '¡Día de gracia disponible!' 
+                  : `Costo de reserva: $${Math.round(costInfo.cost).toLocaleString('es-CL')}`}
+              </Text>
+              <Text style={styles.costBadgeDescription}>
+                {costInfo.isGrace 
+                  ? 'Esta reserva no tendrá costo adicional para ti.' 
+                  : 'El monto se cargará a tu cuenta de gastos comunes.'}
+              </Text>
+            </View>
+          </MotiView>
+        )}
+
         {stepper.activeStep === 'space' && (
             <MotiView
               key="space"
@@ -679,6 +836,21 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
                   })}
                   renderItem={({ item, index }) => {
                     const isSelected = selectedSpaceId === item.id
+                    
+                    const spaceCooldown = item.booking_block_days ?? blockingDays
+                    const lastResDate = item.last_reservation_date
+                      let isLocked = false
+                      let remainingDays = 0
+                      if (lastResDate && spaceCooldown > 0) {
+                        const lastCreatedDate = dayjs(lastResDate)
+                        const nextAvailable = lastCreatedDate.add(spaceCooldown, 'day')
+                        const diffFromToday = nextAvailable.diff(dayjs(), 'day')
+                        if (diffFromToday > 0) {
+                          isLocked = true
+                          remainingDays = diffFromToday
+                        }
+                      }
+
                     return (
                       <Pressable
                         onPress={() => handleSelectSpace(item, index)}
@@ -686,23 +858,31 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
                           styles.spaceSlide,
                           { width: SPACE_CARD_WIDTH },
                           isSelected && styles.spaceSlideSelected,
+                          isLocked && styles.spaceSlideLocked,
                         ]}
                         accessibilityRole="button"
-                        accessibilityState={{ selected: isSelected }}
+                        accessibilityState={{ selected: isSelected, disabled: isLocked }}
                       >
                         <Image
                           source={{ uri: item.image_url || PLACEHOLDER_IMAGE }}
-                          style={styles.spaceImage}
+                          style={[styles.spaceImage, isLocked && { opacity: 0.6 }]}
                         />
                         <LinearGradient
-                          colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.7)']}
+                          colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.8)']}
                           style={styles.spaceOverlay}
                         />
                         <View style={styles.spaceContent}>
                           <View style={styles.spaceHeader}>
                             <Text style={styles.spaceName}>{item.name}</Text>
-                            {item.description ? (
-                              <Text style={styles.spaceDescription} numberOfLines={3}>
+                            {isLocked ? (
+                              <View style={styles.cooldownBadge}>
+                                <Clock size={12} color="#93c5fd" />
+                                <Text style={styles.cooldownBadgeText}>
+                                  No puedes reservar: Faltan {remainingDays} {remainingDays === 1 ? 'día' : 'días'}
+                                </Text>
+                              </View>
+                            ) : item.description ? (
+                              <Text style={styles.spaceDescription} numberOfLines={2}>
                                 {item.description}
                               </Text>
                             ) : null}
@@ -717,13 +897,20 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
                             <View style={styles.spaceChip}>
                               <Timer size={14} color="#ede9fe" />
                               <Text style={styles.spaceChipText}>
-                                {item.event_price
-                                  ? `$${Math.round(item.event_price).toLocaleString('es-CL')}`
-                                  : 'Sin costo adicional'}
+                                {isSelected && costInfo
+                                  ? `Costo: $${Math.round(costInfo.cost).toLocaleString('es-CL')}${costInfo.isGrace ? ' (Gracia)' : ''}`
+                                  : item.event_price
+                                    ? `$${Math.round(item.event_price).toLocaleString('es-CL')}`
+                                    : 'Sin costo adicional'}
                               </Text>
                             </View>
                           </View>
                         </View>
+                        {isLocked && !isSelected && (
+                          <View style={styles.lockedOverlay}>
+                             <Clock size={32} color="rgba(255,255,255,0.6)" />
+                          </View>
+                        )}
                         {isSelected ? (
                           <View style={styles.spaceSelectedBadge}>
                             <Check size={14} color="#fff" />
@@ -914,6 +1101,20 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
                     <Text style={styles.summaryText}>
                       {formatLongDate(selectedDayInfo.iso)} · {getBlockLabel(selectedBlock)}
                     </Text>
+                  </View>
+                  <View style={styles.summaryPaymentSection}>
+                    <Text style={styles.summaryPaymentTitle}>Detalle de Pago</Text>
+                    <View style={styles.summaryPaymentRow}>
+                      <Text style={styles.summaryPaymentLabel}>Monto a pagar</Text>
+                      <Text style={styles.summaryPaymentAmount}>
+                        ${Math.round(costInfo?.cost || 0).toLocaleString('es-CL')}
+                      </Text>
+                    </View>
+                    {costInfo?.isGrace && (
+                      <Text style={styles.summaryPaymentNote}>
+                        * Se ha aplicado un beneficio de tu comunidad.
+                      </Text>
+                    )}
                   </View>
                 </View>
               ) : null}
@@ -1131,7 +1332,7 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
   carouselContent: {
-    paddingHorizontal: SPACE_CARD_SIDE_PADDING,
+    paddingHorizontal: 20, // 👈 Offset to help with peek effect
   },
   spaceSlide: {
     height: 360,
@@ -1213,6 +1414,32 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '600',
     fontSize: 12,
+  },
+  spaceSlideLocked: {
+    borderColor: '#fca5a5',
+    opacity: 0.9,
+  },
+  cooldownBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  cooldownBadgeText: {
+    color: '#fca5a5',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  lockedOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15,23,42,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 24,
   },
   carouselDots: {
     flexDirection: 'row',
@@ -1403,6 +1630,107 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     fontSize: 14,
     fontWeight: '600',
+    flex: 1,
+  },
+  summaryCostRow: {
+    marginTop: 4,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e7ff',
+  },
+  costBadgeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 20,
+    marginBottom: 20,
+    borderWidth: 1.5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  costBadgeBannerGrace: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#10b981',
+  },
+  costBadgeBannerPaid: {
+    backgroundColor: '#f5f3ff',
+    borderColor: '#7c3aed',
+  },
+  costBadgeIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  costBadgeIconGrace: {
+    backgroundColor: '#10b981',
+  },
+  costBadgeIconPaid: {
+    backgroundColor: '#7c3aed',
+  },
+  costBadgeTextContent: {
+    flex: 1,
+    gap: 2,
+  },
+  costBadgeLabel: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  costBadgeLabelGrace: {
+    color: '#065f46',
+  },
+  costBadgeLabelPaid: {
+    color: '#4338ca',
+  },
+  costBadgeDescription: {
+    fontSize: 12,
+    color: '#4b5563',
+    fontWeight: '500',
+  },
+  summaryPaymentSection: {
+    marginTop: 8,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e7ff',
+    gap: 8,
+  },
+  summaryPaymentTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#312e81',
+    marginBottom: 4,
+  },
+  summaryPaymentRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  summaryPaymentLabel: {
+    fontSize: 13,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  summaryPaymentValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  summaryPaymentAmount: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1f2937',
+  },
+  summaryPaymentNote: {
+    fontSize: 11,
+    color: '#059669',
+    fontStyle: 'italic',
+    marginTop: 4,
   },
   primaryButton: {
     marginTop: 24,
@@ -1464,6 +1792,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 14,
     lineHeight: 20,
+  },
+  stepFooter: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   successContainer: {
     flex: 1,
