@@ -9,6 +9,7 @@ import { useResidentContext } from '@/components/contexts/ResidentContext'
 export type PackageStatusLabel = 'Recibida' | 'Retirada' | 'Esperando' | 'Anulada'
 
 export type PackageExpandableCardProps = {
+  parcel: any
   id: string
   imageUrl: string
   status: PackageStatusLabel
@@ -32,6 +33,7 @@ export type PackageExpandableCardProps = {
 }
 
 export default function PackageExpandableCard({
+  parcel,
   id,
   imageUrl,
   status,
@@ -52,18 +54,8 @@ export default function PackageExpandableCard({
   const { setParcelDetail } = useResidentContext()
 
   const openSheet = useCallback(() => {
-    setParcelDetail({
-      id,
-      imageUrl,
-      status,
-      department: apartment ? { number: apartment } : undefined,
-      created_at: receivedAtLabel || '', // Approximation for types
-      picked_up_at: pickedUpAtLabel,
-      photo_url: imageUrl,
-      signature_url: signatureImageUrl,
-      description: detailDescription,
-    } as any)
-  }, [id, imageUrl, status, apartment, receivedAtLabel, pickedUpAtLabel, signatureImageUrl, detailDescription, setParcelDetail])
+    setParcelDetail(parcel)
+  }, [parcel, setParcelDetail])
 
   const statusBadgeColors = useMemo(() => {
     const palette: Record<PackageStatusLabel, { backgroundColor: string; text: string }> = {

@@ -31,24 +31,35 @@ export const now = (): Dayjs => dayjsLib()
 export const fromServer = (value: ConfigType): Dayjs => {
   if (!value) return dayjsLib()
 
-  const str = String(value)
-  const hasZ = str.endsWith('Z') || str.includes('+00:00')
+  // Si ya es un objeto dayjs, retornarlo directamente
+  if (typeof value === 'object' && value !== null && (value as any).isDayjs) {
+    return value as Dayjs
+  }
 
-  let converted: Dayjs
+  const str = String(value).trim()
+  if (str === 'null' || str === 'undefined' || !str) return dayjsLib()
 
-  if (isReactNative) {
-    // ✅ React Native: parse directo, luego forzamos tz sin cambiar hora
-    converted = hasZ
-      ? dayjsLib(str).tz(TZ, true)
-      : dayjsLib(str).tz(TZ, true)
-  } else {
-    // ✅ Web / Node: método clásico UTC→TZ
-    converted = hasZ
-      ? dayjsLib.utc(str).tz(TZ)
-      : dayjsLib(str).tz(TZ, true)
-  } 
+  // Detectar si es un timestamp ISO o tiene indicadores de zona (Z, +00, etc.)
+  const isISO = str.includes('T') || str.includes('Z') || /[\+\-]\d{2}:?\d{2}/.test(str)
 
-  return converted
+  if (isISO) {
+    // Es un timestamp (ej: created_at). Queremos shift: 14:45Z → 11:45 Santiago.
+    const utcTime = dayjsLib.utc(str)
+    const shifted = utcTime.tz(TZ)
+
+    // ✅ Fallback para React Native: si .tz() no aplicó el offset (la hora sigue igual que UTC),
+    // usamos .local() que suele ser más confiable para obtener el horario del dispositivo (Santiago).
+    if (isReactNative && shifted.hour() === utcTime.hour() && TZ !== 'UTC') {
+      const localTime = utcTime.local()
+      return localTime.isValid() ? localTime : shifted
+    }
+
+    return shifted.isValid() ? shifted : dayjsLib()
+  }
+
+  // No es ISO, probablemente "YYYY-MM-DD HH:mm:ss". Lo tratamos como local Santiago (sin shift).
+  const converted = dayjsLib(str).tz(TZ, true)
+  return converted.isValid() ? converted : dayjsLib()
 }
 
 export const fromServerDate = (value: ConfigType): Dayjs =>

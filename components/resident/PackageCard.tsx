@@ -48,6 +48,7 @@ export default function PackageCard({ parcel, scrollX, index }: PackageCardProps
 
   return (
     <PackageExpandableCardComponent
+      parcel={parcel}
       id={parcel.id?.toString?.() ?? String(parcel.id)}
       imageUrl={resolvedPhoto}
       status={statusConfig.label}
