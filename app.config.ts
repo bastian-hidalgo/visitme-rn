@@ -48,7 +48,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: 'Visitme',
     slug: 'visitme-app',
-    version: '1.50.0',
+    version: '1.51.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     scheme: 'visitmeapp',
