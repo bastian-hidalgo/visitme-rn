@@ -48,7 +48,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: 'Visitme',
     slug: 'visitme-app',
-    version: '1.51.0',
+    version: '1.52.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     scheme: 'visitmeapp',
@@ -91,7 +91,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
       package: 'cl.visitme.app',
-      versionCode: 50,
+      versionCode: 51,
       permissions: ['android.permission.RECORD_AUDIO'],
     },
     web: {
