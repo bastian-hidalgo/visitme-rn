@@ -177,15 +177,20 @@ export type Database = {
           cancellation_reason: string | null
           common_space_id: string | null
           community_id: string | null
+          consent_timestamp: string | null
           cost_applied: number | null
           created_at: string | null
+          current_step: string | null
           date: string
           department_id: string | null
           duration_hours: number
+          has_incidents: boolean | null
           id: string
+          incident_summary: string | null
           is_grace_use: boolean | null
           payment_status: string | null
           reserved_by: string | null
+          resident_consent_given: boolean | null
           status: Database["public"]["Enums"]["reservation_status"]
         }
         Insert: {
@@ -193,15 +198,20 @@ export type Database = {
           cancellation_reason?: string | null
           common_space_id?: string | null
           community_id?: string | null
+          consent_timestamp?: string | null
           cost_applied?: number | null
           created_at?: string | null
+          current_step?: string | null
           date: string
           department_id?: string | null
           duration_hours: number
+          has_incidents?: boolean | null
           id?: string
+          incident_summary?: string | null
           is_grace_use?: boolean | null
           payment_status?: string | null
           reserved_by?: string | null
+          resident_consent_given?: boolean | null
           status?: Database["public"]["Enums"]["reservation_status"]
         }
         Update: {
@@ -209,15 +219,20 @@ export type Database = {
           cancellation_reason?: string | null
           common_space_id?: string | null
           community_id?: string | null
+          consent_timestamp?: string | null
           cost_applied?: number | null
           created_at?: string | null
+          current_step?: string | null
           date?: string
           department_id?: string | null
           duration_hours?: number
+          has_incidents?: boolean | null
           id?: string
+          incident_summary?: string | null
           is_grace_use?: boolean | null
           payment_status?: string | null
           reserved_by?: string | null
+          resident_consent_given?: boolean | null
           status?: Database["public"]["Enums"]["reservation_status"]
         }
         Relationships: [
@@ -268,7 +283,9 @@ export type Database = {
       common_spaces: {
         Row: {
           booking_block_days: number | null
+          checklist_items: Json | null
           community_id: string
+          consent_text: string | null
           created_at: string | null
           description: string | null
           event_price: number | null
@@ -277,12 +294,16 @@ export type Database = {
           image_url: string | null
           is_free_by_default: boolean | null
           name: string
+          requires_checklist: boolean | null
+          requires_consent: boolean | null
           status: string | null
           time_block_hours: number
         }
         Insert: {
           booking_block_days?: number | null
+          checklist_items?: Json | null
           community_id: string
+          consent_text?: string | null
           created_at?: string | null
           description?: string | null
           event_price?: number | null
@@ -291,12 +312,16 @@ export type Database = {
           image_url?: string | null
           is_free_by_default?: boolean | null
           name: string
+          requires_checklist?: boolean | null
+          requires_consent?: boolean | null
           status?: string | null
           time_block_hours: number
         }
         Update: {
           booking_block_days?: number | null
+          checklist_items?: Json | null
           community_id?: string
+          consent_text?: string | null
           created_at?: string | null
           description?: string | null
           event_price?: number | null
@@ -305,6 +330,8 @@ export type Database = {
           image_url?: string | null
           is_free_by_default?: boolean | null
           name?: string
+          requires_checklist?: boolean | null
+          requires_consent?: boolean | null
           status?: string | null
           time_block_hours?: number
         }
@@ -1278,6 +1305,82 @@ export type Database = {
           },
         ]
       }
+      reservation_inspections: {
+        Row: {
+          created_at: string | null
+          id: string
+          items_status: Json | null
+          observations: string | null
+          performed_by: string | null
+          photos_urls: string[] | null
+          reservation_id: string | null
+          type: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          items_status?: Json | null
+          observations?: string | null
+          performed_by?: string | null
+          photos_urls?: string[] | null
+          reservation_id?: string | null
+          type?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          items_status?: Json | null
+          observations?: string | null
+          performed_by?: string | null
+          photos_urls?: string[] | null
+          reservation_id?: string | null
+          type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reservation_inspections_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "user_identities_google"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "reservation_inspections_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reservation_inspections_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "users_with_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reservation_inspections_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "common_space_reservations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reservation_inspections_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "common_space_reservations_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reservation_inspections_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "common_space_reservations_with_user"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_movements: {
         Row: {
           community_id: string | null
@@ -2087,13 +2190,21 @@ export type Database = {
           common_space_image_url: string | null
           common_space_name: string | null
           community_id: string | null
+          consent_timestamp: string | null
+          cost_applied: number | null
           created_at: string | null
+          current_step: string | null
           date: string | null
           department_id: string | null
           department_number: string | null
           duration_hours: number | null
+          has_incidents: boolean | null
           id: string | null
+          incident_summary: string | null
+          is_grace_use: boolean | null
+          payment_status: string | null
           reserved_by: string | null
+          resident_consent_given: boolean | null
           status: Database["public"]["Enums"]["reservation_status"] | null
           user_email: string | null
           user_name: string | null

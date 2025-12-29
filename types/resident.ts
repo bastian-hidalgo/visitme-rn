@@ -60,4 +60,5 @@ export interface ResidentContextType {
   setReservationPanelOpen: (open: boolean) => void
   setPendingParcelId: (id: string | null) => void
   setPendingAlertId: (id: string | null) => void
+  setPendingReservationId: (id: string | null) => void
 }
