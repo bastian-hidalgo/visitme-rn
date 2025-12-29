@@ -8,7 +8,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "clean-native": "rm -rf android .gradle node_modules .expo .expo-shared && yarn && npx expo prebuild --clean",
+    "clean-native": "rm -rf android .gradle node_modules .expo .expo-shared && yarn && npx expo prebuild --clean --no-interactive",
     "apk": "rm -rf builds && eas build -p android --profile test-apk --local",
     "aab": "rm -rf builds && eas build -p android --profile production --local --clear-cache --non-interactive",
     "ipa": "eas build -p ios --profile production --local --clear-cache --non-interactive",

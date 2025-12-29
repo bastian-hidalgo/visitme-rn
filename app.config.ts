@@ -91,7 +91,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
       package: 'cl.visitme.app',
-      versionCode: 51,
+      versionCode: 52,
       permissions: ['android.permission.RECORD_AUDIO'],
     },
     web: {
