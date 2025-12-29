@@ -43,8 +43,8 @@ export default function ResidentDashboard() {
       shadowOpacity: progress ? 0.3 : 0,
     }
   })
-  const { packages, selectedParcel, setParcelDetail, setPendingParcelId, setPendingAlertId, reservations, refreshAll } = useResidentContext()
-  const { parcelId, alertId } = useLocalSearchParams<{ parcelId: string; alertId: string }>()
+  const { packages, selectedParcel, setParcelDetail, setPendingParcelId, setPendingAlertId, setPendingReservationId, reservations, refreshAll } = useResidentContext()
+  const { parcelId, alertId, reservationId } = useLocalSearchParams<{ parcelId: string; alertId: string; reservationId: string }>()
 
   const router = useRouter()
 
@@ -52,6 +52,7 @@ export default function ResidentDashboard() {
   const instanceIdRef = useRef(Math.random().toString(36).substring(7))
   const processedParcelIdRef = useRef<string | null>(null)
   const processedAlertIdRef = useRef<string | null>(null)
+  const processedReservationIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     console.log(`[ResidentDashboard] 🧩 Instance ${instanceIdRef.current} MOUNTED. Params:`, JSON.stringify({ parcelId, alertId }))
@@ -84,6 +85,19 @@ export default function ResidentDashboard() {
       }, 500)
     }
   }, [alertId, setPendingAlertId, router])
+
+  // 🔹 Manejo de Deep Link de Notificación (Reservas)
+  useEffect(() => {
+    if (reservationId && reservationId !== processedReservationIdRef.current) {
+      console.log(`[ResidentDashboard] (${instanceIdRef.current}) 🚀 New reservationId detected: ${reservationId}. Forwarding to context.`)
+      processedReservationIdRef.current = reservationId
+      setPendingReservationId(reservationId)
+      
+      setTimeout(() => {
+        router.setParams({ reservationId: undefined })
+      }, 500)
+    }
+  }, [reservationId, setPendingReservationId, router])
 
   // Estado del banner de reserva (hoy / mañana / pasada)
   const { status, formattedDate } = getReservationBannerStatus(reservations)

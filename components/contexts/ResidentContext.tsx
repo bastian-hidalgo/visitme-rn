@@ -27,6 +27,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   >([])
   const [pendingParcelId, setPendingParcelId] = useState<string | null>(null)
   const [pendingAlertId, setPendingAlertId] = useState<string | null>(null)
+  const [pendingReservationId, setPendingReservationId] = useState<string | null>(null)
   
   const setPendingParcelIdMemoized = useCallback((id: string | null) => {
     console.log(`[ResidentContext] 📝 setPendingParcelId CALLED with: ${id}`)
@@ -36,6 +37,11 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   const setPendingAlertIdMemoized = useCallback((id: string | null) => {
     console.log(`[ResidentContext] 📝 setPendingAlertId CALLED with: ${id}`)
     setPendingAlertId(id)
+  }, [])
+
+  const setPendingReservationIdMemoized = useCallback((id: string | null) => {
+    console.log(`[ResidentContext] 📝 setPendingReservationId CALLED with: ${id}`)
+    setPendingReservationId(id)
   }, [])
 
   // 🔹 Estados de paneles
@@ -274,22 +280,38 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
 
     setLoadingReservations(true)
     try {
+      // 1) Obtener departamentos vinculados al usuario
+      const { data: userDepts } = await supabase
+        .from('user_departments')
+        .select('department_id')
+        .eq('user_id', id)
+        .eq('community_id', communityId)
+
+      const deptIds = userDepts?.map(d => d.department_id) || []
+
       let query = supabase
         .from('common_space_reservations_with_user')
-        .select('*')
+        .select('*, common_spaces:common_space_id(requires_consent, consent_text)')
         .eq('community_id', communityId)
-        .eq('reserved_by', id)
+        .in('department_id', deptIds)
 
       if (!showAll) {
-        query = query.gte('date', toServerUTC(now().subtract(7, 'day').startOf('day')))
+        // Para el dashboard, traemos desde hace 7 días hasta el futuro
+        const sevenDaysAgo = now().subtract(7, 'day')
+        query = query.gte('date', formatDate(sevenDaysAgo))
       }
 
+      console.log(`[ResidentContext] 🛠 Fetching reservations for user ${id} in community ${communityId} (showAll: ${showAll})`)
       const { data, error } = await query
-        .order('date', { ascending: !showAll })
-        .limit(showAll ? 50 : 10)
+        .order('date', { ascending: false })
+        .limit(showAll ? 50 : 40)
 
-      if (error) throw error
+      if (error) {
+        console.error('[ResidentContext] ❌ Error fetching reservations:', error)
+        throw error
+      }
 
+      console.log(`[ResidentContext] ✅ Fetched ${data?.length || 0} reservations:`, data?.map(r => ({ id: r.id, date: r.date, status: r.status })))
       setReservations((data as Reservation[]) || [])
     } catch (e) {
       console.error('Error al cargar reservas:', e)
@@ -448,6 +470,33 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
     refreshSurveys,
   ])
 
+  const hasRefreshedForReservation = useRef(false)
+
+  // 🔹 Auto-selección de reserva pendiente
+  useEffect(() => {
+    if (loadingReservations || !pendingReservationId) return
+
+    console.log(`[ResidentContext] 🔍 Searching for pending reservation ${pendingReservationId} (count: ${reservations.length})...`)
+    const found = reservations.find(r => String(r.id) === String(pendingReservationId))
+    
+    if (found) {
+      console.log(`[ResidentContext] ✅ FOUND MATCH! Reservation ID: ${found.id}. Setting selectedReservation and opening panel.`)
+      setSelectedReservation(found)
+      setReservationPanelOpen(true)
+      setPendingReservationId(null)
+      hasRefreshedForReservation.current = false
+    } else {
+      if (!hasRefreshedForReservation.current) {
+        console.log(`[ResidentContext] 🔄 Reservation ${pendingReservationId} NOT found. Triggering REFRESH...`)
+        hasRefreshedForReservation.current = true
+        fetchReservations()
+      } else {
+        console.log(`[ResidentContext] ❌ Reservation ${pendingReservationId} NOT found even after refresh. giving up.`)
+        setPendingReservationId(null)
+      }
+    }
+  }, [loadingReservations, reservations, pendingReservationId, fetchReservations])
+
   // 🔹 Cargar todo en montaje
   useEffect(() => {
     if (userLoading) return
@@ -522,6 +571,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         setLoadingAlerts,
         setPendingParcelId: setPendingParcelIdMemoized,
         setPendingAlertId: setPendingAlertIdMemoized,
+        setPendingReservationId: setPendingReservationIdMemoized,
       }}
     >
       {children}

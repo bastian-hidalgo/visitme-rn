@@ -1,5 +1,5 @@
 import {
-  BottomSheetModal
+    BottomSheetModal
 } from '@gorhom/bottom-sheet'
 import { useIsFocused } from '@react-navigation/native'
 import dayjs from 'dayjs'
@@ -9,20 +9,20 @@ import utc from 'dayjs/plugin/utc'
 import * as FileSystem from 'expo-file-system/legacy'
 import { useRouter } from 'expo-router'
 import {
-  CalendarDays,
-  History
+    CalendarDays,
+    History
 } from 'lucide-react-native'
 import { MotiView } from 'moti'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Dimensions,
-  FlatList,
-  Platform,
-  Share,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Dimensions,
+    FlatList,
+    Platform,
+    Share,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native'
 import Toast from 'react-native-toast-message'
 
@@ -55,8 +55,28 @@ export default function ReservationsSlider() {
   const { communitySlug, id: userId } = useUser()
   const router = useRouter()
   const filteredReservations = useMemo(() => {
-    const sevenDaysAgo = dayjs().subtract(7, 'day').startOf('day')
-    return reservations.filter(res => dayjs(res.date).isAfter(sevenDaysAgo) || dayjs(res.date).isSame(sevenDaysAgo))
+    const today = dayjs().startOf('day')
+    const sevenDaysAgo = today.subtract(7, 'day')
+    
+    return [...reservations]
+      .filter(res => {
+        const d = dayjs(res.date)
+        return d.isAfter(sevenDaysAgo) || d.isSame(sevenDaysAgo)
+      })
+      .sort((a, b) => {
+        const dateA = dayjs(a.date)
+        const dateB = dayjs(b.date)
+        const isPastA = dateA.isBefore(today)
+        const isPastB = dateB.isBefore(today)
+
+        if (isPastA && !isPastB) return 1
+        if (!isPastA && isPastB) return -1
+        
+        // Futuras: la más cercana primero
+        if (!isPastA) return dateA.diff(dateB)
+        // Pasadas: la más reciente primero
+        return dateB.diff(dateA)
+      })
   }, [reservations])
 
   const reservationsWithWeather = useWeatherForReservations(filteredReservations)
@@ -74,11 +94,21 @@ export default function ReservationsSlider() {
   // Sync ref with context state
   useEffect(() => {
     if (isFocused && isReservationPanelOpen && selectedReservation) {
+      // Check if consent is required and not given
+      const res = selectedReservation as ReservationWithWeather
+      const isPast = dayjs(res.date).isBefore(dayjs(), 'day')
+      const isCancelled = res.status === 'cancelado'
+
+      if (res.common_spaces?.requires_consent && !res.resident_consent_given && !isPast && !isCancelled) {
+        setReservationPanelOpen(false)
+        router.push(`/reservations/consent/${res.id}`)
+        return
+      }
       bottomSheetRef.current?.present()
     } else {
       bottomSheetRef.current?.dismiss()
     }
-  }, [isReservationPanelOpen, selectedReservation, isFocused])
+  }, [isReservationPanelOpen, selectedReservation, isFocused, router, setReservationPanelOpen])
 
   const handleNavigateToWizard = useCallback(() => {
     if (communitySlug) {
@@ -89,12 +119,31 @@ export default function ReservationsSlider() {
   }, [communitySlug, router])
 
   const openDetail = useCallback((reservation: ReservationWithWeather) => {
+    // Check if consent is required and not given
+    const isPast = dayjs(reservation.date).isBefore(dayjs(), 'day')
+    const isCancelled = reservation.status === 'cancelado'
+
+    console.log(`[ReservationsSlider] 🧐 openDetail for ${reservation.id}:`, {
+      date: reservation.date,
+      status: reservation.status,
+      isPast,
+      isCancelled,
+      requires_consent: reservation.common_spaces?.requires_consent,
+      consent_given: reservation.resident_consent_given
+    })
+
+    if (reservation.common_spaces?.requires_consent && !reservation.resident_consent_given && !isPast && !isCancelled) {
+      console.log(`[ReservationsSlider] 🚀 Redirecting to consent for ${reservation.id}`)
+      router.push(`/reservations/consent/${reservation.id}`)
+      return
+    }
+
     setReservationDetail(reservation)
     setJustification('')
     setCancellationError('')
     setShowCancellationForm(false)
     setReservationPanelOpen(true)
-  }, [setReservationDetail, setReservationPanelOpen])
+  }, [router, setReservationDetail, setReservationPanelOpen])
 
   const closeDetail = useCallback(() => {
     setReservationPanelOpen(false)

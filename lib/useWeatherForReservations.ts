@@ -1,19 +1,16 @@
-import { supabase } from '@/lib/supabase'; // ✅ cliente para RN
+import { supabase } from '@/lib/supabase';
 import { format } from '@/lib/time';
-import type { Database } from '@/types/supabase';
+import type { Reservation } from '@/types/reservation';
 import { useEffect, useState } from 'react';
 
-// 🔹 Tipo base desde la tabla real
-type BaseReservation = Database['public']['Views']['common_space_reservations_with_user']['Row']
-
 // 🔹 Extiende con campos adicionales de clima
-export type ReservationWithWeather = BaseReservation & {
+export type ReservationWithWeather = Reservation & {
   weather?: 'sunny' | 'rainy' | 'cloudy' | 'windy'
   weather_description?: string | null
 }
 
 export function useWeatherForReservations(
-  reservations: BaseReservation[]
+  reservations: Reservation[]
 ): ReservationWithWeather[] {
   const [result, setResult] = useState<ReservationWithWeather[]>([])
 
@@ -27,7 +24,7 @@ export function useWeatherForReservations(
       const valid = reservations.filter((r) => r.date && r.community_id)
 
       if (!valid.length) {
-        setResult(reservations)
+        setResult(reservations as ReservationWithWeather[])
         return
       }
 
@@ -42,7 +39,7 @@ export function useWeatherForReservations(
 
       if (error) {
         console.error('Error loading weather:', error)
-        setResult(reservations)
+        setResult(reservations as ReservationWithWeather[])
         return
       }
 
