@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const packageJsonPath = path.join(__dirname, '..', 'package.json');
-const appConfigPath = path.join(__dirname, '..', 'app.config.ts');
+const packageJsonPath = path.resolve(process.cwd(), 'package.json');
+const appConfigPath = path.resolve(process.cwd(), 'app.config.ts');
 
 // Read current package.json
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
