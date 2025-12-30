@@ -1,8 +1,8 @@
 import {
-  BottomSheetBackdrop,
-  BottomSheetModal,
-  BottomSheetScrollView,
-  type BottomSheetBackdropProps,
+    BottomSheetBackdrop,
+    BottomSheetModal,
+    BottomSheetScrollView,
+    type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet'
 import { Image } from 'expo-image'
 import React, { forwardRef, useCallback } from 'react'
@@ -43,6 +43,22 @@ export const PackageDetailSheet = forwardRef<BottomSheetModal, PackageDetailShee
     },
     ref
   ) => {
+    React.useEffect(() => {
+      console.log('[PackageDetailSheet] 📦 Full Props Debug:', {
+        imageUrl,
+        status,
+        apartment,
+        date,
+        receivedAtLabel,
+        receivedRelativeLabel,
+        pickedUpAtLabel,
+        pickedUpRelativeLabel,
+        signatureImageUrl,
+        signatureCompleted,
+        detailDescription,
+      })
+    }, [imageUrl, status, apartment, date, receivedAtLabel, receivedRelativeLabel, pickedUpAtLabel, pickedUpRelativeLabel, signatureImageUrl, signatureCompleted, detailDescription])
+
     const renderBackdrop = useCallback(
       (props: BottomSheetBackdropProps) => (
         <BottomSheetBackdrop

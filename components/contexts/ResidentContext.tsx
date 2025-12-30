@@ -19,7 +19,13 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
   const [packages, setPackages] = useState<Parcel[]>([])
   const [surveys, setSurveys] = useState<any[]>([])
   const [selectedSurvey, setSelectedSurvey] = useState<any | null>(null)
-  const [selectedParcel, setSelectedParcel] = useState<Parcel | null>(null)
+  const [selectedParcel, setSelectedParcelState] = useState<Parcel | null>(null)
+  
+  const setSelectedParcel = useCallback((parcel: Parcel | null) => {
+    console.log(`[ResidentContext] 📦 setSelectedParcel called with: ${parcel ? parcel.id : 'null'}`)
+    setSelectedParcelState(parcel)
+  }, [])
+
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
   const [alertDetail, setAlertDetailState] = useState<Alert | null>(null)
   const [residentDepartments, setResidentDepartments] = useState<
@@ -98,7 +104,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
       setSurveys([])
       setResidentDepartments([])
       setSelectedSurvey(null)
-      setSelectedParcel(null)
+      setSelectedParcelState(null)
       setAlertDetailState(null)
       setSelectedReservation(null)
 
@@ -115,7 +121,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
       setLoadingPackages(loadingState)
       setLoadingSurveys(loadingState)
     },
-    []
+    [setSelectedParcelState]
   )
 
   // 🔹 Estado combinado
@@ -417,7 +423,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
         setPendingParcelId(null)
       }
     }
-  }, [loadingPackages, packages, pendingParcelId, fetchPackages])
+  }, [loadingPackages, packages, pendingParcelId, fetchPackages, setSelectedParcel])
 
   // 🔹 Auto-selección de alerta pendiente
   useEffect(() => {

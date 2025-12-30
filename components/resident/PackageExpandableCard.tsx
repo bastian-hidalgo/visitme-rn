@@ -54,8 +54,9 @@ export default function PackageExpandableCard({
   const { setParcelDetail } = useResidentContext()
 
   const openSheet = useCallback(() => {
+    console.log(`[PackageExpandableCard] 👆 Card clicked for parcel ID: ${id}`)
     setParcelDetail(parcel)
-  }, [parcel, setParcelDetail])
+  }, [parcel, setParcelDetail, id])
 
   const statusBadgeColors = useMemo(() => {
     const palette: Record<PackageStatusLabel, { backgroundColor: string; text: string }> = {

@@ -286,6 +286,7 @@ export default function ResidentDashboard() {
             ref={packageSheetRef}
             {...useMemo(() => {
               const p = selectedParcel
+              console.log(`[ResidentDashboard] 📦 Preparing props for PackageDetailSheet. Selected: ${p ? p.id : 'null'}`)
               const fallbackImage = 'https://www.visitme.cl/img/placeholder-package.webp'
               
               if (!p) {

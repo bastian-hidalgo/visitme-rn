@@ -18,7 +18,7 @@ import Toast from 'react-native-toast-message'
 import { useResidentContext } from '@/components/contexts/ResidentContext'
 import EmptyActionCard from '@/components/ui/EmptyActionCard'
 import { supabase } from '@/lib/supabase'
-import dayjs, { fromServerDate, getTZ, now } from '@/lib/time'
+import { fromServerDate, getTZ, now } from '@/lib/time'
 import { useWeatherForReservations, type ReservationWithWeather } from '@/lib/useWeatherForReservations'
 import { useUser } from '@/providers/user-provider'
 import * as FileSystem from 'expo-file-system/legacy'
@@ -52,12 +52,12 @@ export default function ReservationsSlider() {
     
     return [...reservations]
       .filter(res => {
-        const d = dayjs(res.date)
+        const d = fromServerDate(res.date)
         return d.isAfter(sevenDaysAgo) || d.isSame(sevenDaysAgo)
       })
       .sort((a, b) => {
-        const dateA = dayjs(a.date)
-        const dateB = dayjs(b.date)
+        const dateA = fromServerDate(a.date)
+        const dateB = fromServerDate(b.date)
         const isPastA = dateA.isBefore(today)
         const isPastB = dateB.isBefore(today)
 
@@ -88,7 +88,7 @@ export default function ReservationsSlider() {
     if (isFocused && isReservationPanelOpen && selectedReservation) {
       // Check if consent is required and not given
       const res = selectedReservation as ReservationWithWeather
-      const isPast = dayjs(res.date).isBefore(dayjs(), 'day')
+      const isPast = fromServerDate(res.date).isBefore(now(), 'day')
       const isCancelled = res.status === 'cancelado'
 
       if (res.common_spaces?.requires_consent && !res.resident_consent_given && !isPast && !isCancelled) {
@@ -112,7 +112,7 @@ export default function ReservationsSlider() {
 
   const openDetail = useCallback((reservation: ReservationWithWeather) => {
     // Check if consent is required and not given
-    const isPast = dayjs(reservation.date).isBefore(dayjs(), 'day')
+    const isPast = fromServerDate(reservation.date).isBefore(now(), 'day')
     const isCancelled = reservation.status === 'cancelado'
 
     console.log(`[ReservationsSlider] 🧐 openDetail for ${reservation.id}:`, {

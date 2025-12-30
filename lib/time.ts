@@ -1,5 +1,6 @@
 import dayjsLib, { type ConfigType, type Dayjs } from 'dayjs'
 import 'dayjs/locale/es'
+import isToday from 'dayjs/plugin/isToday'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import timezone from 'dayjs/plugin/timezone'
@@ -11,6 +12,7 @@ dayjsLib.extend(utc)
 dayjsLib.extend(timezone)
 dayjsLib.extend(localizedFormat)
 dayjsLib.extend(relativeTime)
+dayjsLib.extend(isToday)
 dayjsLib.locale('es')
 
 export const TZ = env.timezone || 'America/Santiago'

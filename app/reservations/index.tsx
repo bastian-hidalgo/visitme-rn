@@ -1,33 +1,30 @@
 import { useResidentContext } from '@/components/contexts/ResidentContext'
 import { useIsFocused } from '@react-navigation/native'
-import dayjs from 'dayjs'
-import isToday from 'dayjs/plugin/isToday'
 import * as FileSystem from 'expo-file-system/legacy'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Stack, useRouter } from 'expo-router'
 import { Banknote, CalendarDays, Clock, History as HistoryIcon, Info, MapPin, Plus } from 'lucide-react-native'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Alert,
-  FlatList,
-  Image,
-  Platform,
-  Pressable,
-  RefreshControl,
-  Share,
-  StyleSheet,
-  Text,
-  View
+    Alert,
+    FlatList,
+    Image,
+    Platform,
+    Pressable,
+    RefreshControl,
+    Share,
+    StyleSheet,
+    Text,
+    View
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import Toast from 'react-native-toast-message'
 
 import { ReservationDetailSheet } from '@/components/resident/ReservationDetailSheet'
 import { supabase } from '@/lib/supabase'
+import { fromServerDate, now as timeNow } from '@/lib/time'
 import { useUser } from '@/providers/user-provider'
 import { BottomSheetModal } from '@gorhom/bottom-sheet'
-
-dayjs.extend(isToday)
 
 export default function ReservationsIndexPage() {
   const { 
@@ -57,8 +54,6 @@ export default function ReservationsIndexPage() {
     }
   }, [isReservationPanelOpen, selectedReservation, isFocused])
 
-  const tz = dayjs.tz.guess()
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
     await fetchReservations(true)
@@ -85,7 +80,7 @@ export default function ReservationsIndexPage() {
 
     try {
       setIsDownloading(true)
-      const baseDate = dayjs.utc(reservation.date).tz(tz, true)
+      const baseDate = fromServerDate(reservation.date)
       const startHour = reservation.block === 'morning' ? 9 : reservation.block === 'afternoon' ? 15 : 10
       const durationHours = reservation.duration_hours ?? 2
       const startDateTime = baseDate.hour(startHour).minute(0).second(0)
@@ -99,14 +94,14 @@ export default function ReservationsIndexPage() {
 
       const description = escapeICS(descriptionLines)
       const location = escapeICS(reservation.common_space_name ?? 'Espacio común')
-      const nowStamp = dayjs().utc().format('YYYYMMDD[T]HHmmss[Z]')
+      const nowStamp = timeNow().utc().format('YYYYMMDD[T]HHmmss[Z]')
       const dtStart = `${startDateTime.format('YYYYMMDD[T]HHmmss')}`
       const dtEnd = `${endDateTime.format('YYYYMMDD[T]HHmmss')}`
 
       const icsLines = [
         'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//VisitMe//Reservas//ES', 'CALSCALE:GREGORIAN',
-        'BEGIN:VEVENT', `UID:${reservation.id}`, `DTSTAMP:${nowStamp}`, `DTSTART;TZID=${tz}:${dtStart}`,
-        `DTEND;TZID=${tz}:${dtEnd}`, `SUMMARY:${summary}`, `LOCATION:${location}`, `DESCRIPTION:${description}`,
+        'BEGIN:VEVENT', `UID:${reservation.id}`, `DTSTAMP:${nowStamp}`, `DTSTART:${dtStart}`,
+        `DTEND:${dtEnd}`, `SUMMARY:${summary}`, `LOCATION:${location}`, `DESCRIPTION:${description}`,
         'END:VEVENT', 'END:VCALENDAR',
       ]
 
@@ -133,7 +128,7 @@ export default function ReservationsIndexPage() {
       console.error('Error al descargar evento:', error)
       Toast.show({ type: 'error', text1: 'No se pudo descargar el evento' })
     } finally { setIsDownloading(false) }
-  }, [escapeICS, tz])
+  }, [escapeICS])
 
   const performCancelReservation = useCallback(async (id: string, reason: string) => {
     try {
@@ -156,14 +151,14 @@ export default function ReservationsIndexPage() {
   }, [fetchReservations, userId, closeDetail])
 
   const { upcoming, history, totalPending } = useMemo(() => {
-    const now = dayjs()
+    const today = timeNow().startOf('day')
     const up: any[] = []
     const hist: any[] = []
     let pendingSum = 0
 
     reservations.forEach((res: any) => {
-      const resDate = dayjs(res.date)
-      if (resDate.isAfter(now, 'day') || (resDate.isSame(now, 'day') && res.status !== 'cancelado')) {
+      const resDate = fromServerDate(res.date)
+      if (resDate.isAfter(today) || (resDate.isSame(today) && res.status !== 'cancelado')) {
         up.push(res)
       } else {
         hist.push(res)
@@ -175,8 +170,8 @@ export default function ReservationsIndexPage() {
     })
 
     return { 
-      upcoming: up.sort((a, b) => dayjs(a.date).diff(dayjs(b.date))), 
-      history: hist.sort((a, b) => dayjs(b.date).diff(dayjs(a.date))),
+      upcoming: up.sort((a, b) => fromServerDate(a.date).diff(fromServerDate(b.date))), 
+      history: hist.sort((a, b) => fromServerDate(b.date).diff(fromServerDate(a.date))),
       totalPending: pendingSum
     }
   }, [reservations])
@@ -194,8 +189,8 @@ export default function ReservationsIndexPage() {
       >
         <View style={styles.cardHeader}>
           <View style={styles.dateBadge}>
-            <Text style={styles.dateDay}>{dayjs(item.date).format('DD')}</Text>
-            <Text style={styles.dateMonth}>{dayjs(item.date).format('MMM').toUpperCase()}</Text>
+            <Text style={styles.dateDay}>{fromServerDate(item.date).format('DD')}</Text>
+            <Text style={styles.dateMonth}>{fromServerDate(item.date).format('MMM').toUpperCase()}</Text>
           </View>
           <View style={styles.cardMainInfo}>
             <Text style={styles.cardTitle}>{item.common_space_name}</Text>
@@ -308,7 +303,7 @@ const getPaymentInfo = (item: any) => {
   if (item.status === 'cancelado') return { label: 'Anulada', color: '#991b1b', bg: '#fef2f2' }
   if (item.cost_applied === 0 || item.is_grace_use) return { label: 'Gratis / Exento', color: '#475569', bg: '#f1f5f9' }
   
-  const isPast = dayjs(item.date).isBefore(dayjs(), 'day')
+  const isPast = fromServerDate(item.date).isBefore(timeNow(), 'day')
 
   switch (item.payment_status) {
     case 'paid': return { label: 'Pagado', color: '#15803d', bg: '#dcfce7' }
