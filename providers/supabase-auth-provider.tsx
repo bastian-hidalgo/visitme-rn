@@ -1,8 +1,8 @@
-import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import * as Linking from 'expo-linking';
 import type { Session } from '@supabase/supabase-js';
+import * as Linking from 'expo-linking';
+import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../lib/supabase';
 
 type SupabaseAuthContextValue = {
   session: Session | null;
@@ -152,12 +152,10 @@ export function SupabaseAuthProvider({ children }: PropsWithChildren) {
   return <SupabaseAuthContext.Provider value={value}>{children}</SupabaseAuthContext.Provider>;
 }
 
-export const useSupabaseAuth = () => {
+export function useSupabaseAuth() {
   const context = useContext(SupabaseAuthContext);
-
   if (!context) {
     throw new Error('useSupabaseAuth must be used within a SupabaseAuthProvider');
   }
-
   return context;
-};
+}

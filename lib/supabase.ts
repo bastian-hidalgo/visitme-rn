@@ -3,8 +3,8 @@ import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-import { env, ensureEnv } from '@/constants/env';
 import type { Database } from '@/types/supabase';
+import { ensureEnv, env } from '../constants/env';
 
 export type Supa = SupabaseClient<Database>;
 

@@ -3,12 +3,11 @@ import { useIsFocused } from '@react-navigation/native'
 import * as FileSystem from 'expo-file-system/legacy'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Stack, useRouter } from 'expo-router'
-import { Banknote, CalendarDays, Clock, History as HistoryIcon, Info, MapPin, Plus } from 'lucide-react-native'
+import { Clock } from 'lucide-react-native'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     Alert,
     FlatList,
-    Image,
     Platform,
     Pressable,
     RefreshControl,
@@ -23,29 +22,31 @@ import Toast from 'react-native-toast-message'
 import { ReservationDetailSheet } from '@/components/resident/ReservationDetailSheet'
 import { supabase } from '@/lib/supabase'
 import { fromServerDate, now as timeNow } from '@/lib/time'
-import { useUser } from '@/providers/user-provider'
 import { BottomSheetModal } from '@gorhom/bottom-sheet'
+import { cancelReservation as cancelReservationApi } from '../../lib/api/reservations'
+import { useUser } from '../../providers/user-provider'
 
 export default function ReservationsIndexPage() {
   const { 
     reservations, 
     fetchReservations, 
-    selectedReservation,
+    selectedReservation, 
     setReservationDetail, 
-    isReservationPanelOpen,
+    isReservationPanelOpen, 
     setReservationPanelOpen 
   } = useResidentContext()
-  const { id: userId } = useUser()
-  const router = useRouter()
-  const [refreshing, setRefreshing] = useState(false)
+  const { communitySlug } = useUser()
   const [isCancelling, setIsCancelling] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
-
+  const [justification, setJustification] = useState('')
+  const [cancellationError, setCancellationError] = useState('')
+  const [showCancellationForm, setShowCancellationForm] = useState(false)
+  
   const bottomSheetRef = useRef<BottomSheetModal>(null)
-
   const isFocused = useIsFocused()
+  const router = useRouter()
 
-  // Sync ref with context state
+  // Sync modal with context
   useEffect(() => {
     if (isFocused && isReservationPanelOpen && selectedReservation) {
       bottomSheetRef.current?.present()
@@ -54,69 +55,57 @@ export default function ReservationsIndexPage() {
     }
   }, [isReservationPanelOpen, selectedReservation, isFocused])
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true)
-    await fetchReservations(true)
-    setRefreshing(false)
-  }, [fetchReservations])
-
-  useEffect(() => {
-    fetchReservations(true)
-  }, [fetchReservations])
+  const openDetail = useCallback((res: any) => {
+    setReservationDetail(res)
+    setReservationPanelOpen(true)
+  }, [setReservationDetail, setReservationPanelOpen])
 
   const closeDetail = useCallback(() => {
     setReservationPanelOpen(false)
     setTimeout(() => {
       setReservationDetail(null)
-    }, 250)
+    }, 200)
   }, [setReservationDetail, setReservationPanelOpen])
 
   const escapeICS = useCallback((value: string) => {
     return value.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;')
   }, [])
 
-  const handleDownloadCalendar = useCallback(async (reservation: any) => {
-    if (!reservation?.id || !reservation.date) return
-
+  const handleDownloadCalendar = useCallback(async (res: any) => {
     try {
       setIsDownloading(true)
-      const baseDate = fromServerDate(reservation.date)
-      const startHour = reservation.block === 'morning' ? 9 : reservation.block === 'afternoon' ? 15 : 10
-      const durationHours = reservation.duration_hours ?? 2
+      const baseDate = fromServerDate(res.date)
+      const startHour = res.block === 'morning' ? 9 : res.block === 'afternoon' ? 15 : 10
+      const durationHours = res.duration_hours ?? 2
       const startDateTime = baseDate.hour(startHour).minute(0).second(0)
       const endDateTime = startDateTime.add(durationHours, 'hour')
-      const summary = escapeICS(reservation.common_space_name ?? 'Reserva VisitMe')
-      const descriptionLines = [
-        reservation.block === 'morning' ? 'Bloque: AM' : reservation.block === 'afternoon' ? 'Bloque: PM' : 'Bloque sin asignar',
-        reservation.duration_hours ? `Duración: ${reservation.duration_hours} hora(s)` : null,
-        reservation.department_number ? `Departamento: ${reservation.department_number}` : null,
-      ].filter(Boolean).join('\n')
-
-      const description = escapeICS(descriptionLines)
-      const location = escapeICS(reservation.common_space_name ?? 'Espacio común')
+      
+      const summary = escapeICS(res.common_space_name ?? 'Reserva VisitMe')
+      const description = escapeICS(`Bloque: ${res.block}\nDepartamento: ${res.department_number}`)
       const nowStamp = timeNow().utc().format('YYYYMMDD[T]HHmmss[Z]')
-      const dtStart = `${startDateTime.format('YYYYMMDD[T]HHmmss')}`
-      const dtEnd = `${endDateTime.format('YYYYMMDD[T]HHmmss')}`
+      const dtStart = startDateTime.format('YYYYMMDD[T]HHmmss')
+      const dtEnd = endDateTime.format('YYYYMMDD[T]HHmmss')
 
-      const icsLines = [
-        'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//VisitMe//Reservas//ES', 'CALSCALE:GREGORIAN',
-        'BEGIN:VEVENT', `UID:${reservation.id}`, `DTSTAMP:${nowStamp}`, `DTSTART:${dtStart}`,
-        `DTEND:${dtEnd}`, `SUMMARY:${summary}`, `LOCATION:${location}`, `DESCRIPTION:${description}`,
-        'END:VEVENT', 'END:VCALENDAR',
-      ]
+      const ics = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'BEGIN:VEVENT',
+        `DTSTAMP:${nowStamp}`,
+        `DTSTART:${dtStart}`,
+        `DTEND:${dtEnd}`,
+        `SUMMARY:${summary}`,
+        `DESCRIPTION:${description}`,
+        'END:VEVENT',
+        'END:VCALENDAR'
+      ].join('\r\n')
 
-      const ics = `${icsLines.join('\r\n')}\r\n`
-      const fileName = `reserva-${reservation.id}.ics`
-      const fileUri = `${FileSystem.cacheDirectory ?? ''}${fileName}`
-      await FileSystem.writeAsStringAsync(fileUri, ics, { encoding: FileSystem.EncodingType.UTF8 })
-
-      let shareUrl = fileUri
-      if (Platform.OS === 'android') shareUrl = await FileSystem.getContentUriAsync(fileUri)
+      const fileUri = `${FileSystem.cacheDirectory}reserva-${res.id}.ics`
+      await FileSystem.writeAsStringAsync(fileUri, ics)
 
       await Share.share(
         { 
-          url: shareUrl, 
-          title: 'Agregar al calendario', 
+          url: Platform.OS === 'android' ? await FileSystem.getContentUriAsync(fileUri) : fileUri,
+          title: summary,
           message: 'Reserva VisitMe' 
         },
         {
@@ -132,165 +121,78 @@ export default function ReservationsIndexPage() {
 
   const performCancelReservation = useCallback(async (id: string, reason: string) => {
     try {
+      console.log(`[CancelReservation] 🚀 Using API for ID: ${id}`)
       setIsCancelling(true)
-      const { error } = await supabase
-        .from('common_space_reservations')
-        .update({ status: 'cancelado', cancellation_reason: reason.trim() })
-        .eq('id', id)
-        .eq('reserved_by', userId)
+      
+      const sessionToken = (await supabase.auth.getSession()).data.session?.access_token
+      if (!sessionToken) throw new Error('No hay sesión')
 
-      if (error) throw error
+      await cancelReservationApi(id, reason.trim(), sessionToken, communitySlug || undefined)
 
+      console.log(`[CancelReservation] ✅ Success`)
       Toast.show({ type: 'success', text1: 'Reserva anulada correctamente' })
+      
       await fetchReservations(true)
       closeDetail()
-    } catch (error) {
-      console.error('Error al cancelar reserva:', error)
-      Alert.alert('Error', 'No se pudo anular la reserva. Intenta nuevamente.')
+    } catch (error: any) {
+      console.error('[CancelReservation] Error:', error)
+      Alert.alert('Error', error.message || 'No se pudo anular la reserva. Intenta nuevamente.')
     } finally { setIsCancelling(false) }
-  }, [fetchReservations, userId, closeDetail])
+  }, [fetchReservations, closeDetail])
 
-  const { upcoming, history, totalPending } = useMemo(() => {
+  // Logic for list grouping
+  const { totalPending } = useMemo(() => {
     const today = timeNow().startOf('day')
-    const up: any[] = []
-    const hist: any[] = []
-    let pendingSum = 0
-
-    reservations.forEach((res: any) => {
-      const resDate = fromServerDate(res.date)
-      if (resDate.isAfter(today) || (resDate.isSame(today) && res.status !== 'cancelado')) {
-        up.push(res)
-      } else {
-        hist.push(res)
-      }
-
-      if ((res as any).payment_status === 'pending') {
-        pendingSum += (res as any).cost_applied || 0
-      }
-    })
-
-    return { 
-      upcoming: up.sort((a, b) => fromServerDate(a.date).diff(fromServerDate(b.date))), 
-      history: hist.sort((a, b) => fromServerDate(b.date).diff(fromServerDate(a.date))),
-      totalPending: pendingSum
+    return {
+      totalPending: reservations.filter(res => res.status === 'activo' && fromServerDate(res.date).isSameOrAfter(today)).length
     }
   }, [reservations])
 
-  const renderReservationItem = ({ item }: { item: any }) => {
-    const payment = getPaymentInfo(item)
-
-    return (
-      <Pressable 
-        onPress={() => {
-          setReservationDetail(item)
-          setReservationPanelOpen(true)
-        }}
-        style={styles.card}
-      >
-        <View style={styles.cardHeader}>
-          <View style={styles.dateBadge}>
-            <Text style={styles.dateDay}>{fromServerDate(item.date).format('DD')}</Text>
-            <Text style={styles.dateMonth}>{fromServerDate(item.date).format('MMM').toUpperCase()}</Text>
-          </View>
-          <View style={styles.cardMainInfo}>
-            <Text style={styles.cardTitle}>{item.common_space_name}</Text>
-            <View style={styles.cardMetaRow}>
-              <Clock size={12} color="#6b7280" />
-              <Text style={styles.cardMetaText}>
-                {item.block === 'morning' ? 'Mañana' : 'Tarde'}
-              </Text>
-              <View style={styles.dot} />
-              <MapPin size={12} color="#6b7280" />
-              <Text style={styles.cardMetaText}>Depto {item.department_number}</Text>
-            </View>
-          </View>
-          <View style={[styles.statusBadge, { backgroundColor: payment.bg }]}>
-            <Text style={[styles.statusText, { color: payment.color }]}>{payment.label}</Text>
-          </View>
-        </View>
-
-        {item.cost_applied > 0 ? (
-          <View style={styles.costRow}>
-            <Banknote size={14} color="#4b5563" />
-            <Text style={styles.costText}>${Math.round(item.cost_applied).toLocaleString('es-CL')}</Text>
-          </View>
-        ) : (
-          <View style={styles.costRow}>
-            <Info size={14} color="#64748b" />
-            <Text style={[styles.costText, { color: '#64748b', fontWeight: '500' }]}>Gratis / Exento</Text>
-          </View>
-        )}
-      </Pressable>
-    )
-  }
-
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
+      <LinearGradient colors={['#f8fafc', '#f1f5f9']} style={StyleSheet.absoluteFill} />
+
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Pressable onPress={() => router.replace('/')} style={styles.logoButton}>
-            <Image
-              source={require('@/assets/logo.png')}
-              style={styles.logo}
-            />
-          </Pressable>
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Mis Reservas</Text>
-          </View>
-        </View>
-        
-        <Pressable 
-            onPress={() => router.push('/reservations/new')}
-            style={styles.addButton}
-        >
-          <Plus size={20} color="#fff" />
+        <Pressable onPress={() => router.back()} style={styles.pillButton}>
+           <Text style={styles.pillButtonText}>← Volver al inicio</Text>
         </Pressable>
+        <Text style={styles.title}>Historial de Reservas</Text>
+        <Text style={styles.subtitle}>
+          {totalPending > 0 
+            ? `${totalPending} reservas activas` 
+            : 'No tienes reservas activas'}
+        </Text>
       </View>
 
       <FlatList
-        data={[
-          { title: 'Próximas Reservas', data: upcoming, type: 'upcoming' },
-          { title: 'Historial y Pagos', data: history, type: 'history' }
-        ]}
-        keyExtractor={(item) => item.type}
+        data={reservations}
+        keyExtractor={item => item.id}
         renderItem={({ item }) => (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              {item.type === 'upcoming' ? <CalendarDays size={18} color="#4338ca" /> : <HistoryIcon size={18} color="#4338ca" />}
-              <Text style={styles.sectionTitle}>{item.title}</Text>
+          <Pressable onPress={() => openDetail(item)} style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>{item.common_space_name}</Text>
+              <View style={[styles.badge, item.status === 'activo' ? styles.badgeActive : styles.badgeInactive]}>
+                <Text style={styles.badgeText}>{item.status}</Text>
+              </View>
             </View>
-            {item.data.length === 0 ? (
-              <Text style={styles.emptyText}>No hay registros en esta sección.</Text>
-            ) : (
-              item.data.map((res: any) => (
-                  <View key={res.id}>
-                    {renderReservationItem({ item: res })}
-                  </View>
-              ))
-            )}
-            {item.type === 'history' && totalPending > 0 && (
-              <LinearGradient colors={['#fff', '#fefce8']} style={styles.pendingFooter}>
-                <View style={styles.pendingInfo}>
-                    <Info size={16} color="#a16207" />
-                    <Text style={styles.pendingLabel}>Total Pendiente de Pago</Text>
-                </View>
-                <Text style={styles.pendingAmount}>${Math.round(totalPending).toLocaleString('es-CL')}</Text>
-              </LinearGradient>
-            )}
-          </View>
+            <View style={styles.cardBody}>
+              <View style={styles.infoRow}>
+                <Clock size={16} color="#64748b" />
+                <Text style={styles.infoText}>{fromServerDate(item.date).format('DD MMM, YYYY')} - {item.block === 'morning' ? 'AM' : 'PM'}</Text>
+              </View>
+            </View>
+          </Pressable>
         )}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4338ca" />
-        }
+        contentContainerStyle={styles.list}
+        refreshControl={<RefreshControl refreshing={false} onRefresh={() => fetchReservations(true)} />}
       />
 
       <ReservationDetailSheet
         ref={bottomSheetRef}
-        reservation={selectedReservation as any}
+        reservation={selectedReservation}
         onClose={closeDetail}
-        onCancelReservation={performCancelReservation}
+        onCancelReservation={(id, reason) => performCancelReservation(id, reason)}
         onDownloadCalendar={handleDownloadCalendar}
         isCancelling={isCancelling}
         isDownloading={isDownloading}
@@ -299,197 +201,33 @@ export default function ReservationsIndexPage() {
   )
 }
 
-const getPaymentInfo = (item: any) => {
-  if (item.status === 'cancelado') return { label: 'Anulada', color: '#991b1b', bg: '#fef2f2' }
-  if (item.cost_applied === 0 || item.is_grace_use) return { label: 'Gratis / Exento', color: '#475569', bg: '#f1f5f9' }
-  
-  const isPast = fromServerDate(item.date).isBefore(timeNow(), 'day')
-
-  switch (item.payment_status) {
-    case 'paid': return { label: 'Pagado', color: '#15803d', bg: '#dcfce7' }
-    case 'pending': return { label: 'Por Pagar', color: '#a16207', bg: '#fef9c3' }
-    default: 
-      return isPast 
-        ? { label: 'Concretada', color: '#475569', bg: '#f1f5f9' }
-        : { label: 'Agendada', color: '#1e3a8a', bg: '#eff6ff' }
-  }
-}
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  headerTitleContainer: {
-    borderLeftWidth: 1,
-    borderLeftColor: '#e2e8f0',
-    paddingLeft: 12,
-    marginLeft: 4,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1e2937',
-  },
-  logoButton: {
-    paddingVertical: 4,
-  },
-  logo: {
-    width: 100,
-    height: 38,
-    resizeMode: 'contain',
-  },
-  addButton: {
-    padding: 10,
-    borderRadius: 12,
-    backgroundColor: '#4338ca',
-  },
-  listContent: {
-    paddingBottom: 40,
-  },
-  section: {
-    marginTop: 24,
-    paddingHorizontal: 20,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: { flex: 1 },
+  header: { padding: 20, paddingTop: 10 },
+  pillButton: {
+    backgroundColor: '#ede9fe', // Matching Invitations style
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 100,
+    alignSelf: 'flex-start',
     marginBottom: 16,
   },
-  sectionTitle: {
-    fontSize: 16,
+  pillButtonText: {
+    color: '#6d28d9', // Matching Invitations style
     fontWeight: '700',
-    color: '#334155',
+    fontSize: 13,
   },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  dateBadge: {
-    width: 48,
-    height: 48,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  dateDay: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1e1b4b',
-  },
-  dateMonth: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#64748b',
-  },
-  cardMainInfo: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1e2937',
-    marginBottom: 4,
-  },
-  cardMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  cardMetaText: {
-    fontSize: 12,
-    color: '#64748b',
-    fontWeight: '500',
-  },
-  dot: {
-    width: 3,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: '#cbd5e1',
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  costRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-    gap: 6,
-  },
-  costText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#4b5563',
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: '#94a3b8',
-    marginTop: 20,
-    fontStyle: 'italic',
-  },
-  pendingFooter: {
-    marginTop: 8,
-    padding: 16,
-    borderRadius: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#fef08a',
-  },
-  pendingInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  pendingLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#854d0e',
-  },
-  pendingAmount: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#a16207',
-  }
+  title: { fontSize: 24, fontWeight: '800', color: '#1e293b' },
+  subtitle: { fontSize: 14, color: '#64748b', marginTop: 4, fontWeight: '500' },
+  list: { padding: 20 },
+  card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: '#1e293b' },
+  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  badgeActive: { backgroundColor: '#dcfce7' },
+  badgeInactive: { backgroundColor: '#f1f5f9' },
+  badgeText: { fontSize: 10, fontWeight: '700', color: '#166534', textTransform: 'uppercase' },
+  cardBody: { gap: 8 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  infoText: { fontSize: 14, color: '#64748b' }
 })

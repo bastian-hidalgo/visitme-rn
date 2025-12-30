@@ -71,7 +71,7 @@ export default function ReservationCard({ data, onPress }: ReservationCardProps)
       >
         <Image 
           source={{ uri: finalImageUrl }} 
-          style={[styles.image, (isPast || data.status === 'cancelado') && { opacity: 0.7 }]} 
+          style={[styles.image, (isPast || data.status === 'cancelado') && { opacity: 0.4 }]} 
           contentFit="cover" 
           transition={500}
         />
@@ -131,6 +131,7 @@ const styles = StyleSheet.create({
   },
   image: {
     ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#94a3b8', // Gray background to help desaturation look
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,

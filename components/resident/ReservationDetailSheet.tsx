@@ -1,13 +1,15 @@
 import {
     BottomSheetBackdrop,
+    BottomSheetFooter,
     BottomSheetModal,
     BottomSheetScrollView,
     BottomSheetTextInput,
     type BottomSheetBackdropProps,
+    type BottomSheetFooterProps,
 } from '@gorhom/bottom-sheet'
 import { Image } from 'expo-image'
 import { Calendar, CheckCircle2, ChevronRight, Clock, Cloud, CloudRain, Download, Info, MapPin, ShieldAlert, Sun, Wallet, Wind, X, XCircle } from 'lucide-react-native'
-import { forwardRef, useCallback, useMemo, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 
 import getUrlImageFromStorage from '@/lib/getUrlImageFromStorage'
@@ -29,19 +31,15 @@ export const ReservationDetailSheet = forwardRef<BottomSheetModal, ReservationDe
     const [showCancellationForm, setShowCancellationForm] = useState(false)
     const [justification, setJustification] = useState('')
     const [cancellationError, setCancellationError] = useState('')
+    const scrollRef = useRef<any>(null)
 
-    const renderBackdrop = useCallback(
-      (props: BottomSheetBackdropProps) => (
-        <BottomSheetBackdrop
-          {...props}
-          appearsOnIndex={0}
-          disappearsOnIndex={-1}
-          opacity={0.4}
-        />
-      ),
-      []
-    )
-
+    useEffect(() => {
+      if (showCancellationForm) {
+        setTimeout(() => {
+          scrollRef.current?.scrollToEnd({ animated: true })
+        }, 300)
+      }
+    }, [showCancellationForm])
     const handleDismiss = useCallback(() => {
       onClose()
       setTimeout(() => {
@@ -51,7 +49,7 @@ export const ReservationDetailSheet = forwardRef<BottomSheetModal, ReservationDe
       }, 200)
     }, [onClose])
 
-    const handleConfirmCancel = () => {
+    const handleConfirmCancel = useCallback(() => {
        if (justification.trim().length < 5) {
         setCancellationError('Ingresa una justificación de al menos 5 caracteres.')
         return
@@ -65,7 +63,36 @@ export const ReservationDetailSheet = forwardRef<BottomSheetModal, ReservationDe
           { text: 'Sí, anular', style: 'destructive', onPress: () => onCancelReservation(reservation!.id, justification) }, 
         ]
       )
-    }
+    }, [justification, onCancelReservation, reservation])
+
+    const renderBackdrop = useCallback(
+      (props: BottomSheetBackdropProps) => (
+        <BottomSheetBackdrop
+          {...props}
+          appearsOnIndex={0}
+          disappearsOnIndex={-1}
+          opacity={0.4}
+        />
+      ),
+      []
+    )
+
+    const renderFooter = useCallback(
+      (props: BottomSheetFooterProps) => (
+        <BottomSheetFooter {...props} bottomInset={Platform.OS === 'ios' ? 24 : 12}>
+          <View style={styles.stickyFooter}>
+            <TouchableOpacity 
+              style={[styles.formBtnPri, isCancelling && styles.formBtnDisabled, { marginTop: 0 }]} 
+              onPress={handleConfirmCancel}
+              disabled={isCancelling}
+            >
+              {isCancelling ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.formBtnPriText}>Confirmar Anulación</Text>}
+            </TouchableOpacity>
+          </View>
+        </BottomSheetFooter>
+      ),
+      [isCancelling, handleConfirmCancel]
+    )
 
     if (!reservation) return null
 
@@ -94,10 +121,15 @@ export const ReservationDetailSheet = forwardRef<BottomSheetModal, ReservationDe
         onDismiss={handleDismiss}
         keyboardBehavior="interactive"
         keyboardBlurBehavior="restore"
+        footerComponent={showCancellationForm ? renderFooter : undefined}
       >
         <BottomSheetScrollView
+          ref={scrollRef}
           style={styles.sheetScroll}
-          contentContainerStyle={styles.sheetContentContainer}
+          contentContainerStyle={[
+            styles.sheetContentContainer,
+            showCancellationForm && { paddingBottom: Platform.OS === 'ios' ? 240 : 200 }
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -113,13 +145,6 @@ export const ReservationDetailSheet = forwardRef<BottomSheetModal, ReservationDe
               contentFit="cover"
               transition={600}
             />
-            <TouchableOpacity 
-              style={styles.closeButton} 
-              onPress={() => (ref as any).current?.dismiss()}
-              activeOpacity={0.8}
-            >
-              <X size={20} color="#111827" />
-            </TouchableOpacity>
           </View>
 
           {/* Header */}
@@ -165,16 +190,18 @@ export const ReservationDetailSheet = forwardRef<BottomSheetModal, ReservationDe
               <Text style={styles.featureLabel}>{isCancelled ? 'Cancel.' : isPast ? 'Pasada' : 'Confir.'}</Text>
             </View>
 
-            <TouchableOpacity 
-              style={styles.featureItem} 
-              onPress={() => onDownloadCalendar(reservation)}
-              disabled={isDownloading}
-            >
-              <View style={[styles.featureIconBox, styles.bgAmber]}>
-                {isDownloading ? <ActivityIndicator size="small" color="#f59e0b" /> : <Download size={18} color="#f59e0b" />}
-              </View>
-              <Text style={styles.featureLabel}>Guardar</Text>
-            </TouchableOpacity>
+            {!isCancelled && (
+              <TouchableOpacity 
+                style={styles.featureItem} 
+                onPress={() => onDownloadCalendar(reservation)}
+                disabled={isDownloading}
+              >
+                <View style={[styles.featureIconBox, styles.bgAmber]}>
+                  {isDownloading ? <ActivityIndicator size="small" color="#f59e0b" /> : <Download size={18} color="#f59e0b" />}
+                </View>
+                <Text style={styles.featureLabel}>Guardar</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Audit / Price Section */}
@@ -233,16 +260,14 @@ export const ReservationDetailSheet = forwardRef<BottomSheetModal, ReservationDe
                         value={justification}
                         onChangeText={setJustification}
                         style={styles.compactInput}
+                        onFocus={() => {
+                          // Pequeño delay para dejar que el teclado suba y el footer se posicione
+                          setTimeout(() => {
+                            scrollRef.current?.scrollToEnd({ animated: true })
+                          }, 350)
+                        }}
                       />
                       {cancellationError ? <Text style={styles.tinyError}>{cancellationError}</Text> : null}
-                      
-                      <TouchableOpacity 
-                        style={[styles.formBtnPri, isCancelling && styles.formBtnDisabled]} 
-                        onPress={handleConfirmCancel}
-                        disabled={isCancelling}
-                      >
-                        {isCancelling ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.formBtnPriText}>Confirmar Anulación</Text>}
-                      </TouchableOpacity>
                     </View>
                   )}
                </View>
@@ -535,5 +560,10 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: '500',
     fontStyle: 'italic',
+  },
+  stickyFooter: {
+    paddingHorizontal: 24,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
   },
 })

@@ -6,32 +6,32 @@ import { useUser } from '@/providers/user-provider'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import * as Clipboard from 'expo-clipboard'
 import {
-  Building2,
-  CalendarDays,
-  Car,
-  Check,
-  CheckCircle2,
-  ChevronLeft,
-  Clipboard as ClipboardIcon,
-  Phone,
-  Share2,
-  User,
-  Users,
-  XCircle,
+    Building2,
+    CalendarDays,
+    Car,
+    Check,
+    CheckCircle2,
+    ChevronLeft,
+    Clipboard as ClipboardIcon,
+    Phone,
+    Share2,
+    User,
+    Users,
+    XCircle,
 } from 'lucide-react-native'
 import { MotiView } from 'moti'
 import React, { useMemo, useState } from 'react'
 import {
-  ActivityIndicator,
-  Linking,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Linking,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native'
 import Toast from 'react-native-toast-message'
 import { useDepartments } from './hooks/useDepartments'
@@ -275,7 +275,7 @@ Nos vemos pronto.`
         <View style={styles.header}>
           <TouchableOpacity onPress={onExit} style={styles.backButton} activeOpacity={0.85}>
             <ChevronLeft size={18} color="#6d28d9" />
-            <Text style={styles.backButtonLabel}>Volver</Text>
+            <Text style={styles.backButtonLabel}>Volver al inicio</Text>
           </TouchableOpacity>
 
           <View style={styles.headerCopy}>

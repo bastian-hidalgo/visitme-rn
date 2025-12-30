@@ -6,11 +6,6 @@ import GoogleLoginButton, {
   type GoogleLoginButtonStatus,
 } from '@/components/auth/GoogleLoginButton';
 import { ThemedText } from '@/components/themed-text';
-import { env } from '@/constants/env';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { supabase } from '@/lib/supabase';
-import { useSupabaseAuth } from '@/providers/supabase-auth-provider';
 import { BottomSheetBackdrop, BottomSheetModal, BottomSheetScrollView, BottomSheetTextInput, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { Image } from 'expo-image';
 import * as Linking from 'expo-linking';
@@ -28,6 +23,10 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
+import { env } from '../constants/env';
+import { supabase } from '../lib/supabase';
+import { useSupabaseAuth } from '../providers/supabase-auth-provider';
 
 const videoSource = require('@/assets/videos/login-bg.mp4');
 
@@ -41,12 +40,9 @@ const getMagicLinkRedirectUrl = () => {
 };
 
 export default function LoginScreen() {
-    const { session, isLoading: isAuthLoading, authRestrictionMessage, clearAuthRestrictionMessage } = useSupabaseAuth();
-    const colorScheme = useColorScheme();
-    const isDarkMode = colorScheme === 'dark';
-    const palette = Colors[colorScheme ?? 'light'];
-    const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+    const { session, isLoading: isAuthLoading, authRestrictionMessage } = useSupabaseAuth();
     const insets = useSafeAreaInsets();
+    const { height: windowHeight } = useWindowDimensions();
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -78,14 +74,21 @@ export default function LoginScreen() {
     }, [authRestrictionMessage]);
 
     const handleLogoPress = () => {
-        setLogoTapCount((prev) => {
-            const newCount = prev + 1;
-            if (newCount === 6) {
-                setShowPasswordInput(true);
-                return 0;
-            }
-            return newCount;
-        });
+        const nextCount = logoTapCount + 1;
+        
+        if (nextCount === 6) {
+            setShowPasswordInput(true);
+            setIsShowingEmailForm(true);
+            bottomSheetRef.current?.present();
+            Toast.show({
+                type: 'success',
+                text1: 'Modo demo activado',
+                text2: 'Ingreso con contraseña habilitado.'
+            });
+            setLogoTapCount(0);
+        } else {
+            setLogoTapCount(nextCount);
+        }
     };
 
     const snapPoints = useMemo(() => ['45%', '85%'], []);
@@ -106,16 +109,15 @@ export default function LoginScreen() {
             setStatusMessage(null);
             
             const emailRedirectTo = getMagicLinkRedirectUrl();
-            const { error } = await supabase.auth.signInWithOtp({
+            const { error: otpError } = await supabase.auth.signInWithOtp({
                 email: email.trim(),
                 options: { emailRedirectTo },
             });
             
-            if (error) throw error;
+            if (otpError) throw otpError;
             
             setStatusMessage('Enlace enviado. Revisa tu correo.');
-            // Close after a short delay or stay open? Let's stay open to show message
-        } catch (error: any) {
+        } catch (error) {
             setErrorMessage('Error al enviar el enlace. Intenta de nuevo.');
         } finally {
             setIsMagicLinkLoading(false);
@@ -196,7 +198,7 @@ export default function LoginScreen() {
                 style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]}
                 contentFit="cover"
                 nativeControls={false}
-                allowsFullscreen={false}
+                fullscreenOptions={{ enable: false }}
                 allowsPictureInPicture={false}
             />
             

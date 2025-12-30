@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
+import Toast from 'react-native-toast-message';
 
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -45,6 +46,7 @@ export default function RootLayout() {
 
             </Stack>
             <StatusBar style="auto" />
+            <Toast />
           </ThemeProvider>
         </ResidentProvider>
       </AppProviders>

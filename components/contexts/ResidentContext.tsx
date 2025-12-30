@@ -323,6 +323,7 @@ export const ResidentProvider = ({ children }: { children: React.ReactNode }) =>
       console.error('Error al cargar reservas:', e)
       setReservations([])
     } finally {
+      console.log(`[ResidentContext] 🏁 fetchReservations completed.`)
       setLoadingReservations(false)
     }
   }, [communityId, id])

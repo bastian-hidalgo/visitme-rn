@@ -30,8 +30,6 @@ export default function getReservationBannerStatus(
     return { status: 'none' }
   }
 
-  console.log(`[BannerStatus] ⏱️ now: ${now().format('YYYY-MM-DD HH:mm')}, today: ${today.format('YYYY-MM-DD')}`)
-
   // Ordenar por fecha
   const sorted = [...reservationsWithDate].sort(
     (a, b) => fromServerDate(a.date).valueOf() - fromServerDate(b.date).valueOf()
@@ -42,7 +40,6 @@ export default function getReservationBannerStatus(
     if (reservation.status === 'cancelado') return false
     const reservationDate = fromServerDate(reservation.date).startOf('day')
     const d = reservationDate.diff(today, 'day')
-    console.log(`[BannerStatus] 📅 Checking res ${reservation.id}: date=${reservation.date}, logical=${reservationDate.format('YYYY-MM-DD')}, diff=${d}`)
     return d >= 0
   })
 

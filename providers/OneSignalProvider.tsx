@@ -39,26 +39,20 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
       
       // 🛡️ Debounce simple: ignorar si es el mismo ID en menos de 2s
       if (lastNotificationIdRef.current === notificationId) {
-        console.log(`[OneSignal] 🛡️ Ignoring duplicate click for notification: ${notificationId}`)
         return
       }
       lastNotificationIdRef.current = notificationId
       setTimeout(() => { if (lastNotificationIdRef.current === notificationId) lastNotificationIdRef.current = null }, 2000)
 
-      console.log('🔴🔴🔴 [OneSignal] CLICK LISTENER FIRED! 🔴🔴🔴')
       const data = notification.additionalData
-      console.log('[OneSignal] Click data:', JSON.stringify(data, null, 2))
-      console.log('--------------------------------------------------')
       if (!data) return
       
       if (data.route === 'encomienda' || data.type === 'package-arrived') {
         const parcelId = data.parcel_id || data.id
-        console.log(`[OneSignal] 🚀 Navigating to DASHBOARD in-context for parcel: ${parcelId}`)
         navigateToDeepLink('/(tabs)', { parcelId })
       } 
       else if (data.route === 'reservation') {
         const id = data.id || data.reservation_id
-        console.log(`[OneSignal] 🗓️ Navigating to RESERVATION. ID: ${id}`)
         if (id) navigateToDeepLink('/reservations/[id]', { id })
       }
       else if (data.type === 'ALERTA' || data.route === 'alerta' || data.route === 'alert' || data.type === 'info') {

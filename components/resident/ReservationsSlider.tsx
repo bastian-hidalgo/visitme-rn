@@ -20,11 +20,12 @@ import EmptyActionCard from '@/components/ui/EmptyActionCard'
 import { supabase } from '@/lib/supabase'
 import { fromServerDate, getTZ, now } from '@/lib/time'
 import { useWeatherForReservations, type ReservationWithWeather } from '@/lib/useWeatherForReservations'
-import { useUser } from '@/providers/user-provider'
 import * as FileSystem from 'expo-file-system/legacy'
 import { useRouter } from 'expo-router'
 import { CalendarDays, History } from 'lucide-react-native'
 import { MotiView } from 'moti'
+import { cancelReservation as cancelReservationApi } from '../../lib/api/reservations'
+import { useUser } from '../../providers/user-provider'
 import ReservationCard from './ReservationCard'
 import { ReservationDetailSheet } from './ReservationDetailSheet'
 
@@ -170,6 +171,7 @@ export default function ReservationsSlider() {
 
   const performCancelReservation = useCallback(async (reasonArg?: string) => {
     const reasonToUse = reasonArg ?? justification
+    console.log(`[ReservationsSlider] 🛑 performCancelReservation called for: ${selectedReservation?.id}`, { reasonArg, justification })
     
     // Simple validation if reasonArg is provided directly
     if (reasonArg && reasonArg.trim().length < 5) {
@@ -182,30 +184,34 @@ export default function ReservationsSlider() {
     }
 
     try {
-      setIsCancelling(true)
-      setCancellationError('')
-
-      const { error } = await supabase
-        .from('common_space_reservations')
-        .update({
-          status: 'cancelado',
-          cancellation_reason: reasonToUse.trim(),
-        })
-        .eq('id', selectedReservation?.id)
-        .eq('reserved_by', userId)
-
-      if (error) {
-        console.error('Error al cancelar reserva:', error)
-        setCancellationError('Ocurrió un error al anular la reserva.')
-        return
+      if (!selectedReservation) {
+        throw new Error('No se seleccionó una reserva para anular.')
       }
 
+      console.log(`[ReservationsSlider] 🚀 API Request for ${selectedReservation.id}`)
+      setIsCancelling(true)
+      const sessionToken = (await supabase.auth.getSession()).data.session?.access_token
+
+      if (!sessionToken) {
+        throw new Error('No se pudo encontrar una sesión activa.')
+      }
+
+      console.log(`[ReservationsSlider] 🚀 Using API with community: ${communitySlug}`)
+
+      await cancelReservationApi(selectedReservation.id, reasonToUse.trim(), sessionToken, communitySlug || undefined)
+      
+      console.log(`[ReservationsSlider] ✅ API Success`)
+
       Toast.show({ type: 'success', text1: 'Reserva anulada correctamente' })
+      
+      console.log(`[ReservationsSlider] 🔄 Fetching updated reservations...`)
       await fetchReservations()
+      
+      console.log(`[ReservationsSlider] 🏁 Closing detail modal.`)
       closeDetail()
-    } catch (error) {
-      console.error('Error inesperado al cancelar reserva:', error)
-      setCancellationError('Ocurrió un error inesperado. Inténtalo nuevamente.')
+    } catch (error: any) {
+      console.error('[ReservationsSlider] ❌ Error:', error)
+      setCancellationError(error.message || 'Ocurrió un error al anular la reserva.')
     } finally {
       setIsCancelling(false)
     }
