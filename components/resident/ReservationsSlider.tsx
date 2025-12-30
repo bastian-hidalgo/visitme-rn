@@ -2,18 +2,7 @@ import {
     BottomSheetModal
 } from '@gorhom/bottom-sheet'
 import { useIsFocused } from '@react-navigation/native'
-import dayjs from 'dayjs'
-import 'dayjs/locale/es'
-import timezone from 'dayjs/plugin/timezone'
-import utc from 'dayjs/plugin/utc'
-import * as FileSystem from 'expo-file-system/legacy'
-import { useRouter } from 'expo-router'
-import {
-    CalendarDays,
-    History
-} from 'lucide-react-native'
-import { MotiView } from 'moti'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     Dimensions,
     FlatList,
@@ -29,15 +18,18 @@ import Toast from 'react-native-toast-message'
 import { useResidentContext } from '@/components/contexts/ResidentContext'
 import EmptyActionCard from '@/components/ui/EmptyActionCard'
 import { supabase } from '@/lib/supabase'
+import dayjs, { fromServerDate, getTZ, now } from '@/lib/time'
 import { useWeatherForReservations, type ReservationWithWeather } from '@/lib/useWeatherForReservations'
 import { useUser } from '@/providers/user-provider'
+import * as FileSystem from 'expo-file-system/legacy'
+import { useRouter } from 'expo-router'
+import { CalendarDays, History } from 'lucide-react-native'
+import { MotiView } from 'moti'
 import ReservationCard from './ReservationCard'
 import { ReservationDetailSheet } from './ReservationDetailSheet'
 
-dayjs.extend(utc)
-dayjs.extend(timezone)
-dayjs.locale('es')
-const tz = dayjs.tz.guess()
+// Tz de referencia sacada de dayjs configurado en @/lib/time
+const tz = getTZ()
 
 const { width } = Dimensions.get('window')
 
@@ -55,7 +47,7 @@ export default function ReservationsSlider() {
   const { communitySlug, id: userId } = useUser()
   const router = useRouter()
   const filteredReservations = useMemo(() => {
-    const today = dayjs().startOf('day')
+    const today = now().startOf('day')
     const sevenDaysAgo = today.subtract(7, 'day')
     
     return [...reservations]
@@ -230,7 +222,7 @@ export default function ReservationsSlider() {
 
     try {
       setIsDownloading(true)
-      const baseDate = dayjs.utc(selectedReservation.date).tz(tz, true)
+      const baseDate = fromServerDate(selectedReservation.date)
       const startHour =
         selectedReservation.block === 'morning'
           ? 9
@@ -257,7 +249,7 @@ export default function ReservationsSlider() {
 
       const description = escapeICS(descriptionLines)
       const location = escapeICS(selectedReservation.common_space_name ?? 'Espacio común')
-      const nowStamp = dayjs().utc().format('YYYYMMDD[T]HHmmss[Z]')
+      const nowStamp = now().utc().format('YYYYMMDD[T]HHmmss[Z]')
       const dtStart = `${startDateTime.format('YYYYMMDD[T]HHmmss')}`
       const dtEnd = `${endDateTime.format('YYYYMMDD[T]HHmmss')}`
 
@@ -444,188 +436,5 @@ const styles = StyleSheet.create({
   listContent: {
     paddingRight: 16,
     paddingBottom: 24,
-  },
-  sheetBackground: {
-    backgroundColor: '#0f172a',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-  },
-  sheetHandle: {
-    backgroundColor: 'rgba(255,255,255,0.3)',
-  },
-  sheetScroll: {
-    paddingHorizontal: 20,
-  },
-  sheetContentContainer: {
-    paddingBottom: 36,
-  },
-  sheetHeroContainer: {
-    borderRadius: 22,
-    overflow: 'hidden',
-    marginTop: 12,
-    marginBottom: 24,
-  },
-  sheetHeroImage: {
-    width: '100%',
-    height: 220,
-  },
-  sheetHeroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  sheetHeroContent: {
-    position: 'absolute',
-    bottom: 24,
-    left: 20,
-    right: 20,
-    gap: 8,
-  },
-  sheetStatus: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  sheetTitle: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '800',
-  },
-  sheetInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  sheetInfoText: {
-    color: '#E2E8F0',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  sheetSection: {
-    marginBottom: 24,
-  },
-  sheetSectionTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  sheetSectionDescription: {
-    color: 'rgba(226,232,240,0.7)',
-    fontSize: 13,
-    marginBottom: 12,
-    lineHeight: 18,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(148,163,184,0.3)',
-  },
-  detailLabel: {
-    color: 'rgba(226,232,240,0.75)',
-    fontSize: 14,
-  },
-  detailValue: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  cancellationReasonBox: {
-    flexDirection: 'row',
-    gap: 12,
-    backgroundColor: 'rgba(248,113,113,0.12)',
-    padding: 16,
-    borderRadius: 16,
-  },
-  cancellationReasonText: {
-    color: '#FCA5A5',
-    fontSize: 14,
-    flex: 1,
-    lineHeight: 20,
-  },
-  input: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.35)',
-    padding: 16,
-    color: '#fff',
-    minHeight: 120,
-    marginBottom: 12,
-    backgroundColor: 'rgba(15,23,42,0.35)',
-  },
-  errorText: {
-    color: '#FCA5A5',
-    fontSize: 13,
-    marginBottom: 12,
-  },
-  expandCancelButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(248,113,113,0.4)',
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    backgroundColor: 'rgba(15,23,42,0.35)',
-  },
-  expandCancelText: {
-    color: '#fca5a5',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  cancelButton: {
-    backgroundColor: '#ef4444',
-    paddingVertical: 14,
-    borderRadius: 16,
-    alignItems: 'center',
-    flex: 1,
-  },
-  cancelButtonDisabled: {
-    opacity: 0.6,
-  },
-  cancelButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  cancelActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  cancelSecondaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.35)',
-    backgroundColor: 'rgba(15,23,42,0.2)',
-  },
-  cancelSecondaryText: {
-    color: '#cbd5f5',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  calendarButton: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FBBF24',
-    paddingVertical: 14,
-    borderRadius: 16,
-  },
-  calendarButtonDisabled: {
-    opacity: 0.6,
-  },
-  calendarButtonText: {
-    color: '#111827',
-    fontWeight: '700',
-    fontSize: 15,
   },
 })

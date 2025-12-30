@@ -1,28 +1,22 @@
 import {
-  BottomSheetBackdrop,
-  BottomSheetModal,
-  BottomSheetScrollView,
-  BottomSheetTextInput,
-  type BottomSheetBackdropProps,
+    BottomSheetBackdrop,
+    BottomSheetModal,
+    BottomSheetScrollView,
+    BottomSheetTextInput,
+    type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet'
-import dayjs from 'dayjs'
-import 'dayjs/locale/es'
-import timezone from 'dayjs/plugin/timezone'
-import utc from 'dayjs/plugin/utc'
 import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Banknote, Clock3, Download, Info, MapPin, ShieldAlert, XCircle } from 'lucide-react-native'
-import React, { forwardRef, useCallback, useMemo, useState } from 'react'
+import { forwardRef, useCallback, useMemo, useState } from 'react'
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 
 import getUrlImageFromStorage from '@/lib/getUrlImageFromStorage'
+import dayjs, { fromServerDate, getTZ, now } from '@/lib/time'
 import { type ReservationWithWeather } from '@/lib/useWeatherForReservations'
 
-// Configuración de dayjs
-dayjs.extend(utc)
-dayjs.extend(timezone)
-dayjs.locale('es')
-const tz = dayjs.tz.guess()
+// Extensiones ya manejadas en @/lib/time
+const tz = getTZ() || 'America/Santiago'
 
 export type ReservationDetailSheetProps = {
   reservation: ReservationWithWeather | null
@@ -74,14 +68,14 @@ export const ReservationDetailSheet = forwardRef<BottomSheetModal, ReservationDe
         '¿Estás seguro de que deseas anular esta reserva?',
         [
           { text: 'Mantener', style: 'cancel' },
-          { text: 'Sí, anular', style: 'destructive', onPress: () => onCancelReservation(reservation!.id, justification) }, // reservation is checked in parent usually, but good to check
+          { text: 'Sí, anular', style: 'destructive', onPress: () => onCancelReservation(reservation!.id, justification) }, 
         ]
       )
     }
 
     if (!reservation) return null
 
-    const isPast = dayjs(reservation.date).isBefore(dayjs(), 'day')
+    const isPast = dayjs(reservation.date).isBefore(now(), 'day')
 
     return (
       <BottomSheetModal
@@ -138,7 +132,9 @@ export const ReservationDetailSheet = forwardRef<BottomSheetModal, ReservationDe
                 <View style={styles.sheetInfoRow}>
                   <Clock3 size={18} color="#fff" />
                   <Text style={styles.sheetInfoText}>
-                    {dayjs.utc(reservation.date).tz(tz, true).format('dddd DD [de] MMMM YYYY')}
+                    {reservation.date 
+                      ? fromServerDate(reservation.date).format('dddd DD [de] MMMM YYYY')
+                      : 'Fecha no disponible'}
                   </Text>
                 </View>
                 <View style={styles.sheetInfoRow}>
@@ -217,7 +213,7 @@ export const ReservationDetailSheet = forwardRef<BottomSheetModal, ReservationDe
               </View>
             )}
 
-            {!(reservation.status === 'cancelado' || dayjs(reservation.date).isBefore(dayjs(), 'day')) && (
+            {!(reservation.status === 'cancelado' || dayjs(reservation.date).isBefore(now(), 'day')) && (
               <>
                 <View style={styles.sheetSection}>
                   <Text style={styles.sheetSectionTitle}>Anular reserva</Text>

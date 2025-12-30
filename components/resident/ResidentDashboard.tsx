@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient'
 import { MotiView } from 'moti'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LayoutChangeEvent, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -43,7 +43,7 @@ export default function ResidentDashboard() {
       shadowOpacity: progress ? 0.3 : 0,
     }
   })
-  const { packages, selectedParcel, setParcelDetail, setPendingParcelId, setPendingAlertId, setPendingReservationId, reservations, refreshAll } = useResidentContext()
+  const { packages, selectedParcel, setParcelDetail, setPendingParcelId, setPendingAlertId, setPendingReservationId, reservations, refreshAll, surveys } = useResidentContext()
   const { parcelId, alertId, reservationId } = useLocalSearchParams<{ parcelId: string; alertId: string; reservationId: string }>()
 
   const router = useRouter()
@@ -190,22 +190,24 @@ export default function ResidentDashboard() {
                 style={styles.sectionWrapper}
                 onLayout={registerSection('hero')}
               >
-                <View style={styles.sectionSurface}>
+                <View style={[styles.sectionSurface, styles.heroSurface]}>
                   <HeroBanner reservationStatus={status} reservationDate={formattedDate} />
                 </View>
               </MotiView>
 
               {/* Encuestas */}
-              <MotiView
-                from={{ opacity: 0, translateY: 20 }}
-                animate={{ opacity: 1, translateY: 0 }}
-                transition={{ delay: 100, duration: 400 }}
-                style={styles.sectionWrapper}
-              >
-                <View style={styles.sectionSurface}>
-                  <SurveysSlider />
-                </View>
-              </MotiView>
+              {surveys.length > 0 && (
+                <MotiView
+                  from={{ opacity: 0, translateY: 20 }}
+                  animate={{ opacity: 1, translateY: 0 }}
+                  transition={{ delay: 100, duration: 400 }}
+                  style={styles.sectionWrapper}
+                >
+                  <View style={styles.sectionSurface}>
+                    <SurveysSlider />
+                  </View>
+                </MotiView>
+              )}
 
               {/* Noticias */}
               <MotiView
@@ -351,13 +353,16 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   sectionSurface: {
-    marginBottom: 24,
+    marginBottom: 8,
     shadowColor: 'rgba(256, 256, 256, 0)',
     shadowOpacity: 1,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 10 },
     elevation: 6,
     backgroundColor: '#FFFFFF'
+  },
+  heroSurface: {
+    marginBottom: 0,
   },
   placeholder: {
     alignItems: 'center',

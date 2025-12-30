@@ -253,11 +253,13 @@ export default function LoginScreen() {
                     : 'Ingresa tu correo y te enviaremos un enlace mágico para iniciar sesión.'}
                 </ThemedText>
               </View>
-              <AppleLoginButton
-                onStatusChange={handleAppleStatusChange}
-                onSuccess={handleAppleSuccess}
-                disabled={isBusy}
-              />
+              {Platform.OS === 'ios' && (
+                <AppleLoginButton
+                  onStatusChange={handleAppleStatusChange}
+                  onSuccess={handleAppleSuccess}
+                  disabled={isBusy}
+                />
+              )}
               <GoogleLoginButton
                 onStatusChange={handleGoogleStatusChange}
                 onSuccess={handleGoogleSuccess}

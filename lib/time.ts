@@ -13,7 +13,8 @@ dayjsLib.extend(localizedFormat)
 dayjsLib.extend(relativeTime)
 dayjsLib.locale('es')
 
-const TZ = env.timezone || 'America/Santiago'
+export const TZ = env.timezone || 'America/Santiago'
+dayjsLib.tz.setDefault(TZ)
 const DATETIME_FORMAT = env.datetimeFormat || 'YYYY-MM-DD HH:mm'
 const DATE_FORMAT = env.dateFormat || 'YYYY-MM-DD'
 const TIME_FORMAT = env.timeFormat || 'HH:mm'
@@ -21,8 +22,40 @@ const TIME_FORMAT = env.timeFormat || 'HH:mm'
 // Detección básica de RN / web
 const isReactNative = typeof navigator !== 'undefined' && navigator.product === 'ReactNative'
 
-export const dayjs = (value?: ConfigType): Dayjs => dayjsLib(value)
-export const now = (): Dayjs => dayjsLib()
+export const now = (): Dayjs => {
+  // Intentamos obtener el tiempo en la zona destino usando el plugin oficial
+  let d = dayjsLib.tz()
+
+  // ✅ Fallback para React Native: si el plugin no restó el offset (la hora sigue igual que UTC)
+  // y no estamos queriendo explícitamente UTC, forzamos la obtención vía Intl.
+  if (isReactNative && d.hour() === dayjsLib.utc().hour() && TZ !== 'UTC') {
+    try {
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: TZ,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      })
+      
+      // format(Date) en en-CA devuelve "YYYY-MM-DD, HH:mm:ss"
+      const parts = formatter.format(new Date()).replace(', ', 'T')
+      const logical = dayjsLib(parts).tz(TZ, true)
+      
+      if (logical.isValid()) return logical
+    } catch (e) {
+      // Sin Intl disponible o error de zona, retornamos el original
+      return d
+    }
+  }
+
+  return d
+}
+
+export const dayjs = (value?: ConfigType): Dayjs => (value ? dayjsLib(value) : now())
 
 /**
  * Corrige la conversión UTC → local para RN.
@@ -62,8 +95,22 @@ export const fromServer = (value: ConfigType): Dayjs => {
   return converted.isValid() ? converted : dayjsLib()
 }
 
-export const fromServerDate = (value: ConfigType): Dayjs =>
-  dayjsLib.utc(value).tz(TZ, true)
+export const fromServerDate = (value: ConfigType): Dayjs => {
+  if (!value) return now().startOf('day')
+
+  // Si ya es un objeto dayjs, asegurar que esté en la zona correcta
+  if (typeof value === 'object' && value !== null && (value as any).isDayjs) {
+    return (value as Dayjs).tz(TZ)
+  }
+
+  const str = String(value).trim()
+  // Extraer solo la parte de la fecha (YYYY-MM-DD) para evitar ruidos de T00:00:00Z
+  const match = str.match(/^(\d{4}-\d{2}-\d{2})/)
+  const datePart = match ? match[1] : str
+
+  // Parsear como UTC (para ignorar shift inicial) y mapear a Santiago manteniendo la hora literal
+  return dayjsLib.utc(datePart).tz(TZ, true).startOf('day')
+}
 
 export const formatDateLogical = (value: ConfigType): string => {
   if (!value) return ''
