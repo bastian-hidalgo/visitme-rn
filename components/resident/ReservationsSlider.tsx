@@ -341,7 +341,7 @@ export default function ReservationsSlider() {
         renderItem={({ item }) =>
           item.id === 'new' ? (
             <View style={styles.cardWrapper}>
-              <EmptyActionCard onCreate={handleNavigateToWizard} width="w-full" height="h-[220px]">
+              <EmptyActionCard onCreate={handleNavigateToWizard} width="w-full" height="h-[320px]">
                 Agendar nueva{'\n'}reserva
               </EmptyActionCard>
             </View>
@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   cardWrapper: {
-    width: width * 0.72,
+    width: 210,
     marginRight: 16,
     paddingBottom: 8,
   },

@@ -6,17 +6,13 @@ import {
     type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet'
 import { Image } from 'expo-image'
-import { LinearGradient } from 'expo-linear-gradient'
-import { Banknote, Clock3, Download, Info, MapPin, ShieldAlert, XCircle } from 'lucide-react-native'
+import { Calendar, CheckCircle2, ChevronRight, Clock, Cloud, CloudRain, Download, Info, MapPin, ShieldAlert, Sun, Wallet, Wind, X, XCircle } from 'lucide-react-native'
 import { forwardRef, useCallback, useMemo, useState } from 'react'
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 
 import getUrlImageFromStorage from '@/lib/getUrlImageFromStorage'
-import dayjs, { fromServerDate, getTZ, now } from '@/lib/time'
+import { fromServerDate, now } from '@/lib/time'
 import { type ReservationWithWeather } from '@/lib/useWeatherForReservations'
-
-// Extensiones ya manejadas en @/lib/time
-const tz = getTZ() || 'America/Santiago'
 
 export type ReservationDetailSheetProps = {
   reservation: ReservationWithWeather | null
@@ -40,8 +36,7 @@ export const ReservationDetailSheet = forwardRef<BottomSheetModal, ReservationDe
           {...props}
           appearsOnIndex={0}
           disappearsOnIndex={-1}
-          opacity={0.6}
-          style={{ backgroundColor: 'rgba(15,23,42,0.65)' }}
+          opacity={0.4}
         />
       ),
       []
@@ -49,7 +44,6 @@ export const ReservationDetailSheet = forwardRef<BottomSheetModal, ReservationDe
 
     const handleDismiss = useCallback(() => {
       onClose()
-      // Reset form state on close
       setTimeout(() => {
         setShowCancellationForm(false)
         setJustification('')
@@ -75,7 +69,18 @@ export const ReservationDetailSheet = forwardRef<BottomSheetModal, ReservationDe
 
     if (!reservation) return null
 
-    const isPast = dayjs(reservation.date).isBefore(now(), 'day')
+    const dateObj = fromServerDate(reservation.date)
+    const isPast = dateObj.isBefore(now(), 'day')
+    const isCancelled = reservation.status === 'cancelado'
+
+    const weatherIcon = (() => {
+      switch (reservation.weather) {
+        case 'rainy': return <CloudRain size={20} color="#6366f1" />
+        case 'cloudy': return <Cloud size={20} color="#6366f1" />
+        case 'windy': return <Wind size={20} color="#6366f1" />
+        default: return <Sun size={20} color="#f59e0b" />
+      }
+    })()
 
     return (
       <BottomSheetModal
@@ -89,240 +94,181 @@ export const ReservationDetailSheet = forwardRef<BottomSheetModal, ReservationDe
         onDismiss={handleDismiss}
         keyboardBehavior="interactive"
         keyboardBlurBehavior="restore"
-        bottomInset={Platform.OS === 'ios' ? 36 : 24}
       >
         <BottomSheetScrollView
-            style={styles.sheetScroll}
-            contentContainerStyle={styles.sheetContentContainer}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={styles.sheetHeroContainer}>
-              <Image
-                source={{
-                  uri:
-                    getUrlImageFromStorage(
-                      reservation.common_space_image_url ?? '',
-                      'common-spaces'
-                    ) ||
-                    getUrlImageFromStorage(
-                      reservation.common_space_image_url ?? '',
-                      'common-space-images'
-                    ) ||
-                    'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb',
-                }}
-                style={styles.sheetHeroImage}
-                contentFit="cover"
-              />
-              <LinearGradient colors={['rgba(15,23,42,0.85)', 'transparent']} style={styles.sheetHeroOverlay} />
+          style={styles.sheetScroll}
+          contentContainerStyle={styles.sheetContentContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Hero Section */}
+          <View style={styles.heroWrapper}>
+            <Image
+              source={{
+                uri:
+                  getUrlImageFromStorage(reservation.common_space_image_url || '', 'common-spaces') ||
+                  'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb',
+              }}
+              style={styles.heroImage}
+              contentFit="cover"
+              transition={600}
+            />
+            <TouchableOpacity 
+              style={styles.closeButton} 
+              onPress={() => (ref as any).current?.dismiss()}
+              activeOpacity={0.8}
+            >
+              <X size={20} color="#111827" />
+            </TouchableOpacity>
+          </View>
 
-              <View style={styles.sheetHeroContent}>
-                <Text style={styles.sheetStatus}>
-                  {(reservation as any).status === 'cancelado'
-                    ? 'Reserva cancelada'
-                    : isPast
-                      ? 'Reserva Concretada'
-                      : ((reservation as any).cost_applied === 0 || (reservation as any).is_grace_use)
-                        ? 'Reserva confirmada - Gratis'
-                        : (reservation as any).status === 'pendiente'
-                          ? 'Reserva pendiente'
-                          : 'Reserva confirmada'}
-                </Text>
-                <Text style={styles.sheetTitle}>{reservation.common_space_name ?? 'Espacio VisitMe'}</Text>
-                <View style={styles.sheetInfoRow}>
-                  <Clock3 size={18} color="#fff" />
-                  <Text style={styles.sheetInfoText}>
-                    {reservation.date 
-                      ? fromServerDate(reservation.date).format('dddd DD [de] MMMM YYYY')
-                      : 'Fecha no disponible'}
-                  </Text>
-                </View>
-                <View style={styles.sheetInfoRow}>
-                  <MapPin size={18} color="#fff" />
-                  <Text style={styles.sheetInfoText}>Departamento {reservation.department_number ?? '-'}</Text>
-                </View>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>{reservation.common_space_name ?? 'Espacio Común'}</Text>
+            <View style={styles.locationRow}>
+              <MapPin size={14} color="#94A3B8" />
+              <Text style={styles.locationText}>Departamento {reservation.department_number ?? '-'}</Text>
+            </View>
+          </View>
+
+          {/* Features Row - Consolidated */}
+          <View style={styles.featuresContainer}>
+            <View style={styles.featureItem}>
+              <View style={styles.featureIconBox}>
+                <Calendar size={18} color="#6366f1" />
               </View>
+              <Text style={styles.featureLabel}>{dateObj.format('DD MMM')}</Text>
             </View>
 
-            <View style={styles.sheetSection}>
-              <Text style={styles.sheetSectionTitle}>Detalles</Text>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Bloque</Text>
-                <Text style={styles.detailValue}>
-                  {reservation.block === 'morning'
-                    ? 'Mañana (AM)'
-                    : reservation.block === 'afternoon'
-                      ? 'Tarde (PM)'
-                      : 'Sin horario definido'}
-                </Text>
+            <View style={styles.featureItem}>
+              <View style={styles.featureIconBox}>
+                <Clock size={18} color="#6366f1" />
               </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Duración</Text>
-                <Text style={styles.detailValue}>
-                  {reservation.duration_hours
-                    ? `${reservation.duration_hours} hora(s)`
-                    : 'Sin información'}
-                </Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Estado cobro</Text>
-                <Text style={[styles.detailValue, { color: (reservation as any).cost_applied === 0 || (reservation as any).is_grace_use || !(reservation as any).cost_applied ? '#64748b' : '#15803d' }]}>
-                  {(reservation as any).cost_applied === 0 || (reservation as any).is_grace_use || !(reservation as any).cost_applied
-                    ? 'Gratis / Exento'
-                    : (reservation as any).payment_status === 'paid'
-                      ? 'Pagado'
-                      : (reservation as any).payment_status === 'pending'
-                        ? 'Por Pagar'
-                        : 'Pendiente'}
-                </Text>
-              </View>
+              <Text style={styles.featureLabel}>
+                {reservation.block === 'morning' ? 'AM' : reservation.block === 'afternoon' ? 'PM' : 'Día'}
+              </Text>
             </View>
 
-            {(reservation as any).cost_applied !== undefined && (
-              <View style={styles.sheetSection}>
-                <Text style={styles.sheetSectionTitle}>Transparencia y Cobros</Text>
-                <View style={styles.auditCard}>
-                  <View style={styles.auditRow}>
-                    <Banknote size={18} color="#4338ca" />
-                    <View style={styles.auditInfo}>
-                      <Text style={styles.auditLabel}>Monto Aplicado</Text>
-                      <Text style={styles.auditValue}>
-                        {(reservation as any).cost_applied > 0 
-                          ? `$${Math.round((reservation as any).cost_applied).toLocaleString('es-CL')}`
-                          : 'Gratis / Exento'}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.auditDivider} />
-                  <View style={styles.auditRow}>
-                    <Info size={18} color="#4338ca" />
-                    <View style={styles.auditInfo}>
-                      <Text style={styles.auditLabel}>Motivo / Concepto</Text>
-                      <Text style={styles.auditDescription}>
-                        {(reservation as any).is_grace_use
-                          ? 'Día de gracia utilizado (Costo $0)'
-                          : (reservation as any).cost_applied > 0
-                            ? reservation.status === 'cancelado'
-                              ? 'Anulación fuera de plazo o política de la comunidad'
-                              : 'Reserva pagada (exceso de días de gracia o espacio con costo)'
-                            : 'Reserva sin costo o exenta'}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
+            <View style={styles.featureItem}>
+              <View style={styles.featureIconBox}>
+                {weatherIcon}
               </View>
-            )}
+              <Text style={styles.featureLabel}>
+                {reservation.weather_description ? (reservation.weather_description.split(' ')[0]) : 'Clima'}
+              </Text>
+            </View>
 
-            {!(reservation.status === 'cancelado' || dayjs(reservation.date).isBefore(now(), 'day')) && (
-              <>
-                <View style={styles.sheetSection}>
-                  <Text style={styles.sheetSectionTitle}>Anular reserva</Text>
-                  {dayjs(reservation.date).isToday() ? (
-                    <View style={[styles.cancellationReasonBox, { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.1)' }]}>
-                      <Info size={18} color="#94a3b8" />
-                      <Text style={[styles.cancellationReasonText, { color: '#94a3b8' }]}>
-                        No es posible anular reservas el mismo día del evento.
-                      </Text>
-                    </View>
+            <View style={styles.featureItem}>
+              <View style={[styles.featureIconBox, isCancelled ? styles.bgRed : isPast ? styles.bgGray : styles.bgGreen]}>
+                {isCancelled ? <XCircle size={18} color="#ef4444" /> : isPast ? <Clock size={18} color="#64748b" /> : <CheckCircle2 size={18} color="#22c55e" />}
+              </View>
+              <Text style={styles.featureLabel}>{isCancelled ? 'Cancel.' : isPast ? 'Pasada' : 'Confir.'}</Text>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.featureItem} 
+              onPress={() => onDownloadCalendar(reservation)}
+              disabled={isDownloading}
+            >
+              <View style={[styles.featureIconBox, styles.bgAmber]}>
+                {isDownloading ? <ActivityIndicator size="small" color="#f59e0b" /> : <Download size={18} color="#f59e0b" />}
+              </View>
+              <Text style={styles.featureLabel}>Guardar</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Audit / Price Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Transparencia y Cobros</Text>
+            <View style={styles.auditCard}>
+              <View style={styles.auditMain}>
+                <View style={styles.auditPriceBox}>
+                  <Wallet size={18} color="#374151" />
+                  <Text style={styles.auditPriceLabel}>Monto Aplicado</Text>
+                </View>
+                <Text style={styles.auditAmount}>
+                  {(reservation as any).cost_applied > 0 
+                    ? `$${Math.round((reservation as any).cost_applied).toLocaleString('es-CL')}`
+                    : 'Gratis'}
+                </Text>
+              </View>
+              {(reservation as any).is_grace_use && (
+                <View style={styles.auditDetails}>
+                  <View style={styles.auditDot} />
+                  <Text style={styles.auditDetailText}>Día de gracia utilizado</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Cancellation Section */}
+          {!(isCancelled || isPast) && (
+            <View style={styles.section}>
+               <Text style={styles.sectionTitle}>Gestión</Text>
+               <View style={styles.managementBox}>
+                  {!showCancellationForm ? (
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => setShowCancellationForm(true)}
+                      style={styles.cancelListItem}
+                    >
+                      <View style={styles.cancelIconCircle}>
+                        <X size={16} color="#EF4444" />
+                      </View>
+                      <Text style={styles.cancelListText}>Anular mi reserva</Text>
+                      <ChevronRight size={18} color="#94A3B8" />
+                    </TouchableOpacity>
                   ) : (
-                    <>
-                      <Text style={styles.sheetSectionDescription}>
-                        Cuéntanos el motivo para que podamos notificar al equipo de la comunidad.
-                      </Text>
-
-                      {!showCancellationForm ? (
-                        <TouchableOpacity
-                          activeOpacity={0.85}
-                          onPress={() => {
-                            setShowCancellationForm(true)
-                            setCancellationError('')
-                          }}
-                          style={styles.expandCancelButton}
-                        >
-                          <ShieldAlert size={18} color="#ef4444" />
-                          <Text style={styles.expandCancelText}>Escribir justificación</Text>
+                    <View style={styles.cancellationForm}>
+                      <View style={styles.formHeader}>
+                        <Text style={styles.cancelIntroText}>Motivo de la anulación</Text>
+                        <TouchableOpacity onPress={() => setShowCancellationForm(false)}>
+                          <Text style={styles.descartarLink}>Cerrar</Text>
                         </TouchableOpacity>
-                      ) : (
-                        <>
-                          <BottomSheetTextInput
-                            placeholder="Escribe tu justificación"
-                            placeholderTextColor="rgba(255,255,255,0.5)"
-                            multiline
-                            value={justification}
-                            onChangeText={setJustification}
-                            style={styles.input}
-                            textAlignVertical="top"
-                            enablesReturnKeyAutomatically
-                          />
-                          {cancellationError ? (
-                            <Text style={styles.errorText}>{cancellationError}</Text>
-                          ) : null}
-                          <View style={styles.cancelActionsRow}>
-                            <TouchableOpacity
-                              activeOpacity={0.85}
-                              onPress={() => {
-                                setShowCancellationForm(false)
-                                setJustification('')
-                                setCancellationError('')
-                              }}
-                              style={styles.cancelSecondaryButton}
-                            >
-                              <XCircle size={18} color="#cbd5f5" />
-                              <Text style={styles.cancelSecondaryText}>Descartar</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              activeOpacity={0.85}
-                              onPress={handleConfirmCancel}
-                              disabled={isCancelling}
-                              style={[styles.cancelButton, isCancelling && styles.cancelButtonDisabled]}
-                            >
-                              {isCancelling ? (
-                                <ActivityIndicator color="#fff" />
-                              ) : (
-                                <Text style={styles.cancelButtonText}>Confirmar anulación</Text>
-                              )}
-                            </TouchableOpacity>
-                          </View>
-                        </>
-                      )}
-                    </>
+                      </View>
+                      <BottomSheetTextInput
+                        placeholder="Ej: Ya no podré asistir..."
+                        placeholderTextColor="#94A3B8"
+                        multiline
+                        value={justification}
+                        onChangeText={setJustification}
+                        style={styles.compactInput}
+                      />
+                      {cancellationError ? <Text style={styles.tinyError}>{cancellationError}</Text> : null}
+                      
+                      <TouchableOpacity 
+                        style={[styles.formBtnPri, isCancelling && styles.formBtnDisabled]} 
+                        onPress={handleConfirmCancel}
+                        disabled={isCancelling}
+                      >
+                        {isCancelling ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.formBtnPriText}>Confirmar Anulación</Text>}
+                      </TouchableOpacity>
+                    </View>
                   )}
-                </View>
+               </View>
 
-                <View style={styles.sheetSection}>
-                  <Text style={styles.sheetSectionTitle}>Agregar a tu calendario</Text>
-                  <Text style={styles.sheetSectionDescription}>
-                    Descarga el evento en formato compatible con tu calendario personal.
-                  </Text>
-                  <TouchableOpacity
-                    activeOpacity={0.88}
-                    onPress={() => onDownloadCalendar(reservation)}
-                    disabled={isDownloading}
-                    style={[styles.calendarButton, isDownloading && styles.calendarButtonDisabled]}
-                  >
-                    {isDownloading ? (
-                      <ActivityIndicator color="#111827" />
-                    ) : (
-                      <>
-                        <Download size={18} color="#111827" />
-                        <Text style={styles.calendarButtonText}>Descargar evento (.ics)</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
+               {fromServerDate(reservation.date).isToday() && (
+                  <View style={styles.warningBox}>
+                    <Info size={14} color="#64748B" />
+                    <Text style={styles.warningText}>No se pueden anular reservas el mismo día.</Text>
+                  </View>
+               )}
+            </View>
+          )}
 
-            {reservation.status === 'cancelado' && reservation.cancellation_reason && (
-              <View style={styles.sheetSection}>
-                <Text style={styles.sheetSectionTitle}>Motivo de cancelación</Text>
-                <View style={styles.cancellationReasonBox}>
-                  <ShieldAlert size={18} color="#F87171" />
-                  <Text style={styles.cancellationReasonText}>{reservation.cancellation_reason}</Text>
+          {isCancelled && reservation.cancellation_reason && (
+             <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Motivo de la anulación</Text>
+                <View style={styles.reasonCard}>
+                  <ShieldAlert size={18} color="#EF4444" style={{ marginTop: 2 }} />
+                  <Text style={styles.reasonText}>{reservation.cancellation_reason}</Text>
                 </View>
-              </View>
-            )}
-          </BottomSheetScrollView>
+             </View>
+          )}
+
+          {/* Bottom Space */}
+          <View style={{ height: 40 }} />
+        </BottomSheetScrollView>
       </BottomSheetModal>
     )
   }
@@ -332,223 +278,262 @@ ReservationDetailSheet.displayName = 'ReservationDetailSheet'
 
 const styles = StyleSheet.create({
   sheetBackground: {
-    backgroundColor: '#0f172a',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 36,
+    borderTopRightRadius: 36,
   },
   sheetHandle: {
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: '#E2E8F0',
+    width: 36,
   },
   sheetScroll: {
-    paddingHorizontal: 20,
+    flex: 1,
   },
   sheetContentContainer: {
-    paddingBottom: 36,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
   },
-  sheetHeroContainer: {
-    borderRadius: 22,
-    overflow: 'hidden',
-    marginTop: 12,
-    marginBottom: 24,
+  heroWrapper: {
+    padding: 16,
+    position: 'relative',
   },
-  sheetHeroImage: {
+  heroImage: {
     width: '100%',
-    height: 220,
+    height: 200,
+    borderRadius: 24,
   },
-  sheetHeroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  sheetHeroContent: {
+  closeButton: {
     position: 'absolute',
-    bottom: 24,
-    left: 20,
-    right: 20,
-    gap: 8,
-  },
-  sheetStatus: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  sheetTitle: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '800',
-  },
-  sheetInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  sheetInfoText: {
-    color: '#E2E8F0',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  sheetSection: {
-    marginBottom: 24,
-  },
-  sheetSectionTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  sheetSectionDescription: {
-    color: 'rgba(226,232,240,0.7)',
-    fontSize: 13,
-    marginBottom: 12,
-    lineHeight: 18,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(148,163,184,0.3)',
-  },
-  detailLabel: {
-    color: 'rgba(226,232,240,0.75)',
-    fontSize: 14,
-  },
-  detailValue: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  cancellationReasonBox: {
-    flexDirection: 'row',
-    gap: 12,
-    backgroundColor: 'rgba(248,113,113,0.12)',
-    padding: 16,
+    top: 28,
+    left: 28,
+    width: 32,
+    height: 32,
     borderRadius: 16,
-  },
-  cancellationReasonText: {
-    color: '#FCA5A5',
-    fontSize: 14,
-    flex: 1,
-    lineHeight: 20,
-  },
-  input: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.35)',
-    padding: 16,
-    color: '#fff',
-    minHeight: 120,
-    marginBottom: 12,
-    backgroundColor: 'rgba(15,23,42,0.35)',
-  },
-  errorText: {
-    color: '#FCA5A5',
-    fontSize: 13,
-    marginBottom: 12,
-  },
-  expandCancelButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(248,113,113,0.4)',
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    backgroundColor: 'rgba(15,23,42,0.35)',
-  },
-  expandCancelText: {
-    color: '#fca5a5',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  cancelButton: {
-    backgroundColor: '#ef4444',
-    paddingVertical: 14,
-    borderRadius: 16,
-    alignItems: 'center',
-    flex: 1,
-  },
-  cancelButtonDisabled: {
-    opacity: 0.6,
-  },
-  cancelButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  cancelActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  cancelSecondaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.35)',
-    backgroundColor: 'rgba(15,23,42,0.2)',
-  },
-  cancelSecondaryText: {
-    color: '#cbd5f5',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  calendarButton: {
-    flexDirection: 'row',
-    gap: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FBBF24',
-    paddingVertical: 14,
-    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  calendarButtonDisabled: {
+  header: {
+    paddingHorizontal: 24,
+    marginTop: 0,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#0F172A',
+    lineHeight: 30,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+  },
+  locationText: {
+    fontSize: 14,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  featuresContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 4,
+  },
+  featureItem: {
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  featureIconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9', // Light gray standard
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  bgGreen: { backgroundColor: '#F0FDF4', borderColor: '#DCFCE7' },
+  bgRed: { backgroundColor: '#FEF2F2', borderColor: '#FEE2E2' },
+  bgGray: { backgroundColor: '#F8FAFC', borderColor: '#F1F5F9' },
+  bgAmber: { backgroundColor: '#FFFBEB', borderColor: '#FEF3C7' },
+  featureLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  section: {
+    paddingHorizontal: 24,
+    marginTop: 20,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  auditCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  auditMain: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  auditPriceBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  auditPriceLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  auditAmount: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  auditDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  auditDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#6366f1',
+  },
+  auditDetailText: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  managementBox: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    overflow: 'hidden',
+  },
+  cancelListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  cancelIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelListText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#EF4444',
+  },
+  cancellationForm: {
+    padding: 20,
+    backgroundColor: '#fff',
+  },
+  formHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  cancelIntroText: {
+    fontSize: 14,
+    color: '#1E293B',
+    fontWeight: '700',
+  },
+  descartarLink: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  compactInput: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 16,
+    fontSize: 15,
+    color: '#111827',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  tinyError: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginTop: 8,
+    fontWeight: '600',
+  },
+  formBtnPri: {
+    marginTop: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderRadius: 16,
+    backgroundColor: '#EF4444',
+  },
+  formBtnDisabled: {
     opacity: 0.6,
   },
-  calendarButtonText: {
-    color: '#111827',
+  formBtnPriText: {
+    color: '#fff',
     fontWeight: '700',
     fontSize: 15,
   },
-  auditCard: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    padding: 16,
-    marginTop: 8,
-  },
-  auditRow: {
+  warningBox: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 4,
   },
-  auditInfo: {
-    flex: 1,
-  },
-  auditLabel: {
+  warningText: {
+    color: '#94A3B8',
     fontSize: 12,
-    color: 'rgba(255,255,255,0.5)',
-    marginBottom: 2,
-  },
-  auditValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  auditDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    marginVertical: 12,
-  },
-  auditDescription: {
-    fontSize: 13,
-    color: '#ffffff',
-    lineHeight: 18,
     fontWeight: '500',
+  },
+  reasonCard: {
+    flexDirection: 'row',
+    gap: 12,
+    backgroundColor: '#FEF2F2',
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+  },
+  reasonText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#991B1B',
+    lineHeight: 20,
+    fontWeight: '500',
+    fontStyle: 'italic',
   },
 })
