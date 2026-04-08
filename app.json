@@ -16,7 +16,8 @@
         "NSCameraUsageDescription": "Visitme necesita acceso a la cámara si deseas tomar una nueva foto de perfil.",
         "NSMicrophoneUsageDescription": "Visitme podría usar tu micrófono para grabaciones en funciones futuras (por ejemplo, mensajes de voz).",
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "jsEngine": "jsc",
     },
     "android": {
       "adaptiveIcon": {
