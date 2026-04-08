@@ -43,3 +43,14 @@ app-example
 /android
 
 .env
+
+# Build files
+*.ipa
+*.aab
+*.apk
+*.app
+*.dSYM
+
+# VSCode
+.vscode/*
+!.vscode/extensions.json
