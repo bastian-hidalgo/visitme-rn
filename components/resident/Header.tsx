@@ -24,10 +24,10 @@ export default function Header({ onToggleMenu, progress }: Props) {
 
   const menuButtonStyle = useAnimatedStyle(() => ({
     transform: [
-      { scale: 1 - progress.value * 0.08 },
-      { rotate: `${progress.value * 90}deg` },
+      { scale: 1 - progress.value * 0.04 },
+      { rotate: `${progress.value * 18}deg` },
     ],
-    opacity: 1 - progress.value * 0.1,
+    opacity: 1 - progress.value * 0.06,
   }))
 
   return (
@@ -60,10 +60,6 @@ export default function Header({ onToggleMenu, progress }: Props) {
           <View style={styles.copyBlock}>
             <View style={styles.copyTopRow}>
               <Text style={styles.greeting}>{greeting}</Text>
-              <View style={styles.livePill}>
-                <View style={styles.liveDot} />
-                <Text style={styles.liveText}>Dashboard</Text>
-              </View>
             </View>
 
             <Text style={styles.name} numberOfLines={1}>
@@ -81,12 +77,12 @@ export default function Header({ onToggleMenu, progress }: Props) {
           <Animated.View style={menuButtonStyle}>
             <Pressable onPress={onToggleMenu} style={styles.menuButton} hitSlop={8}>
               <LinearGradient
-                colors={['#111827', '#1f2937']}
+                colors={['rgba(255,255,255,0.92)', 'rgba(248,250,252,0.88)']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.menuButtonInner}
               >
-                <Menu size={22} color="#ffffff" />
+                <Menu size={18} color="#475569" />
               </LinearGradient>
             </Pressable>
           </Animated.View>
@@ -166,28 +162,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.2,
   },
-  livePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: '#f5f3ff',
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#7c3aed',
-  },
-  liveText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#6d28d9',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
   name: {
     fontWeight: '800',
     fontSize: 22,
@@ -208,18 +182,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   menuButton: {
-    borderRadius: 18,
+    borderRadius: 16,
   },
   menuButtonInner: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
+    width: 46,
+    height: 46,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#111827',
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.16)',
+    shadowColor: '#cbd5e1',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
 })
