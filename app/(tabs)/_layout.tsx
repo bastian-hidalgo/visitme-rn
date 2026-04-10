@@ -25,6 +25,8 @@ export default function ResidentStackLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
+      <Stack.Screen name="library" />
+      <Stack.Screen name="unit-profile" options={{ headerShown: false }} />
     </Stack>
   );
 }

@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useUser } from '@/providers/user-provider'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
-import { ArrowLeftRight, Calendar, FileText, Lightbulb, LogOut, UserRound } from 'lucide-react-native'
+import { ArrowLeftRight, Building2, Calendar, FileText, Lightbulb, LogOut, UserRound } from 'lucide-react-native'
 import React, { useEffect, useState } from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { SharedValue } from 'react-native-reanimated'
@@ -59,6 +59,12 @@ export default function UserMenuPanel({ isOpen, onClose, progress }: UserMenuPan
       text: 'Mis Reservas',
       icon: <Calendar size={18} color="#fff" />,
       onPress: () => handleNavigate('/reservations'),
+    },
+    {
+      id: 'unit-profile',
+      text: 'Mi hogar',
+      icon: <Building2 size={18} color="#fff" />,
+      onPress: () => handleNavigate('/unit-profile'),
     },
     {
       id: 'profile',

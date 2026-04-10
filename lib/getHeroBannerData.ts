@@ -1,7 +1,7 @@
 import { now } from '@/lib/time'
 
 /**
- * Retorna textos e imágenes para el banner principal del residente.
+ * Retorna textos e imagenes para el banner principal del residente.
  * Compatible con React Native (usa require en vez de rutas /img/…)
  */
 export function getHeroBannerData(
@@ -10,31 +10,31 @@ export function getHeroBannerData(
 ) {
   const hour = now().hour()
 
-  // 🔹 Selección de fondo por hora del día
-  let backgroundImage: any = require('@/assets/backgrounds/morning.webp')
+  // Seleccion de fondo por hora del dia.
+  let backgroundVideo: any = require('@/assets/backgrounds/morning.mp4')
 
   if (hour >= 5 && hour < 12) {
-    backgroundImage = require('@/assets/backgrounds/morning.webp')
+    backgroundVideo = require('@/assets/backgrounds/morning.mp4')
   } else if (hour >= 12 && hour < 20) {
-    backgroundImage = require('@/assets/backgrounds/afternoon.webp')
+    backgroundVideo = require('@/assets/backgrounds/afternoon.mp4')
   } else {
-    backgroundImage = require('@/assets/backgrounds/night.webp')
+    backgroundVideo = require('@/assets/backgrounds/night.mp4')
   }
 
-  // 🔹 Personajes ilustrados
-  const characterImage1 = require('@/assets/characters/girl-hero-1.webp')
-  const characterImage2 = require('@/assets/characters/girl-hero-2.webp')
-  const characterImage3 = require('@/assets/characters/man-hero-1.webp')
-  const characterImage4 = require('@/assets/characters/man-hero-2.webp')
-  const characterImage5 = require('@/assets/characters/man-hero-3.webp')
+  // Personajes ilustrados.
+  const characterImage1 = require('@/assets/characters/chica-pelo-rosado-bg.png')
+  const characterImage2 = require('@/assets/characters/hombre-hoody-azul-bg.png')
+  const characterImage3 = require('@/assets/characters/hombre-afroamericano-bg.png')
+  const characterImage4 = require('@/assets/characters/chica-pelo-negro-bg.png')
+  const characterImage5 = require('@/assets/characters/ejecutiva-con-piocha.png')
 
-  // 🔹 Definición de mensajes según estado
+  // Definicion de mensajes segun estado.
   switch (status) {
     case 'none':
       return {
         title: '¿Listo para reservar?',
         subtitle: 'Elige un espacio y disfruta tu comunidad.',
-        backgroundImage,
+        backgroundVideo,
         characterImage: characterImage4,
       }
 
@@ -42,7 +42,7 @@ export function getHeroBannerData(
       return {
         title: '¡Tienes una reserva próxima!',
         subtitle: `Reserva agendada para el ${reservationDate}`,
-        backgroundImage,
+        backgroundVideo,
         characterImage: characterImage1,
       }
 
@@ -50,7 +50,7 @@ export function getHeroBannerData(
       return {
         title: '¡Mañana tienes una reserva!',
         subtitle: `No olvides asistir el ${reservationDate}`,
-        backgroundImage,
+        backgroundVideo,
         characterImage: characterImage2,
       }
 
@@ -58,7 +58,7 @@ export function getHeroBannerData(
       return {
         title: 'Esperamos que hayas disfrutado tu reserva 😊',
         subtitle: '',
-        backgroundImage,
+        backgroundVideo,
         characterImage: characterImage3,
       }
 
@@ -66,7 +66,7 @@ export function getHeroBannerData(
       return {
         title: 'Bienvenido',
         subtitle: '',
-        backgroundImage,
+        backgroundVideo,
         characterImage: characterImage5,
       }
   }

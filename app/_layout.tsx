@@ -22,8 +22,8 @@ export default function RootLayout() {
       <AppProviders>
         <ResidentProvider>
           <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <Stack>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(tabs)" />
               <Stack.Screen name="login" options={{ headerShown: false }} />
               <Stack.Screen name="choose-community" options={{ headerShown: false }} />
               <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
@@ -42,6 +42,10 @@ export default function RootLayout() {
               <Stack.Screen
                 name="alerts/index"
                 options={{ headerShown: false, presentation: 'transparentModal', animation: 'fade' }}
+              />
+              <Stack.Screen
+                name="unit-profile/index"
+                options={{ headerShown: false }}
               />
 
             </Stack>
