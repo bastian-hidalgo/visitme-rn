@@ -8,7 +8,7 @@ const appConfigPath = path.resolve(process.cwd(), 'app.config.ts');
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 const oldVersion = packageJson.version;
 
-// Split version and increment minor (middle number) as requested (1.52.0 -> 1.53.0)
+// Split version and increment minor (middle number) as requested (1.52.0 -> 1.54.0)
 const parts = oldVersion.split('.');
 if (parts.length === 3) {
   parts[1] = parseInt(parts[1], 10) + 1;

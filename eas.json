@@ -23,7 +23,9 @@
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID":"211418787779-e6vpo0jbcumu4hiuro63v57lja39hco3.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID":"211418787779-sak2n907nb73098evn9jb4qspo8bm3qu.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID":"211418787779-sriiok9em6j73qj5vtb24e30qglmhd4j.apps.googleusercontent.com",
-        "EXPO_PUBLIC_ONESIGNAL_APP_ID":"95cbb2e9-2713-42cd-97b6-385662cdca45"
+        "EXPO_PUBLIC_ONESIGNAL_APP_ID":"95cbb2e9-2713-42cd-97b6-385662cdca45",
+        "ANDROID_HOME":"/Users/bastianhidalgo/Library/Android/sdk",
+        "ANDROID_SDK_ROOT":"/Users/bastianhidalgo/Library/Android/sdk"
       }
     },
     "preview": {
@@ -44,7 +46,9 @@
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID":"211418787779-e6vpo0jbcumu4hiuro63v57lja39hco3.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID":"211418787779-sak2n907nb73098evn9jb4qspo8bm3qu.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID":"211418787779-sriiok9em6j73qj5vtb24e30qglmhd4j.apps.googleusercontent.com",
-        "EXPO_PUBLIC_ONESIGNAL_APP_ID":"95cbb2e9-2713-42cd-97b6-385662cdca45"
+        "EXPO_PUBLIC_ONESIGNAL_APP_ID":"95cbb2e9-2713-42cd-97b6-385662cdca45",
+        "ANDROID_HOME":"/Users/bastianhidalgo/Library/Android/sdk",
+        "ANDROID_SDK_ROOT":"/Users/bastianhidalgo/Library/Android/sdk"
       }
     },
     "production": {
@@ -65,7 +69,9 @@
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID":"211418787779-e6vpo0jbcumu4hiuro63v57lja39hco3.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID":"211418787779-sak2n907nb73098evn9jb4qspo8bm3qu.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID":"211418787779-sriiok9em6j73qj5vtb24e30qglmhd4j.apps.googleusercontent.com",
-        "EXPO_PUBLIC_ONESIGNAL_APP_ID":"95cbb2e9-2713-42cd-97b6-385662cdca45"
+        "EXPO_PUBLIC_ONESIGNAL_APP_ID":"95cbb2e9-2713-42cd-97b6-385662cdca45",
+        "ANDROID_HOME":"/Users/bastianhidalgo/Library/Android/sdk",
+        "ANDROID_SDK_ROOT":"/Users/bastianhidalgo/Library/Android/sdk"
       }
     },
     "test-apk": {
@@ -90,7 +96,9 @@
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID":"211418787779-e6vpo0jbcumu4hiuro63v57lja39hco3.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID":"211418787779-sak2n907nb73098evn9jb4qspo8bm3qu.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID":"211418787779-sriiok9em6j73qj5vtb24e30qglmhd4j.apps.googleusercontent.com",
-        "EXPO_PUBLIC_ONESIGNAL_APP_ID":"95cbb2e9-2713-42cd-97b6-385662cdca45"
+        "EXPO_PUBLIC_ONESIGNAL_APP_ID":"95cbb2e9-2713-42cd-97b6-385662cdca45",
+        "ANDROID_HOME":"/Users/bastianhidalgo/Library/Android/sdk",
+        "ANDROID_SDK_ROOT":"/Users/bastianhidalgo/Library/Android/sdk"
       }
     }
   },
