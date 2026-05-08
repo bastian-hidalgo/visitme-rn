@@ -1,8 +1,20 @@
-import type { Session } from '@supabase/supabase-js';
-import * as Linking from 'expo-linking';
-import { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type { Session } from "@supabase/supabase-js";
+import * as Linking from "expo-linking";
+import {
+  PropsWithChildren,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-import { supabase } from '../lib/supabase';
+import { supabase } from "../lib/supabase";
+import {
+  setCrashlyticsUser,
+  clearCrashlyticsUser,
+} from "@/lib/monitoring/crashlytics";
 
 type SupabaseAuthContextValue = {
   session: Session | null;
@@ -11,7 +23,9 @@ type SupabaseAuthContextValue = {
   clearAuthRestrictionMessage: () => void;
 };
 
-const SupabaseAuthContext = createContext<SupabaseAuthContextValue | undefined>(undefined);
+const SupabaseAuthContext = createContext<SupabaseAuthContextValue | undefined>(
+  undefined,
+);
 
 const getParamValue = (value: string | string[] | null | undefined) => {
   if (Array.isArray(value)) {
@@ -25,7 +39,9 @@ export function SupabaseAuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isApplyingSession, setIsApplyingSession] = useState(false);
-  const [authRestrictionMessage, setAuthRestrictionMessage] = useState<string | null>(null);
+  const [authRestrictionMessage, setAuthRestrictionMessage] = useState<
+    string | null
+  >(null);
 
   const clearAuthRestrictionMessage = useCallback(() => {
     setAuthRestrictionMessage(null);
@@ -38,40 +54,49 @@ export function SupabaseAuthProvider({ children }: PropsWithChildren) {
       try {
         if (!incomingSession?.user) {
           setSession(null);
+          // Limpiar usuario en Crashlytics al hacer logout
+          await clearCrashlyticsUser();
           return;
         }
 
         const { data, error } = await supabase
-          .from('users')
-          .select('role')
-          .eq('id', incomingSession.user.id)
+          .from("users")
+          .select("role")
+          .eq("id", incomingSession.user.id)
           .maybeSingle();
 
         if (error || !data?.role) {
           setAuthRestrictionMessage(
-            'No pudimos verificar tu rol. Intenta nuevamente más tarde o contacta a tu administrador.',
+            "No pudimos verificar tu rol. Intenta nuevamente más tarde o contacta a tu administrador.",
           );
           setSession(null);
           await supabase.auth.signOut();
+          await clearCrashlyticsUser();
           return;
         }
 
-        if (data.role.toLowerCase() !== 'resident') {
-          setAuthRestrictionMessage('Esta aplicación es exclusiva para residentes. Tu rol no tiene acceso.');
+        if (data.role.toLowerCase() !== "resident") {
+          setAuthRestrictionMessage(
+            "Esta aplicación es exclusiva para residentes. Tu rol no tiene acceso.",
+          );
           setSession(null);
           await supabase.auth.signOut();
+          await clearCrashlyticsUser();
           return;
         }
 
         setAuthRestrictionMessage(null);
         setSession(incomingSession);
+        // Establecer usuario en Crashlytics
+        await setCrashlyticsUser(incomingSession.user.id);
       } catch (error) {
-        console.error('Error verifying user role', error);
+        console.error("Error verifying user role", error);
         setAuthRestrictionMessage(
-          'No pudimos verificar tu rol. Intenta nuevamente más tarde o contacta a tu administrador.',
+          "No pudimos verificar tu rol. Intenta nuevamente más tarde o contacta a tu administrador.",
         );
         setSession(null);
         await supabase.auth.signOut();
+        await clearCrashlyticsUser();
       } finally {
         setIsApplyingSession(false);
       }
@@ -87,7 +112,7 @@ export function SupabaseAuthProvider({ children }: PropsWithChildren) {
         } = await supabase.auth.getSession();
         await handleSessionChange(session);
       } catch (error) {
-        console.error('Error obtaining Supabase session', error);
+        console.error("Error obtaining Supabase session", error);
       } finally {
         setIsLoading(false);
       }
@@ -105,10 +130,11 @@ export function SupabaseAuthProvider({ children }: PropsWithChildren) {
       if (!url) return;
 
       const linkingResult = Linking.parse(url);
-      const parsedParams = linkingResult.queryParams ?? linkingResult.params ?? {};
+      const parsedParams =
+        linkingResult.queryParams ?? linkingResult.params ?? {};
       const hashParams: Record<string, string> = {};
 
-      const hashIndex = url.indexOf('#');
+      const hashIndex = url.indexOf("#");
 
       if (hashIndex !== -1) {
         const hash = url.slice(hashIndex + 1);
@@ -119,15 +145,22 @@ export function SupabaseAuthProvider({ children }: PropsWithChildren) {
         });
       }
 
-      const accessToken = getParamValue(hashParams.access_token ?? parsedParams.access_token ?? null);
-      const refreshToken = getParamValue(hashParams.refresh_token ?? parsedParams.refresh_token ?? null);
+      const accessToken = getParamValue(
+        hashParams.access_token ?? parsedParams.access_token ?? null,
+      );
+      const refreshToken = getParamValue(
+        hashParams.refresh_token ?? parsedParams.refresh_token ?? null,
+      );
 
       if (accessToken && refreshToken) {
-        await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
       }
     };
 
-    const linkingSubscription = Linking.addEventListener('url', (event) => {
+    const linkingSubscription = Linking.addEventListener("url", (event) => {
       handleDeepLink(event.url);
     });
 
@@ -146,16 +179,28 @@ export function SupabaseAuthProvider({ children }: PropsWithChildren) {
       authRestrictionMessage,
       clearAuthRestrictionMessage,
     }),
-    [session, isLoading, isApplyingSession, authRestrictionMessage, clearAuthRestrictionMessage],
+    [
+      session,
+      isLoading,
+      isApplyingSession,
+      authRestrictionMessage,
+      clearAuthRestrictionMessage,
+    ],
   );
 
-  return <SupabaseAuthContext.Provider value={value}>{children}</SupabaseAuthContext.Provider>;
+  return (
+    <SupabaseAuthContext.Provider value={value}>
+      {children}
+    </SupabaseAuthContext.Provider>
+  );
 }
 
 export function useSupabaseAuth() {
   const context = useContext(SupabaseAuthContext);
   if (!context) {
-    throw new Error('useSupabaseAuth must be used within a SupabaseAuthProvider');
+    throw new Error(
+      "useSupabaseAuth must be used within a SupabaseAuthProvider",
+    );
   }
   return context;
 }

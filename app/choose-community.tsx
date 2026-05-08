@@ -1,13 +1,15 @@
-import { useResidentContext } from '@/components/contexts/ResidentContext'
-import { ThemedText } from '@/components/themed-text'
-import { ThemedView } from '@/components/themed-view'
-import { supabase } from '@/lib/supabase'
-import { useSupabaseAuth } from '@/providers/supabase-auth-provider'
-import { useUser } from '@/providers/user-provider'
-import type { CommunityMembershipRow } from '@/types/communities'
-import AsyncStorage from '@react-native-async-storage/async-storage'
-import { useFocusEffect, useRouter } from 'expo-router'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useResidentContext } from "@/components/contexts/ResidentContext";
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { supabase } from "@/lib/supabase";
+import { useSupabaseAuth } from "@/providers/supabase-auth-provider";
+import { useUser } from "@/providers/user-provider";
+import { useCrashlytics, useUserActionTracking } from "@/lib/monitoring";
+import { recordError, reportSupabaseError } from "@/lib/monitoring";
+import type { CommunityMembershipRow } from "@/types/communities";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -21,32 +23,35 @@ import {
   View,
   useColorScheme,
   useWindowDimensions,
-} from 'react-native'
+} from "react-native";
 
-const AnimatedImage = Animated.createAnimatedComponent(Image)
+const AnimatedImage = Animated.createAnimatedComponent(Image);
 
-const SELECTED_COMMUNITY_KEY = 'selected_community'
-const SELECTED_COMMUNITY_ID_KEY = 'selected_community_id'
-const SELECTED_COMMUNITY_NAME_KEY = 'selected_community_name'
-const SKIP_COMMUNITY_AUTO_REDIRECT_KEY = 'skip_auto_redirect'
+const SELECTED_COMMUNITY_KEY = "selected_community";
+const SELECTED_COMMUNITY_ID_KEY = "selected_community_id";
+const SELECTED_COMMUNITY_NAME_KEY = "selected_community_name";
+const SKIP_COMMUNITY_AUTO_REDIRECT_KEY = "skip_auto_redirect";
 const SESSION_CACHE_KEYS = [
-  'visitme_user',
+  "visitme_user",
   SELECTED_COMMUNITY_KEY,
   SELECTED_COMMUNITY_ID_KEY,
   SELECTED_COMMUNITY_NAME_KEY,
   SKIP_COMMUNITY_AUTO_REDIRECT_KEY,
-]
+];
 
 interface CommunityOption {
-  id: string
-  slug: string
-  name: string
+  id: string;
+  slug: string;
+  name: string;
 }
 
 export default function ChooseCommunityScreen() {
-  const { session, isLoading: authLoading } = useSupabaseAuth()
-  const { setUserData, communityId: activeCommunityId, communitySlug: activeCommunitySlug } =
-    useUser()
+  const { session, isLoading: authLoading } = useSupabaseAuth();
+  const {
+    setUserData,
+    communityId: activeCommunityId,
+    communitySlug: activeCommunitySlug,
+  } = useUser();
   const {
     resetCommunityData,
     fetchAlerts,
@@ -54,36 +59,40 @@ export default function ChooseCommunityScreen() {
     fetchVisits,
     fetchPackages,
     refreshSurveys,
-  } = useResidentContext()
-  const router = useRouter()
-  const colorScheme = useColorScheme()
-  const isDarkMode = colorScheme === 'dark'
+  } = useResidentContext();
+  const router = useRouter();
+  const colorScheme = useColorScheme();
+  const isDarkMode = colorScheme === "dark";
 
-  const [communities, setCommunities] = useState<CommunityOption[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [selectingId, setSelectingId] = useState<string | null>(null)
+  // Crashlytics hooks
+  const { addBreadcrumb, safeAsync } = useCrashlytics();
+  const { addBreadcrumb: addActionBreadcrumb } = useUserActionTracking();
 
-  const scrollY = useRef(new Animated.Value(0)).current
-  const hasSelectedRef = useRef(false)
-  const { height: windowHeight } = useWindowDimensions()
+  const [communities, setCommunities] = useState<CommunityOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectingId, setSelectingId] = useState<string | null>(null);
+
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const hasSelectedRef = useRef(false);
+  const { height: windowHeight } = useWindowDimensions();
 
   useFocusEffect(
     useCallback(() => {
-      resetCommunityData({ loadingState: false })
+      resetCommunityData({ loadingState: false });
 
       return () => {
         if (hasSelectedRef.current) {
-          return
+          return;
         }
 
-        resetCommunityData({ loadingState: true })
-        fetchAlerts()
-        fetchReservations()
-        fetchVisits()
-        fetchPackages()
-        refreshSurveys()
-      }
+        resetCommunityData({ loadingState: true });
+        fetchAlerts();
+        fetchReservations();
+        fetchVisits();
+        fetchPackages();
+        refreshSurveys();
+      };
     }, [
       fetchAlerts,
       fetchPackages,
@@ -91,63 +100,84 @@ export default function ChooseCommunityScreen() {
       fetchVisits,
       refreshSurveys,
       resetCommunityData,
-    ])
-  )
+    ]),
+  );
 
   const loadCommunities = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    setCommunities([])
+    setLoading(true);
+    setError(null);
+    setCommunities([]);
+
+    // Breadcrumb: inicio de carga
+    addBreadcrumb("Loading communities", "data_fetch");
 
     try {
       if (!session?.user) {
-        await AsyncStorage.multiRemove(SESSION_CACHE_KEYS)
-        router.replace('/login')
-        return
+        await AsyncStorage.multiRemove(SESSION_CACHE_KEYS);
+        router.replace("/login");
+        return;
       }
 
       const { data, error: membershipsError } = await supabase
-        .from('user_communities')
-        .select('community:community_id(id, slug, name)')
-        .eq('user_id', session.user.id)
-        .returns<CommunityMembershipRow[]>()
+        .from("user_communities")
+        .select("community:community_id(id, slug, name)")
+        .eq("user_id", session.user.id)
+        .returns<CommunityMembershipRow[]>();
 
-      if (membershipsError) throw membershipsError
+      if (membershipsError) {
+        reportSupabaseError(
+          membershipsError,
+          "choose-community.loadCommunities",
+        );
+        throw membershipsError;
+      }
 
       const formatted = (data ?? [])
         .map((entry) => entry.community)
-        .filter((c): c is { id: string; slug: string; name: string | null } => !!c?.id && !!c?.slug)
+        .filter(
+          (c): c is { id: string; slug: string; name: string | null } =>
+            !!c?.id && !!c?.slug,
+        )
         .map((c) => ({
           id: c.id,
           slug: c.slug,
           name: c.name?.trim() || c.slug,
-        }))
+        }));
 
       if (formatted.length === 0) {
-        setError('No encontramos comunidades asociadas a tu cuenta.')
-        return
+        setError("No encontramos comunidades asociadas a tu cuenta.");
+        addBreadcrumb("No communities found for user", "data_fetch");
+        return;
       }
 
-      setCommunities(formatted)
+      setCommunities(formatted);
+      addBreadcrumb(`Loaded ${formatted.length} communities`, "data_fetch");
     } catch (err) {
-      console.error('[choose-community] loadCommunities error', err)
-      setError('No pudimos cargar tus comunidades. Intenta nuevamente.')
+      recordError(err as Error, "choose-community.loadCommunities");
+      console.error("[choose-community] loadCommunities error", err);
+      setError("No pudimos cargar tus comunidades. Intenta nuevamente.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [session, router])
+  }, [session, router, addBreadcrumb]);
 
   useEffect(() => {
-    if (!authLoading) loadCommunities()
-  }, [authLoading, loadCommunities])
+    if (!authLoading) loadCommunities();
+  }, [authLoading, loadCommunities]);
 
   const handleSelect = async (community: CommunityOption) => {
-    setSelectingId(community.id)
-    hasSelectedRef.current = true
+    setSelectingId(community.id);
+    hasSelectedRef.current = true;
+
+    // Breadcrumbs para tracking de acción
+    addActionBreadcrumb("Community selected", {
+      communityId: community.id,
+      communityName: community.name,
+    });
 
     const isSameCommunity =
       (!!activeCommunityId && community.id === activeCommunityId) ||
-      (!!activeCommunitySlug && community.slug === activeCommunitySlug)
+      (!!activeCommunitySlug && community.slug === activeCommunitySlug);
 
     const triggerResidentRefresh = () =>
       Promise.all([
@@ -156,56 +186,70 @@ export default function ChooseCommunityScreen() {
         fetchVisits(),
         fetchPackages(),
         refreshSurveys(),
-      ])
+      ]);
 
-    resetCommunityData({ loadingState: true })
+    resetCommunityData({ loadingState: true });
 
     try {
       await AsyncStorage.multiSet([
         [SELECTED_COMMUNITY_KEY, community.slug],
         [SELECTED_COMMUNITY_ID_KEY, community.id],
         [SELECTED_COMMUNITY_NAME_KEY, community.name],
-      ])
+      ]);
       await setUserData({
         communitySlug: community.slug,
         communityId: community.id,
         communityName: community.name,
-      })
-      await AsyncStorage.removeItem(SKIP_COMMUNITY_AUTO_REDIRECT_KEY)
+      });
+      await AsyncStorage.removeItem(SKIP_COMMUNITY_AUTO_REDIRECT_KEY);
 
       if (isSameCommunity) {
         triggerResidentRefresh().catch((err) => {
-          console.error('[choose-community] refresh error', err)
-        })
+          recordError(err as Error, "choose-community.refreshAfterSelect");
+          console.error("[choose-community] refresh error", err);
+        });
       }
 
       if (router.canGoBack()) {
-        router.back()
+        router.back();
       } else {
-        router.replace({ pathname: '/(tabs)', params: { community: community.slug } })
+        router.replace({
+          pathname: "/(tabs)",
+          params: { community: community.slug },
+        });
       }
     } catch (err) {
-      console.error('[choose-community] handleSelect error', err)
-      Alert.alert('Ups, algo falló', 'No pudimos ingresar a la comunidad seleccionada.')
+      recordError(err as Error, "choose-community.handleSelect");
+      console.error("[choose-community] handleSelect error", err);
+      Alert.alert(
+        "Ups, algo falló",
+        "No pudimos ingresar a la comunidad seleccionada.",
+      );
     } finally {
-      setSelectingId(null)
+      setSelectingId(null);
     }
-  }
+  };
 
   const handleSignOut = async () => {
+    // Breadcrumb para tracking de sign out
+    addActionBreadcrumb("User signed out from choose-community");
+
     try {
-      await supabase.auth.signOut()
+      await supabase.auth.signOut();
+    } catch (err) {
+      recordError(err as Error, "choose-community.signOut");
+      console.error("[choose-community] signOut error", err);
     } finally {
-      await AsyncStorage.multiRemove(SESSION_CACHE_KEYS)
-      router.replace('/login')
+      await AsyncStorage.multiRemove(SESSION_CACHE_KEYS);
+      router.replace("/login");
     }
-  }
+  };
 
   const parallaxOffset = scrollY.interpolate({
     inputRange: [-180, 0, 240],
     outputRange: [-90, 0, 60],
-    extrapolate: 'clamp',
-  })
+    extrapolate: "clamp",
+  });
 
   if (authLoading || loading) {
     return (
@@ -213,32 +257,40 @@ export default function ChooseCommunityScreen() {
         <ActivityIndicator size="large" color="#6C5CE7" />
         <Text style={styles.loadingText}>Cargando tus comunidades...</Text>
       </View>
-    )
+    );
   }
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.select({ ios: 'padding', android: 'height' })}
-      style={{ flex: 1, backgroundColor: '#0f172a' }}
+      behavior={Platform.select({ ios: "padding", android: "height" })}
+      style={{ flex: 1, backgroundColor: "#0f172a" }}
     >
       <Animated.ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={[styles.scrollContent, { minHeight: windowHeight }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { minHeight: windowHeight },
+        ]}
         keyboardShouldPersistTaps="handled"
         bounces={false}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-          useNativeDriver: true,
-        })}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          {
+            useNativeDriver: true,
+          },
+        )}
         scrollEventThrottle={16}
       >
         <View style={[styles.background, { minHeight: windowHeight }]}>
           {/* Fondo parallax */}
           <View pointerEvents="none" style={styles.decorations}>
             <AnimatedImage
-              source={require('@/assets/backgrounds/loading-illustration.webp')}
+              source={require("@/assets/backgrounds/loading-illustration.webp")}
               style={[
                 styles.backgroundImage,
-                { transform: [{ scale: 1.16 }, { translateY: parallaxOffset }] },
+                {
+                  transform: [{ scale: 1.16 }, { translateY: parallaxOffset }],
+                },
               ]}
               resizeMode="cover"
             />
@@ -256,25 +308,33 @@ export default function ChooseCommunityScreen() {
                 <Image
                   source={
                     isDarkMode
-                      ? require('@/assets/logo-white.png') // 🌙 versión nocturna
-                      : require('@/assets/logo.png')       // ☀️ versión normal
+                      ? require("@/assets/logo-white.png") // 🌙 versión nocturna
+                      : require("@/assets/logo.png") // ☀️ versión normal
                   }
                   style={styles.logo}
                   resizeMode="contain"
                 />
               </View>
 
-              <ThemedText type="title" style={isDarkMode ? styles.titleDark : styles.title}>
+              <ThemedText
+                type="title"
+                style={isDarkMode ? styles.titleDark : styles.title}
+              >
                 Elige tu comunidad
               </ThemedText>
-              <ThemedText style={isDarkMode ? styles.subtitleDark : styles.subtitle}>
+              <ThemedText
+                style={isDarkMode ? styles.subtitleDark : styles.subtitle}
+              >
                 Selecciona la comunidad a la que deseas ingresar para continuar.
               </ThemedText>
 
               {error ? (
                 <View style={styles.errorBox}>
                   <Text style={styles.errorText}>{error}</Text>
-                  <TouchableOpacity onPress={loadCommunities} style={styles.retryButton}>
+                  <TouchableOpacity
+                    onPress={loadCommunities}
+                    style={styles.retryButton}
+                  >
                     <Text style={styles.retryText}>Reintentar</Text>
                   </TouchableOpacity>
                 </View>
@@ -307,84 +367,103 @@ export default function ChooseCommunityScreen() {
         </View>
       </Animated.ScrollView>
     </KeyboardAvoidingView>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1 },
-  background: { flex: 1, overflow: 'hidden' },
+  background: { flex: 1, overflow: "hidden" },
   decorations: { ...StyleSheet.absoluteFillObject },
   backgroundImage: { ...StyleSheet.absoluteFillObject, opacity: 0.55 },
   contentWrapper: {
     flex: 1,
     paddingHorizontal: 24,
     paddingVertical: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   card: {
     borderRadius: 24,
     padding: 32,
     gap: 24,
     maxWidth: 420,
-    width: '100%',
-    alignSelf: 'center',
-    shadowColor: '#1f2937',
+    width: "100%",
+    alignSelf: "center",
+    shadowColor: "#1f2937",
     shadowOpacity: 0.08,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
     elevation: 6,
   },
-  cardDark: { borderWidth: 1, borderColor: '#1f2937', shadowOpacity: 0.25 },
-  logoContainer: { alignItems: 'center', gap: 12 },
+  cardDark: { borderWidth: 1, borderColor: "#1f2937", shadowOpacity: 0.25 },
+  logoContainer: { alignItems: "center", gap: 12 },
   logo: { width: 180, height: 52, borderRadius: 16 },
-  title: { textAlign: 'center', fontSize: 24, fontWeight: '700', color: '#333' },
-  titleDark: { textAlign: 'center', fontSize: 24, fontWeight: '700', color: '#fff' },
-  subtitle: { textAlign: 'center', color: '#333', fontSize: 14 },
-  subtitleDark: { textAlign: 'center', color: '#fff', fontSize: 14 },
-  communityList: { width: '100%', gap: 12 },
+  title: {
+    textAlign: "center",
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#333",
+  },
+  titleDark: {
+    textAlign: "center",
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  subtitle: { textAlign: "center", color: "#333", fontSize: 14 },
+  subtitleDark: { textAlign: "center", color: "#fff", fontSize: 14 },
+  communityList: { width: "100%", gap: 12 },
   communityButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'rgba(30,41,59,0.85)',
-    borderColor: '#334155',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "rgba(30,41,59,0.85)",
+    borderColor: "#334155",
     borderWidth: 1,
     borderRadius: 16,
     paddingVertical: 16,
     paddingHorizontal: 16,
   },
-  communityName: { fontSize: 16, fontWeight: '600', color: '#fff' },
-  enterText: { backgroundColor: '#6C5CE7', fontWeight: '600', fontSize: 14, padding: 4, color: '#fff', borderRadius: 8, overflow: 'hidden', paddingHorizontal: 8 },
+  communityName: { fontSize: 16, fontWeight: "600", color: "#fff" },
+  enterText: {
+    backgroundColor: "#6C5CE7",
+    fontWeight: "600",
+    fontSize: 14,
+    padding: 4,
+    color: "#fff",
+    borderRadius: 8,
+    overflow: "hidden",
+    paddingHorizontal: 8,
+  },
   signOutText: {
     marginTop: 24,
-    textAlign: 'center',
+    textAlign: "center",
     fontSize: 14,
-    color: '#9CA3AF',
-    textDecorationLine: 'underline',
+    color: "#9CA3AF",
+    textDecorationLine: "underline",
   },
   errorBox: {
-    backgroundColor: 'rgba(244,63,94,0.1)',
-    borderColor: 'rgba(244,63,94,0.4)',
+    backgroundColor: "rgba(244,63,94,0.1)",
+    borderColor: "rgba(244,63,94,0.4)",
     borderWidth: 1,
     borderRadius: 16,
     padding: 12,
     marginTop: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
-  errorText: { color: '#fecdd3', textAlign: 'center', marginBottom: 8 },
+  errorText: { color: "#fecdd3", textAlign: "center", marginBottom: 8 },
   retryButton: {
-    backgroundColor: '#6C5CE7',
+    backgroundColor: "#6C5CE7",
     borderRadius: 12,
     paddingVertical: 8,
     paddingHorizontal: 16,
   },
-  retryText: { color: '#fff', fontWeight: '600' },
+  retryText: { color: "#fff", fontWeight: "600" },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#0f172a',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#0f172a",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  loadingText: { color: '#CBD5F5', marginTop: 12 },
-})
+  loadingText: { color: "#CBD5F5", marginTop: 12 },
+});

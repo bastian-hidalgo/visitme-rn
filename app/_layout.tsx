@@ -1,61 +1,84 @@
-import { ResidentProvider } from '@/components/contexts/ResidentContext';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import 'react-native-reanimated';
-import Toast from 'react-native-toast-message';
+import { ResidentProvider } from "@/components/contexts/ResidentContext";
+import {
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider,
+} from "@react-navigation/native";
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import "react-native-reanimated";
+import Toast from "react-native-toast-message";
 
-
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { AppProviders } from '@/providers/AppProviders';
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { AppProviders } from "@/providers/AppProviders";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export const unstable_settings = {
-  anchor: '(tabs)',
+  anchor: "(tabs)",
 };
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <AppProviders>
-        <ResidentProvider>
-          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="login" options={{ headerShown: false }} />
-              <Stack.Screen name="choose-community" options={{ headerShown: false }} />
-              <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-              <Stack.Screen
-                name="reservations/new"
-                options={{ headerShown: false, presentation: 'card' }}
-              />
-              <Stack.Screen
-                name="reservations/[id]"
-                options={{ headerShown: false, presentation: 'transparentModal', animation: 'fade' }}
-              />
-              <Stack.Screen
-                name="packages/[id]"
-                options={{ headerShown: false, presentation: 'transparentModal', animation: 'fade' }}
-              />
-              <Stack.Screen
-                name="alerts/index"
-                options={{ headerShown: false, presentation: 'transparentModal', animation: 'fade' }}
-              />
-              <Stack.Screen
-                name="unit-profile/index"
-                options={{ headerShown: false }}
-              />
-
-            </Stack>
-            <StatusBar style="auto" />
-            <Toast />
-          </ThemeProvider>
-        </ResidentProvider>
-      </AppProviders>
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <AppProviders>
+          <ResidentProvider>
+            <ThemeProvider
+              value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
+            >
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="login" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="choose-community"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="modal"
+                  options={{ presentation: "modal", title: "Modal" }}
+                />
+                <Stack.Screen
+                  name="reservations/new"
+                  options={{ headerShown: false, presentation: "card" }}
+                />
+                <Stack.Screen
+                  name="reservations/[id]"
+                  options={{
+                    headerShown: false,
+                    presentation: "transparentModal",
+                    animation: "fade",
+                  }}
+                />
+                <Stack.Screen
+                  name="packages/[id]"
+                  options={{
+                    headerShown: false,
+                    presentation: "transparentModal",
+                    animation: "fade",
+                  }}
+                />
+                <Stack.Screen
+                  name="alerts/index"
+                  options={{
+                    headerShown: false,
+                    presentation: "transparentModal",
+                    animation: "fade",
+                  }}
+                />
+                <Stack.Screen
+                  name="unit-profile/index"
+                  options={{ headerShown: false }}
+                />
+              </Stack>
+              <StatusBar style="auto" />
+              <Toast />
+            </ThemeProvider>
+          </ResidentProvider>
+        </AppProviders>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }
-
-
