@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ScrollView,
 } from "react-native";
-import { crashlyticsService, recordError } from "@/lib/monitoring/crashlytics";
 
 interface Props {
   children: ReactNode;
@@ -20,8 +19,7 @@ interface State {
 }
 
 /**
- * Error Boundary que captura errores en componentes React
- * y los reporta automáticamente a Crashlytics
+ * Error Boundary que captura errores en componentes React.
  */
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
@@ -40,17 +38,6 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    // Reportar el error a Crashlytics con información adicional
-    const context = `ErrorBoundary: ${errorInfo.componentStack || "Unknown component"}`;
-
-    // Agregar breadcrumb antes de reportar
-    crashlyticsService.addBreadcrumb(
-      `Error caught in boundary: ${error.message}`,
-      "error_boundary",
-    );
-
-    recordError(error, context, true);
-
     // Callback opcional para manejo personalizado
     if (this.props.onError) {
       this.props.onError(error, errorInfo);
@@ -89,8 +76,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <View style={styles.content}>
             <Text style={styles.title}>¡Ups! Algo salió mal</Text>
             <Text style={styles.message}>
-              La aplicación encontró un error inesperado. El error ha sido
-              reportado automáticamente.
+              La aplicación encontró un error inesperado. Intenta nuevamente.
             </Text>
             {__DEV__ && this.state.error && (
               <ScrollView

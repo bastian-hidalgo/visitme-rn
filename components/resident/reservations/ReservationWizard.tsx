@@ -1,14 +1,28 @@
-import { useResidentContext } from '@/components/contexts/ResidentContext'
-import { useStepperize } from '@/lib/stepperize'
-import { supabase } from '@/lib/supabase'
-import { useUser } from '@/providers/user-provider'
-import type { Database } from '@/types/supabase'
-import dayjs from 'dayjs'
-import 'dayjs/locale/es'
-import { LinearGradient } from 'expo-linear-gradient'
-import { Banknote, Check, ChevronLeft, Clock, MapPin, Timer, Users } from 'lucide-react-native'
-import { MotiView } from 'moti'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useResidentContext } from "@/components/contexts/ResidentContext";
+import { useStepperize } from "@/lib/stepperize";
+import { supabase } from "@/lib/supabase";
+import { useUser } from "@/providers/user-provider";
+
+import dayjs from "dayjs";
+import "dayjs/locale/es";
+import { LinearGradient } from "expo-linear-gradient";
+import {
+  Banknote,
+  Check,
+  ChevronLeft,
+  Clock,
+  MapPin,
+  Timer,
+  Users,
+} from "lucide-react-native";
+import { MotiView } from "moti";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -21,187 +35,251 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native'
-import SoundPlayer from 'react-native-sound-player'
-import Toast from 'react-native-toast-message'
+} from "react-native";
+import SoundPlayer from "react-native-sound-player";
+import Toast from "react-native-toast-message";
 
-const WINDOW_WIDTH = Dimensions.get('window').width
-const SCREEN_HORIZONTAL_PADDING = 20
-const STEP_CARD_WIDTH = WINDOW_WIDTH - SCREEN_HORIZONTAL_PADDING * 2
-const SPACE_CARD_GAP = 12
-const SPACE_CARD_WIDTH = STEP_CARD_WIDTH * 0.88 // 👈 Peek effect: shows part of the next card
-const SPACE_CARD_SNAP_INTERVAL = SPACE_CARD_WIDTH + SPACE_CARD_GAP
+const WINDOW_WIDTH = Dimensions.get("window").width;
+const SCREEN_HORIZONTAL_PADDING = 20;
+const STEP_CARD_WIDTH = WINDOW_WIDTH - SCREEN_HORIZONTAL_PADDING * 2;
+const SPACE_CARD_GAP = 12;
+const SPACE_CARD_WIDTH = STEP_CARD_WIDTH * 0.88; // 👈 Peek effect: shows part of the next card
+const SPACE_CARD_SNAP_INTERVAL = SPACE_CARD_WIDTH + SPACE_CARD_GAP;
 
-type StepId = 'space' | 'department' | 'availability' | 'schedule'
+type StepId = "space" | "department" | "availability" | "schedule";
 
 type DepartmentOption = {
-  id: string
-  label: string
-}
+  id: string;
+  label: string;
+};
 
 type CommonSpace = {
-  id: string
-  name: string
-  description: string | null
-  event_price: number | null
-  image_url: string | null
-  time_block_hours: number
-  booking_block_days: number | null
-  grace_days_threshold: number | null
-  is_free_by_default: boolean | null
-  last_reservation_date?: string | null // 📝 Added to track cooldown per card
-}
+  id: string;
+  name: string;
+  description: string | null;
+  event_price: number | null;
+  image_url: string | null;
+  time_block_hours: number;
+  booking_block_days: number | null;
+  grace_days_threshold: number | null;
+  is_free_by_default: boolean | null;
+  last_reservation_date?: string | null; // 📝 Added to track cooldown per card
+};
 
-type ReservationRow = Pick<
-  Database['public']['Views']['common_space_reservations_with_user']['Row'],
-  'date' | 'block' | 'status'
->
+type ReservationRow = {
+  date: string | null;
+  block: "morning" | "afternoon" | null;
+  status: string | null;
+  time_section_id: string | null;
+  start_time: string | null;
+  end_time: string | null;
+};
+
+type TimeSection = {
+  id: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  sort_order: number;
+};
 
 type DayAvailability = {
-  iso: string
-  weekday: string
-  label: string
-  amTaken: boolean
-  pmTaken: boolean
-  status: 'available' | 'partial' | 'full'
-}
+  iso: string;
+  weekday: string;
+  label: string;
+  amTaken: boolean;
+  pmTaken: boolean;
+  takenSectionIds: string[];
+  status: "available" | "partial" | "full";
+};
 
 type ReservationWizardProps = {
-  onExit?: () => void
-}
+  onExit?: () => void;
+};
 
-dayjs.locale('es')
+dayjs.locale("es");
 
 const BLOCKS = [
   {
-    id: 'morning' as const,
-    title: 'Bloque AM',
-    range: '08:00 - 14:00',
-    description: 'Ideal para actividades familiares o reuniones matutinas.',
-    gradient: ['#6d28d9', '#7c3aed'] as const,
+    id: "morning" as const,
+    title: "Bloque AM",
+    range: "08:00 - 14:00",
+    description: "Ideal para actividades familiares o reuniones matutinas.",
+    block: "morning" as const,
+    gradient: ["#6d28d9", "#7c3aed"] as const,
   },
   {
-    id: 'afternoon' as const,
-    title: 'Bloque PM',
-    range: '15:00 - 21:00',
-    description: 'Perfecto para celebraciones y encuentros al atardecer.',
-    gradient: ['#4338ca', '#6366f1'] as const,
+    id: "afternoon" as const,
+    title: "Bloque PM",
+    range: "15:00 - 21:00",
+    description: "Perfecto para celebraciones y encuentros al atardecer.",
+    block: "afternoon" as const,
+    gradient: ["#4338ca", "#6366f1"] as const,
   },
-]
+];
 
 const STEP_DEFINITIONS = [
   {
-    id: 'space' as const,
-    title: 'Espacio',
-    description: 'Elige el espacio común con el que iniciarás la reserva.',
+    id: "space" as const,
+    title: "Espacio",
+    description: "Elige el espacio común con el que iniciarás la reserva.",
   },
   {
-    id: 'department' as const,
-    title: 'Departamento',
-    description: 'Define a qué departamento quedará asociada la reserva.',
+    id: "department" as const,
+    title: "Departamento",
+    description: "Define a qué departamento quedará asociada la reserva.",
   },
   {
-    id: 'availability' as const,
-    title: 'Disponibilidad',
-    description: 'Selecciona el día que prefieras reservar.',
+    id: "availability" as const,
+    title: "Disponibilidad",
+    description: "Selecciona el día que prefieras reservar.",
   },
   {
-    id: 'schedule' as const,
-    title: 'Horario',
-    description: 'Confirma el bloque horario de tu evento.',
+    id: "schedule" as const,
+    title: "Horario",
+    description: "Confirma el bloque horario de tu evento.",
   },
-]
+];
 
-const STATUS_COLORS: Record<DayAvailability['status'], { background: string; text: string; label: string }> = {
-  available: { background: '#ede9fe', text: '#5b21b6', label: 'Disponible' },
-  partial: { background: '#fef3c7', text: '#92400e', label: 'Parcial' },
-  full: { background: '#fee2e2', text: '#b91c1c', label: 'Sin cupos' },
-}
+const STATUS_COLORS: Record<
+  DayAvailability["status"],
+  { background: string; text: string; label: string }
+> = {
+  available: { background: "#ede9fe", text: "#5b21b6", label: "Disponible" },
+  partial: { background: "#fef3c7", text: "#92400e", label: "Parcial" },
+  full: { background: "#fee2e2", text: "#b91c1c", label: "Sin cupos" },
+};
 
 const PLACEHOLDER_IMAGE =
-  'https://images.unsplash.com/photo-1570129477492-45c003edd2be?auto=format&fit=crop&w=900&q=80'
+  "https://images.unsplash.com/photo-1570129477492-45c003edd2be?auto=format&fit=crop&w=900&q=80";
 
 function formatLongDate(iso: string) {
-  return dayjs(iso).format('dddd D [de] MMMM').replace(/^./, (c) => c.toUpperCase())
+  return dayjs(iso)
+    .format("dddd D [de] MMMM")
+    .replace(/^./, (c) => c.toUpperCase());
 }
 
-function getBlockLabel(block: 'morning' | 'afternoon' | null) {
-  if (!block) return ''
-  return block === 'morning' ? 'Bloque AM' : 'Bloque PM'
+function getBlockLabel(block: "morning" | "afternoon" | null) {
+  if (!block) return "";
+  return block === "morning" ? "Bloque AM" : "Bloque PM";
+}
+
+function formatTime(value: string) {
+  return value.slice(0, 5);
+}
+
+function getBlockForSection(section: TimeSection): "morning" | "afternoon" {
+  return Number(section.start_time.slice(0, 2)) < 12 ? "morning" : "afternoon";
+}
+
+function getSectionDurationHours(section: TimeSection) {
+  const toMinutes = (value: string) => {
+    const [hours, minutes] = value.split(":").map(Number);
+    return hours * 60 + minutes;
+  };
+  let end = toMinutes(section.end_time);
+  const start = toMinutes(section.start_time);
+  if (end <= start) end += 24 * 60;
+  return (end - start) / 60;
 }
 
 export default function ReservationWizard({ onExit }: ReservationWizardProps) {
-  const { id: userId, communityId } = useUser()
-  const { fetchReservations } = useResidentContext()
+  const { id: userId, communityId } = useUser();
+  const { fetchReservations } = useResidentContext();
 
-  const [loading, setLoading] = useState(true)
-  const [departments, setDepartments] = useState<DepartmentOption[]>([])
-  const [spaces, setSpaces] = useState<CommonSpace[]>([])
-  const [spaceIndex, setSpaceIndex] = useState(0)
-  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null)
-  const [availability, setAvailability] = useState<DayAvailability[]>([])
-  const [availabilityLoading, setAvailabilityLoading] = useState(false)
-  const [availabilityError, setAvailabilityError] = useState<string | null>(null)
-  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(null)
-  const [selectedDate, setSelectedDate] = useState<string | null>(null)
-  const [selectedBlock, setSelectedBlock] = useState<'morning' | 'afternoon' | null>(null)
-  const [success, setSuccess] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
+  const [loading, setLoading] = useState(true);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [spaces, setSpaces] = useState<CommonSpace[]>([]);
+  const [spaceIndex, setSpaceIndex] = useState(0);
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<DayAvailability[]>([]);
+  const [timeSections, setTimeSections] = useState<TimeSection[]>([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(
+    null,
+  );
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<
+    string | null
+  >(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedBlock, setSelectedBlock] = useState<
+    "morning" | "afternoon" | null
+  >(null);
+  const [selectedTimeSectionId, setSelectedTimeSectionId] = useState<
+    string | null
+  >(null);
+
+  const [success, setSuccess] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // 📝 Estados para Bloqueo y Cobros
-  const [blockingDays, setBlockingDays] = useState<number>(0)
-  const [blockingMessage, setBlockingMessage] = useState<string | null>(null)
-  const [costInfo, setCostInfo] = useState<{ cost: number; isGrace: boolean } | null>(null)
-  const [communityGraceDays, setCommunityGraceDays] = useState<number>(0)
-  const [monthReservationsCount, setMonthReservationsCount] = useState<number>(0)
+  const [blockingDays, setBlockingDays] = useState<number>(0);
+  const [blockingMessage, setBlockingMessage] = useState<string | null>(null);
+  const [costInfo, setCostInfo] = useState<{
+    cost: number;
+    isGrace: boolean;
+  } | null>(null);
+  const [communityGraceDays, setCommunityGraceDays] = useState<number>(0);
+  const [monthReservationsCount, setMonthReservationsCount] =
+    useState<number>(0);
 
-  const stepper = useStepperize<StepId>({ steps: STEP_DEFINITIONS, initialStep: 'space' })
+  const stepper = useStepperize<StepId>({
+    steps: STEP_DEFINITIONS,
+    initialStep: "space",
+  });
 
-  const carouselRef = useRef<FlatList<CommonSpace>>(null)
+  const carouselRef = useRef<FlatList<CommonSpace>>(null);
 
   const selectedDepartment = useMemo(
     () => departments.find((item) => item.id === selectedDepartmentId) ?? null,
     [departments, selectedDepartmentId],
-  )
+  );
   const selectedSpace = useMemo(
     () => spaces.find((item) => item.id === selectedSpaceId) ?? null,
     [selectedSpaceId, spaces],
-  )
+  );
 
   useEffect(() => {
     if (!selectedSpace) {
-      setCostInfo(null)
-      setBlockingMessage(null)
-      return
+      setCostInfo(null);
+      setBlockingMessage(null);
+      return;
     }
 
     // 💰 Lógica de Costo y Gracia
-    const price = selectedSpace.event_price || 0
+    const price = selectedSpace.event_price || 0;
     if (selectedSpace.is_free_by_default || price === 0) {
-      setCostInfo({ cost: 0, isGrace: false })
+      setCostInfo({ cost: 0, isGrace: false });
     } else {
-      const threshold = selectedSpace.grace_days_threshold ?? communityGraceDays
-      const isGraceAvailable = monthReservationsCount < threshold
+      const threshold =
+        selectedSpace.grace_days_threshold ?? communityGraceDays;
+      const isGraceAvailable = monthReservationsCount < threshold;
       setCostInfo({
         cost: isGraceAvailable ? 0 : price,
         isGrace: isGraceAvailable,
-      })
+      });
     }
-
-  }, [selectedSpace, spaceIndex, spaces, monthReservationsCount, blockingDays, communityGraceDays])
+  }, [
+    selectedSpace,
+    spaceIndex,
+    spaces,
+    monthReservationsCount,
+    blockingDays,
+    communityGraceDays,
+  ]);
   const selectedDayInfo = useMemo(
     () => availability.find((day) => day.iso === selectedDate) ?? null,
     [availability, selectedDate],
-  )
+  );
 
   const completedSteps = useMemo(() => {
-    const done = new Set<StepId>()
-    if (selectedSpace) done.add('space')
-    if (selectedDepartment) done.add('department')
-    if (selectedDate) done.add('availability')
-    if (selectedBlock) done.add('schedule')
-    return done
-  }, [selectedBlock, selectedDate, selectedDepartment, selectedSpace])
+    const done = new Set<StepId>();
+    if (selectedSpace) done.add("space");
+    if (selectedDepartment) done.add("department");
+    if (selectedDate) done.add("availability");
+    if (selectedBlock) done.add("schedule");
+    return done;
+  }, [selectedBlock, selectedDate, selectedDepartment, selectedSpace]);
 
   const stepSummaries = useMemo(
     () => ({
@@ -215,259 +293,426 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
             ? getBlockLabel(selectedBlock)
             : null,
     }),
-    [selectedBlock, selectedDate, selectedDayInfo, selectedDepartment?.label, selectedSpace?.name],
-  )
+    [
+      selectedBlock,
+      selectedDate,
+      selectedDayInfo,
+      selectedDepartment?.label,
+      selectedSpace?.name,
+    ],
+  );
 
   const canNavigateToStep = useCallback(
     (target: StepId) => {
       // 🚫 Bloqueo preventivo: no permite avanzar si hay un mensaje de bloqueo activo
-      if (blockingMessage && (target === 'department' || target === 'availability' || target === 'schedule')) {
-        return false
+      if (
+        blockingMessage &&
+        (target === "department" ||
+          target === "availability" ||
+          target === "schedule")
+      ) {
+        return false;
       }
-      const index = stepper.order.indexOf(target)
-      if (index === -1) return false
-      if (index <= stepper.activeIndex) return true
-      const required = stepper.order.slice(0, index)
-      return required.every((id) => completedSteps.has(id))
+      const index = stepper.order.indexOf(target);
+      if (index === -1) return false;
+      if (index <= stepper.activeIndex) return true;
+      const required = stepper.order.slice(0, index);
+      return required.every((id) => completedSteps.has(id));
     },
     [blockingMessage, completedSteps, stepper.activeIndex, stepper.order],
-  )
+  );
 
   const resetAfterSpaceChange = useCallback(() => {
-    setAvailability([])
-    setAvailabilityError(null)
-    setSelectedDate(null)
-    setSelectedBlock(null)
-  }, [])
+    setAvailability([]);
+    setTimeSections([]);
+    setAvailabilityError(null);
+    setSelectedDate(null);
+    setSelectedBlock(null);
+    setSelectedTimeSectionId(null);
+  }, []);
 
   useEffect(() => {
     try {
-      SoundPlayer.loadSoundFile('notification', 'mp3')
+      SoundPlayer.loadSoundFile("notification", "mp3");
     } catch (err) {
-      console.warn('Error al cargar sonido de notificación', err)
+      console.warn("Error al cargar sonido de notificación", err);
     }
-  }, [])
+  }, []);
 
   const playNotificationSound = useCallback(() => {
     try {
-      SoundPlayer.playSoundFile('notification', 'mp3')
+      SoundPlayer.playSoundFile("notification", "mp3");
     } catch (err) {
-      console.warn('No se pudo reproducir el sonido de notificación', err)
+      console.warn("No se pudo reproducir el sonido de notificación", err);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
     if (success) {
-      playNotificationSound()
+      playNotificationSound();
     }
-  }, [success, playNotificationSound])
+  }, [success, playNotificationSound]);
 
   const loadAvailability = useCallback(
     async (spaceId: string) => {
-      if (!communityId) return
-      setAvailabilityLoading(true)
-      setAvailabilityError(null)
+      if (!communityId) return;
+      setAvailabilityLoading(true);
+      setAvailabilityError(null);
 
       try {
-        const start = dayjs().startOf('day')
-        const end = start.add(30, 'day')
+        const start = dayjs().startOf("day");
+        const end = start.add(30, "day");
 
         const { data, error } = await supabase
-          .from('common_space_reservations_with_user')
-          .select('date, block, status')
-          .eq('common_space_id', spaceId)
-          .eq('community_id', communityId)
-          .gte('date', start.format('YYYY-MM-DD'))
-          .lte('date', end.format('YYYY-MM-DD'))
-          .not('status', 'eq', 'cancelado')
+          .from("common_space_reservations_with_user")
+          .select("date, block, status, time_section_id, start_time, end_time")
+          .eq("common_space_id", spaceId)
+          .eq("community_id", communityId)
+          .gte("date", start.format("YYYY-MM-DD"))
+          .lte("date", end.format("YYYY-MM-DD"))
+          .not("status", "eq", "cancelado");
 
-        if (error) throw error
+        if (error) throw error;
+
+        const sectionsResponse = await supabase
+          .from("common_space_time_sections")
+          .select("id, common_space_id, name, start_time, end_time, sort_order")
+          .eq("common_space_id", spaceId)
+          .order("sort_order", { ascending: true });
+        if (sectionsResponse.error) throw sectionsResponse.error;
+        const sections = (sectionsResponse.data ?? []) as TimeSection[];
+        setTimeSections(sections);
+        console.log(
+          "[ReservationWizard] Horarios configurados para el espacio",
+          {
+            spaceId,
+            count: sections.length,
+            sections,
+          },
+        );
 
         const grouped = ((data ?? []) as ReservationRow[]).reduce<
-          Record<string, { amTaken: boolean; pmTaken: boolean }>
+          Record<
+            string,
+            {
+              amTaken: boolean;
+              pmTaken: boolean;
+              takenCount: number;
+              takenSectionIds: string[];
+            }
+          >
         >((acc, item) => {
-          if (!item.date || item.block !== 'morning' && item.block !== 'afternoon') {
-            return acc
+          if (!item.date) return acc;
+          const dateKey = item.date.slice(0, 10);
+          const existing = acc[dateKey] || {
+            amTaken: false,
+            pmTaken: false,
+            takenCount: 0,
+            takenSectionIds: [],
+          };
+          if (item.block === "morning") existing.amTaken = true;
+          if (item.block === "afternoon") existing.pmTaken = true;
+          if (item.time_section_id) {
+            existing.takenCount += 1;
+            existing.takenSectionIds.push(item.time_section_id);
           }
+          acc[dateKey] = existing;
+          return acc;
+        }, {});
 
-          const dateKey = item.date.length >= 10 ? item.date.slice(0, 10) : item.date
-          const existing = acc[dateKey] || { amTaken: false, pmTaken: false }
+        const days: DayAvailability[] = Array.from({ length: 30 }).map(
+          (_, index) => {
+            const day = start.add(index, "day");
+            const iso = day.format("YYYY-MM-DD");
+            const info = grouped[iso] || {
+              amTaken: false,
+              pmTaken: false,
+              takenCount: 0,
+              takenSectionIds: [],
+            };
+            const hasConfiguredSections = sections.length > 0;
+            const isFull =
+              hasConfiguredSections && info.takenCount >= sections.length;
+            const status: DayAvailability["status"] =
+              isFull || (!hasConfiguredSections && info.amTaken && info.pmTaken)
+                ? "full"
+                : info.takenCount > 0 || info.amTaken || info.pmTaken
+                  ? "partial"
+                  : "available";
+            return {
+              iso,
+              weekday: day.format("ddd").replace(".", ""),
+              label: day.format("D MMM").replace(".", ""),
+              amTaken: info.amTaken,
+              pmTaken: info.pmTaken,
+              takenSectionIds: info.takenSectionIds,
+              status,
+            };
+          },
+        );
 
-          if (item.block === 'morning') existing.amTaken = true
-          if (item.block === 'afternoon') existing.pmTaken = true
-
-          acc[dateKey] = existing
-          return acc
-        }, {})
-
-        const days: DayAvailability[] = Array.from({ length: 30 }).map((_, index) => {
-          const day = start.add(index, 'day')
-          const iso = day.format('YYYY-MM-DD')
-          const info = grouped[iso] || { amTaken: false, pmTaken: false }
-          const status: DayAvailability['status'] = info.amTaken && info.pmTaken ? 'full' : info.amTaken || info.pmTaken ? 'partial' : 'available'
-          return {
-            iso,
-            weekday: day.format('ddd').replace('.', ''),
-            label: day.format('D MMM').replace('.', ''),
-            amTaken: info.amTaken,
-            pmTaken: info.pmTaken,
-            status,
-          }
-        })
-
-        setAvailability(days)
+        setAvailability(days);
       } catch (error) {
-        console.error('Error al cargar disponibilidad', error)
-        setAvailabilityError('No pudimos obtener la disponibilidad de este espacio')
+        console.error("Error al cargar disponibilidad", error);
+        setAvailabilityError(
+          "No pudimos obtener la disponibilidad de este espacio",
+        );
       } finally {
-        setAvailabilityLoading(false)
+        setAvailabilityLoading(false);
       }
     },
     [communityId],
-  )
+  );
 
   useEffect(() => {
-    if (!communityId || !userId) return
-    let cancelled = false
+    if (!communityId || !userId) return;
+    let cancelled = false;
 
     const loadInitialData = async () => {
-      setLoading(true)
+      setLoading(true);
+      console.log("[ReservationWizard] Iniciando carga de datos", {
+        userId,
+        communityId,
+      });
       try {
-        const [departmentsResponse, spacesResponse, communityResponse, lastReservationResponse] = await Promise.all([
+        const [
+          departmentsResponse,
+          spacesResponse,
+          communityResponse,
+          lastReservationResponse,
+        ] = await Promise.all([
           supabase
-            .from('user_departments')
-            .select('department_id, can_reserve, department:department_id(number, reservations_blocked)')
-            .eq('user_id', userId)
-            .eq('community_id', communityId)
-            .eq('active', true),
+            .from("user_departments")
+            .select("department_id, can_reserve")
+            .eq("user_id", userId)
+            .eq("community_id", communityId)
+            .eq("active", true),
           supabase
-            .from('common_spaces')
-            .select('id, name, description, event_price, image_url, time_block_hours, status, booking_block_days, grace_days_threshold, is_free_by_default')
-            .eq('community_id', communityId)
-            .in('status', ['activo', 'habilitado'])
-            .order('name', { ascending: true }),
+            .from("common_spaces")
+            .select(
+              "id, name, description, event_price, image_url, time_block_hours, status, booking_block_days, grace_days_threshold, is_free_by_default",
+            )
+            .eq("community_id", communityId)
+            .in("status", ["activo", "habilitado"])
+            .order("name", { ascending: true }),
           supabase
-            .from('communities')
-            .select('booking_block_days, grace_days' as any)
-            .eq('id', communityId)
+            .from("communities")
+            .select("booking_block_days, grace_days" as any)
+            .eq("id", communityId)
             .single(),
           supabase
-            .from('common_space_reservations')
-            .select('created_at, common_space_id')
-            .eq('community_id', communityId)
-            .eq('reserved_by', userId)
-            .not('status', 'eq', 'cancelado')
-            .order('created_at', { ascending: false }),
-        ])
+            .from("common_space_reservations")
+            .select("created_at, common_space_id")
+            .eq("community_id", communityId)
+            .eq("reserved_by", userId)
+            .not("status", "eq", "cancelado")
+            .order("created_at", { ascending: false }),
+        ]);
 
-        if (cancelled) return
+        if (cancelled) {
+          console.log(
+            "[ReservationWizard] Carga cancelada antes de procesar la respuesta",
+          );
+          return;
+        }
 
-        if (departmentsResponse.error) throw departmentsResponse.error
-        if (spacesResponse.error) throw spacesResponse.error
+        console.log("[ReservationWizard] Respuesta de departamentos", {
+          error: departmentsResponse.error,
+          count: departmentsResponse.data?.length ?? 0,
+          rows: departmentsResponse.data,
+        });
+        console.log("[ReservationWizard] Respuesta de common_spaces", {
+          query: {
+            communityId,
+            statuses: ["activo", "habilitado"],
+          },
+          error: spacesResponse.error,
+          count: spacesResponse.data?.length ?? 0,
+          spaces: spacesResponse.data?.map((space) => ({
+            id: space.id,
+            name: space.name,
+            status: space.status,
+            image_url: space.image_url,
+          })),
+        });
+        console.log("[ReservationWizard] Respuesta de comunidad", {
+          error: communityResponse.error,
+          data: communityResponse.data,
+        });
+        console.log("[ReservationWizard] Respuesta de últimas reservas", {
+          error: lastReservationResponse.error,
+          count: lastReservationResponse.data?.length ?? 0,
+        });
 
-        const { booking_block_days: communityCooldown = 0, grace_days: communityGrace = 0 } = (communityResponse.data as any) || {}
-        setBlockingDays(communityCooldown)
-        setCommunityGraceDays(communityGrace)
+        if (departmentsResponse.error) throw departmentsResponse.error;
+        if (spacesResponse.error) throw spacesResponse.error;
 
-        const latestDates: Record<string, string> = {}
-        const allRes = (lastReservationResponse.data || []) as { created_at: string; common_space_id: string }[]
+        const departmentIds = (departmentsResponse.data || []).map(
+          (row) => row.department_id,
+        );
+        const departmentDetailsResponse = departmentIds.length
+          ? await supabase
+              .from("departments")
+              .select("id, number, reservations_blocked")
+              .in("id", departmentIds)
+          : { data: [], error: null };
+
+        if (departmentDetailsResponse.error) {
+          throw departmentDetailsResponse.error;
+        }
+
+        const departmentDetails = new Map(
+          (departmentDetailsResponse.data || []).map((department) => [
+            department.id,
+            department,
+          ]),
+        );
+
+        const {
+          booking_block_days: communityCooldown = 0,
+          grace_days: communityGrace = 0,
+        } = (communityResponse.data as any) || {};
+        setBlockingDays(communityCooldown);
+        setCommunityGraceDays(communityGrace);
+
+        const latestDates: Record<string, string> = {};
+        const allRes = (lastReservationResponse.data || []) as {
+          created_at: string;
+          common_space_id: string;
+        }[];
         allRes.forEach((res) => {
-          if (res.common_space_id && (!latestDates[res.common_space_id] || dayjs(res.created_at).isAfter(dayjs(latestDates[res.common_space_id])))) {
-            latestDates[res.common_space_id] = res.created_at
+          if (
+            res.common_space_id &&
+            (!latestDates[res.common_space_id] ||
+              dayjs(res.created_at).isAfter(
+                dayjs(latestDates[res.common_space_id]),
+              ))
+          ) {
+            latestDates[res.common_space_id] = res.created_at;
           }
-        })
+        });
 
         // 📊 Consultar reservas del mes para cálculo de gracia
-        const startOfMonth = dayjs().startOf('month').format('YYYY-MM-DD')
+        const startOfMonth = dayjs().startOf("month").format("YYYY-MM-DD");
         const { count: monthResCount } = await supabase
-          .from('common_space_reservations')
-          .select('id', { count: 'exact', head: true })
-          .eq('community_id', communityId as string)
-          .eq('reserved_by', userId as string)
-          .gte('date', startOfMonth)
-          .not('status', 'eq', 'cancelado')
+          .from("common_space_reservations")
+          .select("id", { count: "exact", head: true })
+          .eq("community_id", communityId as string)
+          .eq("reserved_by", userId as string)
+          .gte("date", startOfMonth)
+          .not("status", "eq", "cancelado");
 
-        setMonthReservationsCount(monthResCount || 0)
+        setMonthReservationsCount(monthResCount || 0);
 
         const departmentOptions = (departmentsResponse.data || [])
           .map((row) => {
-            const dept = Array.isArray(row.department) ? row.department[0] : row.department
+            const department = departmentDetails.get(row.department_id);
             return {
               id: row.department_id,
-              label: dept?.number ? `Depto ${dept.number}` : 'Departamento',
+              label: department?.number
+                ? `Depto ${department.number}`
+                : "Departamento",
               canReserve: row.can_reserve !== false,
-              blocked: dept?.reservations_blocked === true,
-            }
+              blocked: department?.reservations_blocked === true,
+            };
           })
           .filter((item) => item.canReserve && !item.blocked)
-          .map(({ id, label }) => ({ id, label }))
+          .map(({ id, label }) => ({ id, label }));
 
-        const spaceOptions = (spacesResponse.data || [])
-          .map((space) => ({
+        const spaceOptions = (spacesResponse.data || []).map((space) => ({
+          id: space.id,
+          name: space.name,
+          description: space.description,
+          event_price: space.event_price,
+          image_url: space.image_url,
+          time_block_hours: space.time_block_hours || 1,
+          booking_block_days: space.booking_block_days,
+          grace_days_threshold: space.grace_days_threshold,
+          is_free_by_default: space.is_free_by_default,
+          last_reservation_date: latestDates[space.id] || null,
+        })) as CommonSpace[];
+
+        if (cancelled) return;
+
+        console.log("[ReservationWizard] Opciones finales para renderizar", {
+          departments: departmentOptions,
+          spaces: spaceOptions.map((space) => ({
             id: space.id,
             name: space.name,
-            description: space.description,
-            event_price: space.event_price,
+            status: (spacesResponse.data ?? []).find(
+              (row) => row.id === space.id,
+            )?.status,
             image_url: space.image_url,
-            time_block_hours: space.time_block_hours || 1,
-            booking_block_days: space.booking_block_days,
-            grace_days_threshold: space.grace_days_threshold,
-            is_free_by_default: space.is_free_by_default,
-            last_reservation_date: latestDates[space.id] || null,
-          })) as CommonSpace[]
+          })),
+        });
 
-        if (cancelled) return
-
-        setDepartments(departmentOptions)
-        setSpaces(spaceOptions)
-        setSpaceIndex((current) => Math.min(current, Math.max(spaceOptions.length - 1, 0)))
+        setDepartments(departmentOptions);
+        setSpaces(spaceOptions);
+        setSpaceIndex((current) =>
+          Math.min(current, Math.max(spaceOptions.length - 1, 0)),
+        );
         setSelectedSpaceId((prev) =>
           prev && spaceOptions.some((space) => space.id === prev) ? prev : null,
-        )
+        );
       } catch (error) {
+        console.error("[ReservationWizard] Error al cargar datos iniciales", {
+          error,
+          userId,
+          communityId,
+        });
         if (!cancelled) {
-          console.error('Error al cargar datos iniciales', error)
-          Toast.show({ type: 'error', text1: 'No pudimos cargar los datos iniciales' })
+          Toast.show({
+            type: "error",
+            text1: "No pudimos cargar los datos iniciales",
+          });
         }
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setLoading(false);
       }
-    }
+    };
 
-    loadInitialData()
+    loadInitialData();
 
     return () => {
-      cancelled = true
-    }
-  }, [communityId, userId])
+      cancelled = true;
+    };
+  }, [communityId, userId]);
 
   useEffect(() => {
-    if (!selectedSpaceId || !communityId || !userId) return
-    
-    let cancelled = false
+    if (!selectedSpaceId || !communityId || !userId) return;
+
+    let cancelled = false;
     const fetchSpaceMonthStats = async () => {
-      resetAfterSpaceChange()
-      
+      resetAfterSpaceChange();
+
       // 📊 Consultar reservas del mes para ESTE ESPACIO para cálculo de gracia
-      const startOfMonth = dayjs().startOf('month').format('YYYY-MM-DD')
+      const startOfMonth = dayjs().startOf("month").format("YYYY-MM-DD");
       const { count } = await supabase
-        .from('common_space_reservations')
-        .select('id', { count: 'exact', head: true })
-        .eq('community_id', communityId)
-        .eq('reserved_by', userId)
-        .eq('common_space_id', selectedSpaceId)
-        .gte('date', startOfMonth)
-        .not('status', 'eq', 'cancelado')
+        .from("common_space_reservations")
+        .select("id", { count: "exact", head: true })
+        .eq("community_id", communityId)
+        .eq("reserved_by", userId)
+        .eq("common_space_id", selectedSpaceId)
+        .gte("date", startOfMonth)
+        .not("status", "eq", "cancelado");
 
       if (!cancelled) {
-        setMonthReservationsCount(count || 0)
-        loadAvailability(selectedSpaceId)
+        setMonthReservationsCount(count || 0);
+        loadAvailability(selectedSpaceId);
       }
-    }
+    };
 
-    fetchSpaceMonthStats()
-    return () => { cancelled = true }
-  }, [communityId, userId, selectedSpaceId, loadAvailability, resetAfterSpaceChange])
+    fetchSpaceMonthStats();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    communityId,
+    userId,
+    selectedSpaceId,
+    loadAvailability,
+    resetAfterSpaceChange,
+  ]);
 
   useEffect(() => {
     if (
@@ -476,158 +721,221 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
       !selectedDepartmentId &&
       departments[0]
     ) {
-      setSelectedDepartmentId(departments[0].id)
-      setSelectedDate(null)
-      setSelectedBlock(null)
-      if (stepper.activeStep === 'department') {
-        stepper.goTo('availability')
+      setSelectedDepartmentId(departments[0].id);
+      setSelectedDate(null);
+      setSelectedBlock(null);
+      setSelectedTimeSectionId(null);
+      if (stepper.activeStep === "department") {
+        stepper.goTo("availability");
       }
     }
-  }, [departments, selectedDepartmentId, selectedSpaceId, stepper])
+  }, [departments, selectedDepartmentId, selectedSpaceId, stepper]);
 
   const handleSelectDepartment = (departmentId: string) => {
     if (selectedDepartmentId !== departmentId) {
-      setSelectedDepartmentId(departmentId)
-      setSelectedDate(null)
-      setSelectedBlock(null)
+      setSelectedDepartmentId(departmentId);
+      setSelectedDate(null);
+      setSelectedBlock(null);
+      setSelectedTimeSectionId(null);
     }
-    stepper.goTo('availability')
-  }
+    stepper.goTo("availability");
+  };
 
   const handleMomentumScrollEnd = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (!spaces.length) return
-      const offset = Math.max(0, event.nativeEvent.contentOffset.x)
-      const index = Math.round(offset / SPACE_CARD_SNAP_INTERVAL)
-      setSpaceIndex((current) => (index === current ? current : Math.max(0, Math.min(index, spaces.length - 1))))
+      if (!spaces.length) return;
+      const offset = Math.max(0, event.nativeEvent.contentOffset.x);
+      const index = Math.round(offset / SPACE_CARD_SNAP_INTERVAL);
+      setSpaceIndex((current) =>
+        index === current
+          ? current
+          : Math.max(0, Math.min(index, spaces.length - 1)),
+      );
     },
     [spaces.length],
-  )
+  );
 
   const handleSelectSpace = useCallback(
     (space: CommonSpace, index: number) => {
-      setSpaceIndex(index)
-      
+      setSpaceIndex(index);
+
       // 🚫 No bloquear la selección inicial, permitir el foco
       // para que el banner explicativo se muestre.
-      
+
       // 🚫 Lógica de Bloqueo (Cooldown)
-      const spaceCooldown = space.booking_block_days ?? blockingDays
-      const spaceLastResDate = space.last_reservation_date
-      let isLocked = false
-      let remainingDaysCount = 0
+      const spaceCooldown = space.booking_block_days ?? blockingDays;
+      const spaceLastResDate = space.last_reservation_date;
+      let isLocked = false;
+      let remainingDaysCount = 0;
       if (spaceLastResDate && spaceCooldown > 0) {
-        const lastCreatedDate = dayjs(spaceLastResDate)
-        const nextAvailable = lastCreatedDate.add(spaceCooldown, 'day')
-        const diffFromToday = nextAvailable.diff(dayjs(), 'day')
+        const lastCreatedDate = dayjs(spaceLastResDate);
+        const nextAvailable = lastCreatedDate.add(spaceCooldown, "day");
+        const diffFromToday = nextAvailable.diff(dayjs(), "day");
 
         if (diffFromToday > 0) {
-          isLocked = true
-          remainingDaysCount = diffFromToday
+          isLocked = true;
+          remainingDaysCount = diffFromToday;
         }
       }
 
       if (spaceIndex !== index) {
-        carouselRef.current?.scrollToIndex({ index, animated: true })
+        carouselRef.current?.scrollToIndex({ index, animated: true });
       }
 
       if (!isLocked) {
-        setSelectedSpaceId(space.id)
-        stepper.goTo('department')
+        setSelectedSpaceId(space.id);
+        stepper.goTo("department");
       } else {
         Toast.show({
-          type: 'info',
-          text1: 'Pausa reglamentaria ⏱️',
-          text2: `Debes esperar ${remainingDaysCount} ${remainingDaysCount === 1 ? 'día' : 'días'} más para reservar este espacio.`,
-        })
+          type: "info",
+          text1: "Pausa reglamentaria ⏱️",
+          text2: `Debes esperar ${remainingDaysCount} ${remainingDaysCount === 1 ? "día" : "días"} más para reservar este espacio.`,
+        });
       }
     },
     [blockingDays, carouselRef, spaceIndex, stepper],
-  )
+  );
 
   const handleSelectDot = useCallback(
     (index: number) => {
-      if (index < 0 || index >= spaces.length) return
-      const target = spaces[index]
-      handleSelectSpace(target, index)
+      if (index < 0 || index >= spaces.length) return;
+      const target = spaces[index];
+      handleSelectSpace(target, index);
     },
     [handleSelectSpace, spaces],
-  )
+  );
 
   const handleSelectDay = (day: DayAvailability) => {
-    if (day.status === 'full') {
-      Toast.show({ type: 'info', text1: 'Este día no tiene horarios disponibles' })
-      return
+    if (day.status === "full") {
+      Toast.show({
+        type: "info",
+        text1: "Este día no tiene horarios disponibles",
+      });
+      return;
     }
-    setSelectedDate(day.iso)
-    setSelectedBlock(null)
-    stepper.goTo('schedule')
-  }
+    setSelectedDate(day.iso);
+    setSelectedBlock(null);
+    setSelectedTimeSectionId(null);
+    stepper.goTo("schedule");
+  };
 
-  const handleSelectBlock = (block: 'morning' | 'afternoon') => {
-    setSelectedBlock(block)
-  }
+  const handleSelectBlock = (
+    block: "morning" | "afternoon",
+    timeSectionId?: string,
+  ) => {
+    setSelectedBlock(block);
+    setSelectedTimeSectionId(timeSectionId ?? null);
+  };
+
+  const selectedTimeSection = useMemo(
+    () =>
+      timeSections.find((section) => section.id === selectedTimeSectionId) ??
+      null,
+    [selectedTimeSectionId, timeSections],
+  );
+
+  const scheduleOptions = useMemo(
+    () =>
+      timeSections.length > 0
+        ? timeSections.map((section) => ({
+            id: section.id,
+            title: section.name,
+            range: `${formatTime(section.start_time)} - ${formatTime(section.end_time)}`,
+            description: "Horario configurado por tu comunidad.",
+            block: getBlockForSection(section),
+            gradient: ["#6d28d9", "#7c3aed"] as const,
+          }))
+        : BLOCKS,
+    [timeSections],
+  );
 
   const handleConfirmReservation = async () => {
-    if (!selectedDepartment || !selectedSpace || !selectedDate || !selectedBlock || !communityId || !userId) return
-    setSubmitting(true)
+    if (
+      !selectedDepartment ||
+      !selectedSpace ||
+      !selectedDate ||
+      !selectedBlock ||
+      !communityId ||
+      !userId
+    )
+      return;
+    setSubmitting(true);
 
     try {
-      const { data: existing, error: checkError } = await supabase
-        .from('common_space_reservations')
-        .select('id')
-        .eq('common_space_id', selectedSpace.id)
-        .eq('community_id', communityId)
-        .eq('date', selectedDate)
-        .eq('block', selectedBlock)
-        .not('status', 'eq', 'cancelado')
-        .limit(1)
-        .maybeSingle()
+      let existingQuery = supabase
+        .from("common_space_reservations")
+        .select("id")
+        .eq("common_space_id", selectedSpace.id)
+        .eq("community_id", communityId)
+        .eq("date", selectedDate);
 
-      if (checkError) throw checkError
-
-      if (existing) {
-        Toast.show({ type: 'error', text1: 'Este bloque ya está reservado' })
-        setSubmitting(false)
-        return
+      if (selectedTimeSectionId) {
+        existingQuery = existingQuery.eq(
+          "time_section_id",
+          selectedTimeSectionId,
+        );
+      } else {
+        existingQuery = existingQuery.eq("block", selectedBlock);
       }
 
-      const { error } = await supabase.from('common_space_reservations').insert({
-        reserved_by: userId,
-        department_id: selectedDepartment.id,
-        community_id: communityId,
-        common_space_id: selectedSpace.id,
-        date: selectedDate,
-        block: selectedBlock,
-        duration_hours: selectedSpace.time_block_hours || 1,
-        created_at: new Date().toISOString(),
-        status: 'agendado',
-        cost_applied: costInfo?.cost || 0,
-        is_grace_use: costInfo?.isGrace || false,
-      } as any)
+      const { data: existing, error: checkError } = await existingQuery
+        .not("status", "eq", "cancelado")
+        .limit(1)
+        .maybeSingle();
 
-      if (error) throw error
+      if (checkError) throw checkError;
 
-      Toast.show({ type: 'success', text1: 'Reserva creada con éxito' })
-      await fetchReservations()
-      setSuccess(true)
+      if (existing) {
+        Toast.show({ type: "error", text1: "Este bloque ya está reservado" });
+        setSubmitting(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from("common_space_reservations")
+        .insert({
+          reserved_by: userId,
+          department_id: selectedDepartment.id,
+          community_id: communityId,
+          common_space_id: selectedSpace.id,
+          date: selectedDate,
+          block: selectedBlock,
+          time_section_id: selectedTimeSectionId,
+          start_time: selectedTimeSection?.start_time ?? null,
+          end_time: selectedTimeSection?.end_time ?? null,
+          duration_hours: selectedTimeSection
+            ? getSectionDurationHours(selectedTimeSection)
+            : selectedSpace.time_block_hours || 1,
+          created_at: new Date().toISOString(),
+          status: "agendado",
+          cost_applied: costInfo?.cost || 0,
+          is_grace_use: costInfo?.isGrace || false,
+        } as any);
+
+      if (error) throw error;
+
+      Toast.show({ type: "success", text1: "Reserva creada con éxito" });
+      await fetchReservations();
+      setSuccess(true);
     } catch (error) {
-      console.error('Error al confirmar la reserva', error)
-      Toast.show({ type: 'error', text1: 'Ocurrió un problema al crear la reserva' })
+      console.error("Error al confirmar la reserva", error);
+      Toast.show({
+        type: "error",
+        text1: "Ocurrió un problema al crear la reserva",
+      });
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
-
+  };
 
   const handleExit = useCallback(() => {
-    onExit?.()
-  }, [onExit])
+    onExit?.();
+  }, [onExit]);
 
   const handleSuccessContinue = useCallback(async () => {
-    await playNotificationSound()
-    handleExit()
-  }, [handleExit, playNotificationSound])
+    await playNotificationSound();
+    handleExit();
+  }, [handleExit, playNotificationSound]);
 
   if (loading) {
     return (
@@ -635,7 +943,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
         <ActivityIndicator color="#7C3AED" size="large" />
         <Text style={styles.loadingText}>Cargando datos...</Text>
       </View>
-    )
+    );
   }
 
   if (!departments.length || !spaces.length) {
@@ -643,32 +951,45 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
       <View style={styles.emptyState}>
         <Text style={styles.emptyTitle}>No hay espacios disponibles</Text>
         <Text style={styles.emptySubtitle}>
-          Aún no tienes departamentos habilitados o no existen espacios comunes configurados en tu comunidad.
+          Aún no tienes departamentos habilitados o no existen espacios comunes
+          configurados en tu comunidad.
         </Text>
         <Pressable style={styles.secondaryButton} onPress={handleExit}>
           <Text style={styles.secondaryButtonLabel}>Volver</Text>
         </Pressable>
       </View>
-    )
+    );
   }
 
   if (success) {
-    const blockLabel = getBlockLabel(selectedBlock)
-    const formattedDate = selectedDayInfo ? formatLongDate(selectedDayInfo.iso) : ''
+    const blockLabel = selectedTimeSection
+      ? `${selectedTimeSection.name} (${formatTime(selectedTimeSection.start_time)} - ${formatTime(selectedTimeSection.end_time)})`
+      : getBlockLabel(selectedBlock);
+    const formattedDate = selectedDayInfo
+      ? formatLongDate(selectedDayInfo.iso)
+      : "";
     return (
       <View style={styles.successContainer}>
-        <LinearGradient colors={['#6d28d9', '#7c3aed']} style={styles.successBadge}>
+        <LinearGradient
+          colors={["#6d28d9", "#7c3aed"]}
+          style={styles.successBadge}
+        >
           <Check size={34} color="#fff" />
         </LinearGradient>
         <Text style={styles.successTitle}>¡Reserva confirmada!</Text>
         <Text style={styles.successMessage}>
-          Tu reserva de {selectedSpace?.name} quedó agendada para {formattedDate} en el {blockLabel}.
+          Tu reserva de {selectedSpace?.name} quedó agendada para{" "}
+          {formattedDate} en el {blockLabel}.
         </Text>
-        <Pressable style={styles.primaryButton} onPress={handleSuccessContinue} accessibilityRole="button">
+        <Pressable
+          style={styles.primaryButton}
+          onPress={handleSuccessContinue}
+          accessibilityRole="button"
+        >
           <Text style={styles.primaryButtonLabel}>Ver mis reservas</Text>
         </Pressable>
       </View>
-    )
+    );
   }
 
   return (
@@ -679,7 +1000,11 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
         bounces={false}
       >
         <View style={styles.headerRow}>
-          <Pressable onPress={handleExit} style={styles.backButton} accessibilityRole="button">
+          <Pressable
+            onPress={handleExit}
+            style={styles.backButton}
+            accessibilityRole="button"
+          >
             <ChevronLeft size={20} color="#6d28d9" />
             <Text style={styles.backButtonLabel}>Salir</Text>
           </Pressable>
@@ -688,18 +1013,19 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
         <View style={styles.headerCopy}>
           <Text style={styles.headerTitle}>Nueva reserva</Text>
           <Text style={styles.headerSubtitle}>
-            Sigue los pasos y agenda tu espacio común con una experiencia guiada.
+            Sigue los pasos y agenda tu espacio común con una experiencia
+            guiada.
           </Text>
         </View>
 
         <View style={styles.stepperWrapper}>
           <View style={styles.stepperTrackRow}>
             {STEP_DEFINITIONS.map((step, index) => {
-              const status = stepper.getStatus(step.id, completedSteps)
-              const canNavigate = canNavigateToStep(step.id)
-              const isComplete = status === 'complete'
-              const isActive = status === 'active'
-              const trackActive = stepper.activeIndex > index
+              const status = stepper.getStatus(step.id, completedSteps);
+              const canNavigate = canNavigateToStep(step.id);
+              const isComplete = status === "complete";
+              const isActive = status === "active";
+              const trackActive = stepper.activeIndex > index;
               return (
                 <React.Fragment key={`${step.id}-track`}>
                   <Pressable
@@ -731,17 +1057,17 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
                     />
                   ) : null}
                 </React.Fragment>
-              )
+              );
             })}
           </View>
 
           <View style={styles.stepperLabelsRow}>
             {STEP_DEFINITIONS.map((step) => {
-              const status = stepper.getStatus(step.id, completedSteps)
-              const canNavigate = canNavigateToStep(step.id)
-              const summary = stepSummaries[step.id]
-              const isActive = status === 'active'
-              const isComplete = status === 'complete'
+              const status = stepper.getStatus(step.id, completedSteps);
+              const canNavigate = canNavigateToStep(step.id);
+              const summary = stepSummaries[step.id];
+              const isActive = status === "active";
+              const isComplete = status === "complete";
               return (
                 <Pressable
                   key={`${step.id}-label`}
@@ -769,182 +1095,215 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
                     </Text>
                   )}
                 </Pressable>
-              )
+              );
             })}
           </View>
         </View>
 
         {costInfo && stepper.activeIndex > 0 && (
-          <MotiView 
+          <MotiView
             from={{ opacity: 0, scale: 0.95, translateY: -10 }}
             animate={{ opacity: 1, scale: 1, translateY: 0 }}
             style={[
               styles.costBadgeBanner,
-              costInfo.isGrace ? styles.costBadgeBannerGrace : styles.costBadgeBannerPaid
+              costInfo.isGrace
+                ? styles.costBadgeBannerGrace
+                : styles.costBadgeBannerPaid,
             ]}
           >
-            <View style={[styles.costBadgeIcon, costInfo.isGrace ? styles.costBadgeIconGrace : styles.costBadgeIconPaid]}>
+            <View
+              style={[
+                styles.costBadgeIcon,
+                costInfo.isGrace
+                  ? styles.costBadgeIconGrace
+                  : styles.costBadgeIconPaid,
+              ]}
+            >
               <Banknote size={20} color="#fff" />
             </View>
             <View style={styles.costBadgeTextContent}>
-              <Text style={[styles.costBadgeLabel, costInfo.isGrace ? styles.costBadgeLabelGrace : styles.costBadgeLabelPaid]}>
-                {costInfo.isGrace 
-                  ? '¡Día de gracia disponible!' 
-                  : `Costo de reserva: $${Math.round(costInfo.cost).toLocaleString('es-CL')}`}
+              <Text
+                style={[
+                  styles.costBadgeLabel,
+                  costInfo.isGrace
+                    ? styles.costBadgeLabelGrace
+                    : styles.costBadgeLabelPaid,
+                ]}
+              >
+                {costInfo.isGrace
+                  ? "¡Día de gracia disponible!"
+                  : `Costo de reserva: $${Math.round(costInfo.cost).toLocaleString("es-CL")}`}
               </Text>
               <Text style={styles.costBadgeDescription}>
-                {costInfo.isGrace 
-                  ? 'Esta reserva no tendrá costo adicional para ti.' 
-                  : 'El monto se cargará a tu cuenta de gastos comunes.'}
+                {costInfo.isGrace
+                  ? "Esta reserva no tendrá costo adicional para ti."
+                  : "El monto se cargará a tu cuenta de gastos comunes."}
               </Text>
             </View>
           </MotiView>
         )}
 
-        {stepper.activeStep === 'space' && (
-            <MotiView
-              key="space"
-              style={[styles.stepCard, styles.spaceStepCard]}
-              from={{ opacity: 0, translateY: 20 }}
-              animate={{ opacity: 1, translateY: 0 }}
-              transition={{ duration: 300 }}
-            >
-              <View style={[styles.spaceStepHeader, styles.spaceStepHeaderText]}>
-                <Text style={styles.sectionTitle}>Elige el espacio común</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Desliza las tarjetas y toca una opción para continuar.
-                </Text>
-              </View>
-              <View style={styles.spaceListWrapper}>
-                <FlatList
-                  ref={carouselRef}
-                  horizontal
-                  data={spaces}
-                  keyExtractor={(item) => item.id}
-                  showsHorizontalScrollIndicator={false}
-                  decelerationRate="fast"
-                  snapToAlignment="start"
-                  snapToInterval={SPACE_CARD_SNAP_INTERVAL}
+        {stepper.activeStep === "space" && (
+          <MotiView
+            key="space"
+            style={[styles.stepCard, styles.spaceStepCard]}
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ duration: 300 }}
+          >
+            <View style={[styles.spaceStepHeader, styles.spaceStepHeaderText]}>
+              <Text style={styles.sectionTitle}>Elige el espacio común</Text>
+              <Text style={styles.sectionSubtitle}>
+                Desliza las tarjetas y toca una opción para continuar.
+              </Text>
+            </View>
+            <View style={styles.spaceListWrapper}>
+              <FlatList
+                ref={carouselRef}
+                horizontal
+                data={spaces}
+                keyExtractor={(item) => item.id}
+                showsHorizontalScrollIndicator={false}
+                decelerationRate="fast"
+                snapToAlignment="start"
+                snapToInterval={SPACE_CARD_SNAP_INTERVAL}
                 contentContainerStyle={styles.carouselContent}
-                  style={styles.carouselList}
-                  onMomentumScrollEnd={handleMomentumScrollEnd}
-                  ItemSeparatorComponent={() => <View style={{ width: SPACE_CARD_GAP }} />}
-                  getItemLayout={(_, index) => ({
-                    length: SPACE_CARD_SNAP_INTERVAL,
-                    offset: SPACE_CARD_SNAP_INTERVAL * index,
-                    index,
-                  })}
-                  renderItem={({ item, index }) => {
-                    const isSelected = selectedSpaceId === item.id
-                    
-                    const spaceCooldown = item.booking_block_days ?? blockingDays
-                    const lastResDate = item.last_reservation_date
-                      let isLocked = false
-                      let remainingDays = 0
-                      if (lastResDate && spaceCooldown > 0) {
-                        const lastCreatedDate = dayjs(lastResDate)
-                        const nextAvailable = lastCreatedDate.add(spaceCooldown, 'day')
-                        const diffFromToday = nextAvailable.diff(dayjs(), 'day')
-                        if (diffFromToday > 0) {
-                          isLocked = true
-                          remainingDays = diffFromToday
-                        }
-                      }
+                style={styles.carouselList}
+                onMomentumScrollEnd={handleMomentumScrollEnd}
+                ItemSeparatorComponent={() => (
+                  <View style={{ width: SPACE_CARD_GAP }} />
+                )}
+                getItemLayout={(_, index) => ({
+                  length: SPACE_CARD_SNAP_INTERVAL,
+                  offset: SPACE_CARD_SNAP_INTERVAL * index,
+                  index,
+                })}
+                renderItem={({ item, index }) => {
+                  const isSelected = selectedSpaceId === item.id;
 
-                    return (
-                      <Pressable
-                        onPress={() => handleSelectSpace(item, index)}
-                        style={[
-                          styles.spaceSlide,
-                          { width: SPACE_CARD_WIDTH },
-                          isSelected && styles.spaceSlideSelected,
-                          isLocked && styles.spaceSlideLocked,
-                        ]}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: isSelected, disabled: isLocked }}
-                      >
-                        <Image
-                          source={{ uri: item.image_url || PLACEHOLDER_IMAGE }}
-                          style={[styles.spaceImage, isLocked && { opacity: 0.6 }]}
-                        />
-                        <LinearGradient
-                          colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.8)']}
-                          style={styles.spaceOverlay}
-                        />
-                        <View style={styles.spaceContent}>
-                          <View style={styles.spaceHeader}>
-                            <Text style={styles.spaceName}>{item.name}</Text>
-                            {isLocked ? (
-                              <View style={styles.cooldownBadge}>
-                                <Clock size={12} color="#93c5fd" />
-                                <Text style={styles.cooldownBadgeText}>
-                                  No puedes reservar: Faltan {remainingDays} {remainingDays === 1 ? 'día' : 'días'}
-                                </Text>
-                              </View>
-                            ) : item.description ? (
-                              <Text style={styles.spaceDescription} numberOfLines={2}>
-                                {item.description}
-                              </Text>
-                            ) : null}
-                          </View>
-                          <View style={styles.spaceChipRow}>
-                            <View style={styles.spaceChip}>
-                              <Clock size={14} color="#ede9fe" />
-                              <Text style={styles.spaceChipText}>
-                                {item.time_block_hours} h por bloque
-                              </Text>
-                            </View>
-                            <View style={styles.spaceChip}>
-                              <Timer size={14} color="#ede9fe" />
-                              <Text style={styles.spaceChipText}>
-                                {isSelected && costInfo
-                                  ? `Costo: $${Math.round(costInfo.cost).toLocaleString('es-CL')}${costInfo.isGrace ? ' (Gracia)' : ''}`
-                                  : item.event_price
-                                    ? `$${Math.round(item.event_price).toLocaleString('es-CL')}`
-                                    : 'Sin costo adicional'}
-                              </Text>
-                            </View>
-                          </View>
-                        </View>
-                        {isLocked && !isSelected && (
-                          <View style={styles.lockedOverlay}>
-                             <Clock size={32} color="rgba(255,255,255,0.6)" />
-                          </View>
-                        )}
-                        {isSelected ? (
-                          <View style={styles.spaceSelectedBadge}>
-                            <Check size={14} color="#fff" />
-                            <Text style={styles.spaceSelectedBadgeLabel}>Seleccionado</Text>
-                          </View>
-                        ) : null}
-                      </Pressable>
-                    )
-                  }}
-                />
-              </View>
-              <View style={[styles.carouselDots, styles.spaceStepHeader]}>
-                {spaces.map((space, index) => {
-                  const isActive = index === spaceIndex
-                  const isChosen = selectedSpaceId === space.id
+                  const spaceCooldown = item.booking_block_days ?? blockingDays;
+                  const lastResDate = item.last_reservation_date;
+                  let isLocked = false;
+                  let remainingDays = 0;
+                  if (lastResDate && spaceCooldown > 0) {
+                    const lastCreatedDate = dayjs(lastResDate);
+                    const nextAvailable = lastCreatedDate.add(
+                      spaceCooldown,
+                      "day",
+                    );
+                    const diffFromToday = nextAvailable.diff(dayjs(), "day");
+                    if (diffFromToday > 0) {
+                      isLocked = true;
+                      remainingDays = diffFromToday;
+                    }
+                  }
+
                   return (
                     <Pressable
-                      key={space.id}
-                      onPress={() => handleSelectDot(index)}
+                      onPress={() => handleSelectSpace(item, index)}
                       style={[
-                        styles.carouselDot,
-                        isActive && styles.carouselDotActive,
-                        isChosen && styles.carouselDotSelected,
+                        styles.spaceSlide,
+                        { width: SPACE_CARD_WIDTH },
+                        isSelected && styles.spaceSlideSelected,
+                        isLocked && styles.spaceSlideLocked,
                       ]}
                       accessibilityRole="button"
-                      accessibilityState={{ selected: isChosen }}
-                    />
-                  )
-                })}
-              </View>
-            </MotiView>
+                      accessibilityState={{
+                        selected: isSelected,
+                        disabled: isLocked,
+                      }}
+                    >
+                      <Image
+                        source={{ uri: item.image_url || PLACEHOLDER_IMAGE }}
+                        style={[
+                          styles.spaceImage,
+                          isLocked && { opacity: 0.6 },
+                        ]}
+                      />
+                      <LinearGradient
+                        colors={["rgba(15,23,42,0.1)", "rgba(15,23,42,0.8)"]}
+                        style={styles.spaceOverlay}
+                      />
+                      <View style={styles.spaceContent}>
+                        <View style={styles.spaceHeader}>
+                          <Text style={styles.spaceName}>{item.name}</Text>
+                          {isLocked ? (
+                            <View style={styles.cooldownBadge}>
+                              <Clock size={12} color="#93c5fd" />
+                              <Text style={styles.cooldownBadgeText}>
+                                No puedes reservar: Faltan {remainingDays}{" "}
+                                {remainingDays === 1 ? "día" : "días"}
+                              </Text>
+                            </View>
+                          ) : item.description ? (
+                            <Text
+                              style={styles.spaceDescription}
+                              numberOfLines={2}
+                            >
+                              {item.description}
+                            </Text>
+                          ) : null}
+                        </View>
+                        <View style={styles.spaceChipRow}>
+                          <View style={styles.spaceChip}>
+                            <Clock size={14} color="#ede9fe" />
+                            <Text style={styles.spaceChipText}>
+                              {item.time_block_hours} h por bloque
+                            </Text>
+                          </View>
+                          <View style={styles.spaceChip}>
+                            <Timer size={14} color="#ede9fe" />
+                            <Text style={styles.spaceChipText}>
+                              {isSelected && costInfo
+                                ? `Costo: $${Math.round(costInfo.cost).toLocaleString("es-CL")}${costInfo.isGrace ? " (Gracia)" : ""}`
+                                : item.event_price
+                                  ? `$${Math.round(item.event_price).toLocaleString("es-CL")}`
+                                  : "Sin costo adicional"}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                      {isLocked && !isSelected && (
+                        <View style={styles.lockedOverlay}>
+                          <Clock size={32} color="rgba(255,255,255,0.6)" />
+                        </View>
+                      )}
+                      {isSelected ? (
+                        <View style={styles.spaceSelectedBadge}>
+                          <Check size={14} color="#fff" />
+                          <Text style={styles.spaceSelectedBadgeLabel}>
+                            Seleccionado
+                          </Text>
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  );
+                }}
+              />
+            </View>
+            <View style={[styles.carouselDots, styles.spaceStepHeader]}>
+              {spaces.map((space, index) => {
+                const isActive = index === spaceIndex;
+                const isChosen = selectedSpaceId === space.id;
+                return (
+                  <Pressable
+                    key={space.id}
+                    onPress={() => handleSelectDot(index)}
+                    style={[
+                      styles.carouselDot,
+                      isActive && styles.carouselDotActive,
+                      isChosen && styles.carouselDotSelected,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isChosen }}
+                  />
+                );
+              })}
+            </View>
+          </MotiView>
         )}
 
-        {stepper.activeStep === 'department' && (
+        {stepper.activeStep === "department" && (
           <MotiView
             key="department"
             style={styles.stepCard}
@@ -958,26 +1317,34 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
             </Text>
             <View style={styles.departmentGrid}>
               {departments.map((department) => {
-                const isActive = selectedDepartment?.id === department.id
+                const isActive = selectedDepartment?.id === department.id;
                 return (
                   <Pressable
                     key={department.id}
                     onPress={() => handleSelectDepartment(department.id)}
-                    style={[styles.departmentChip, isActive && styles.departmentChipActive]}
+                    style={[
+                      styles.departmentChip,
+                      isActive && styles.departmentChipActive,
+                    ]}
                     accessibilityRole="button"
                     accessibilityState={{ selected: isActive }}
                   >
-                    <Text style={[styles.departmentLabel, isActive && styles.departmentLabelActive]}>
+                    <Text
+                      style={[
+                        styles.departmentLabel,
+                        isActive && styles.departmentLabelActive,
+                      ]}
+                    >
                       {department.label}
                     </Text>
                   </Pressable>
-                )
+                );
               })}
             </View>
           </MotiView>
         )}
 
-        {stepper.activeStep === 'availability' && (
+        {stepper.activeStep === "availability" && (
           <MotiView
             key="availability"
             style={styles.stepCard}
@@ -992,11 +1359,15 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
             {availabilityLoading ? (
               <View style={styles.availabilityLoading}>
                 <ActivityIndicator color="#7C3AED" />
-                <Text style={styles.loadingText}>Obteniendo disponibilidad…</Text>
+                <Text style={styles.loadingText}>
+                  Obteniendo disponibilidad…
+                </Text>
               </View>
             ) : availabilityError ? (
               <View style={styles.availabilityError}>
-                <Text style={styles.availabilityErrorText}>{availabilityError}</Text>
+                <Text style={styles.availabilityErrorText}>
+                  {availabilityError}
+                </Text>
               </View>
             ) : (
               <FlatList
@@ -1007,145 +1378,198 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
                 contentContainerStyle={{ gap: 12, paddingVertical: 8 }}
                 scrollEnabled={false}
                 renderItem={({ item }) => {
-                  const isSelected = selectedDate === item.iso
-                  const colors = STATUS_COLORS[item.status]
+                  const isSelected = selectedDate === item.iso;
+                  const colors = STATUS_COLORS[item.status];
                   return (
                     <Pressable
                       onPress={() => handleSelectDay(item)}
-                      style={[styles.dayCard, isSelected && styles.dayCardSelected]}
+                      style={[
+                        styles.dayCard,
+                        isSelected && styles.dayCardSelected,
+                      ]}
                       accessibilityRole="button"
                       accessibilityState={{ selected: isSelected }}
                     >
-                      <Text style={[styles.dayWeekday, isSelected && styles.dayWeekdaySelected]}>
+                      <Text
+                        style={[
+                          styles.dayWeekday,
+                          isSelected && styles.dayWeekdaySelected,
+                        ]}
+                      >
                         {item.weekday}
                       </Text>
-                      <Text style={[styles.dayLabel, isSelected && styles.dayLabelSelected]}>
+                      <Text
+                        style={[
+                          styles.dayLabel,
+                          isSelected && styles.dayLabelSelected,
+                        ]}
+                      >
                         {item.label}
                       </Text>
-                        <View style={[styles.dayStatusBadge, { backgroundColor: colors.background }]}>
-                          <Text style={[styles.dayStatusText, { color: colors.text }]}>{colors.label}</Text>
-                        </View>
-                      </Pressable>
-                    )
-                  }}
-                />
-              )}
-              <View style={styles.legendRow}>
-                {Object.entries(STATUS_COLORS).map(([key, value]) => (
-                  <View key={key} style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: value.text }]} />
-                    <Text style={styles.legendText}>{value.label}</Text>
-                  </View>
-                ))}
-              </View>
-            </MotiView>
-          )}
-
-        {stepper.activeStep === 'schedule' && (
-            <MotiView
-              key="schedule"
-              style={styles.stepCard}
-              from={{ opacity: 0, translateY: 16 }}
-              animate={{ opacity: 1, translateY: 0 }}
-              transition={{ duration: 300 }}
-            >
-              <Text style={styles.sectionTitle}>Elige el bloque horario</Text>
-              <Text style={styles.sectionSubtitle}>
-                Confirma el bloque disponible que mejor se adapte a tu evento.
-              </Text>
-              <View style={styles.blockGrid}>
-                {BLOCKS.map((block) => {
-                  const info = selectedDayInfo
-                  const isTaken = block.id === 'morning' ? info?.amTaken : info?.pmTaken
-                  const isSelected = selectedBlock === block.id
-                  return (
-                    <Pressable
-                      key={block.id}
-                      style={[
-                        styles.blockCard,
-                        isSelected && styles.blockCardSelected,
-                        isTaken && styles.blockCardDisabled,
-                      ]}
-                      onPress={() => (!isTaken ? handleSelectBlock(block.id) : null)}
-                      disabled={Boolean(isTaken)}
-                    >
-                      <LinearGradient colors={block.gradient} style={styles.blockGradient}>
-                        <View style={styles.blockHeader}>
-                          <Clock size={16} color="#fff" />
-                          <Text style={styles.blockRange}>{block.range}</Text>
-                        </View>
-                        <Text style={styles.blockTitle}>{block.title}</Text>
-                        <Text style={styles.blockDescription}>{block.description}</Text>
-                        <View style={styles.blockFooter}>
-                          <Text style={styles.blockStatus}>{isTaken ? 'No disponible' : 'Disponible'}</Text>
-                        </View>
-                      </LinearGradient>
+                      <View
+                        style={[
+                          styles.dayStatusBadge,
+                          { backgroundColor: colors.background },
+                        ]}
+                      >
+                        <Text
+                          style={[styles.dayStatusText, { color: colors.text }]}
+                        >
+                          {colors.label}
+                        </Text>
+                      </View>
                     </Pressable>
-                  )
-                })}
-              </View>
+                  );
+                }}
+              />
+            )}
+            <View style={styles.legendRow}>
+              {Object.entries(STATUS_COLORS).map(([key, value]) => (
+                <View key={key} style={styles.legendItem}>
+                  <View
+                    style={[styles.legendDot, { backgroundColor: value.text }]}
+                  />
+                  <Text style={styles.legendText}>{value.label}</Text>
+                </View>
+              ))}
+            </View>
+          </MotiView>
+        )}
 
-              {selectedDepartment && selectedSpace && selectedDayInfo ? (
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryTitle}>Resumen de tu reserva</Text>
-                  <View style={styles.summaryRow}>
-                    <Users size={16} color="#4338ca" />
-                    <Text style={styles.summaryText}>{selectedDepartment.label}</Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <MapPin size={16} color="#4338ca" />
-                    <Text style={styles.summaryText}>{selectedSpace.name}</Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Clock size={16} color="#4338ca" />
-                    <Text style={styles.summaryText}>
-                      {formatLongDate(selectedDayInfo.iso)} · {getBlockLabel(selectedBlock)}
+        {stepper.activeStep === "schedule" && (
+          <MotiView
+            key="schedule"
+            style={styles.stepCard}
+            from={{ opacity: 0, translateY: 16 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ duration: 300 }}
+          >
+            <Text style={styles.sectionTitle}>Elige el horario</Text>
+            <Text style={styles.sectionSubtitle}>
+              Selecciona uno de los horarios configurados por tu comunidad.
+            </Text>
+            <View style={styles.blockGrid}>
+              {scheduleOptions.map((block) => {
+                const info = selectedDayInfo;
+                const isConfiguredSection = timeSections.length > 0;
+                const isTaken = isConfiguredSection
+                  ? info?.takenSectionIds.includes(block.id)
+                  : block.id === "morning"
+                    ? info?.amTaken
+                    : info?.pmTaken;
+                const isSelected = isConfiguredSection
+                  ? selectedTimeSectionId === block.id
+                  : selectedBlock === block.id;
+                return (
+                  <Pressable
+                    key={block.id}
+                    style={[
+                      styles.blockCard,
+                      isSelected && styles.blockCardSelected,
+                      isTaken && styles.blockCardDisabled,
+                    ]}
+                    onPress={() =>
+                      !isTaken
+                        ? handleSelectBlock(
+                            block.block,
+                            isConfiguredSection ? block.id : undefined,
+                          )
+                        : null
+                    }
+                    disabled={Boolean(isTaken)}
+                  >
+                    <LinearGradient
+                      colors={block.gradient}
+                      style={styles.blockGradient}
+                    >
+                      <View style={styles.blockHeader}>
+                        <Clock size={16} color="#fff" />
+                        <Text style={styles.blockRange}>{block.range}</Text>
+                      </View>
+                      <Text style={styles.blockTitle}>{block.title}</Text>
+                      <Text style={styles.blockDescription}>
+                        {block.description}
+                      </Text>
+                      <View style={styles.blockFooter}>
+                        <Text style={styles.blockStatus}>
+                          {isTaken ? "No disponible" : "Disponible"}
+                        </Text>
+                      </View>
+                    </LinearGradient>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {selectedDepartment && selectedSpace && selectedDayInfo ? (
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryTitle}>Resumen de tu reserva</Text>
+                <View style={styles.summaryRow}>
+                  <Users size={16} color="#4338ca" />
+                  <Text style={styles.summaryText}>
+                    {selectedDepartment.label}
+                  </Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <MapPin size={16} color="#4338ca" />
+                  <Text style={styles.summaryText}>{selectedSpace.name}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Clock size={16} color="#4338ca" />
+                  <Text style={styles.summaryText}>
+                    {formatLongDate(selectedDayInfo.iso)} ·{" "}
+                    {selectedTimeSection
+                      ? `${selectedTimeSection.name} (${formatTime(selectedTimeSection.start_time)} - ${formatTime(selectedTimeSection.end_time)})`
+                      : getBlockLabel(selectedBlock)}
+                  </Text>
+                </View>
+                <View style={styles.summaryPaymentSection}>
+                  <Text style={styles.summaryPaymentTitle}>
+                    Detalle de Pago
+                  </Text>
+                  <View style={styles.summaryPaymentRow}>
+                    <Text style={styles.summaryPaymentLabel}>
+                      Monto a pagar
+                    </Text>
+                    <Text style={styles.summaryPaymentAmount}>
+                      ${Math.round(costInfo?.cost || 0).toLocaleString("es-CL")}
                     </Text>
                   </View>
-                  <View style={styles.summaryPaymentSection}>
-                    <Text style={styles.summaryPaymentTitle}>Detalle de Pago</Text>
-                    <View style={styles.summaryPaymentRow}>
-                      <Text style={styles.summaryPaymentLabel}>Monto a pagar</Text>
-                      <Text style={styles.summaryPaymentAmount}>
-                        ${Math.round(costInfo?.cost || 0).toLocaleString('es-CL')}
-                      </Text>
-                    </View>
-                    {costInfo?.isGrace && (
-                      <Text style={styles.summaryPaymentNote}>
-                        * Se ha aplicado un beneficio de tu comunidad.
-                      </Text>
-                    )}
-                  </View>
+                  {costInfo?.isGrace && (
+                    <Text style={styles.summaryPaymentNote}>
+                      * Se ha aplicado un beneficio de tu comunidad.
+                    </Text>
+                  )}
                 </View>
-              ) : null}
+              </View>
+            ) : null}
 
-              <Pressable
-                style={[
-                  styles.primaryButton,
-                  (!selectedBlock || submitting) && styles.primaryButtonDisabled,
-                ]}
-                onPress={handleConfirmReservation}
-                disabled={!selectedBlock || submitting}
-                accessibilityRole="button"
-              >
-                {submitting ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.primaryButtonLabel}>Confirmar reserva</Text>
-                )}
-              </Pressable>
-            </MotiView>
+            <Pressable
+              style={[
+                styles.primaryButton,
+                (!selectedBlock || submitting) && styles.primaryButtonDisabled,
+              ]}
+              onPress={handleConfirmReservation}
+              disabled={!selectedBlock || submitting}
+              accessibilityRole="button"
+            >
+              {submitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.primaryButtonLabel}>Confirmar reserva</Text>
+              )}
+            </Pressable>
+          </MotiView>
         )}
       </ScrollView>
     </View>
-  )
+  );
 }
-
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -1160,18 +1584,18 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
   },
   backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 999,
-    backgroundColor: '#f3e8ff',
+    backgroundColor: "#f3e8ff",
     gap: 6,
   },
   backButtonLabel: {
-    color: '#6d28d9',
-    fontWeight: '600',
+    color: "#6d28d9",
+    fontWeight: "600",
     fontSize: 13,
   },
   headerCopy: {
@@ -1181,11 +1605,11 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: '700',
-    color: '#1f2937',
+    fontWeight: "700",
+    color: "#1f2937",
   },
   headerSubtitle: {
-    color: '#4b5563',
+    color: "#4b5563",
     fontSize: 14,
     lineHeight: 20,
   },
@@ -1193,18 +1617,18 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 12,
     borderRadius: 24,
-    backgroundColor: '#f5f3ff',
+    backgroundColor: "#f5f3ff",
     paddingVertical: 16,
     paddingHorizontal: 16,
-    shadowColor: 'rgba(99, 102, 241, 0.14)',
+    shadowColor: "rgba(99, 102, 241, 0.14)",
     shadowOpacity: 1,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
     elevation: 6,
   },
   stepperTrackRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   stepperCircleButton: {
     padding: 4,
@@ -1213,65 +1637,65 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#e9d5ff',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#e9d5ff",
+    justifyContent: "center",
+    alignItems: "center",
   },
   stepperCircleActive: {
-    backgroundColor: '#7c3aed',
+    backgroundColor: "#7c3aed",
     transform: [{ scale: 1.05 }],
   },
   stepperCircleComplete: {
-    backgroundColor: '#c4b5fd',
+    backgroundColor: "#c4b5fd",
   },
   stepperIndex: {
-    color: '#312e81',
-    fontWeight: '700',
+    color: "#312e81",
+    fontWeight: "700",
     fontSize: 14,
   },
   stepperTrack: {
     flex: 1,
     height: 2,
     borderRadius: 999,
-    backgroundColor: '#e0e7ff',
+    backgroundColor: "#e0e7ff",
     marginHorizontal: 8,
   },
   stepperTrackActive: {
-    backgroundColor: '#7c3aed',
+    backgroundColor: "#7c3aed",
   },
   stepperLabelsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     marginTop: 18,
   },
   stepperLabelGroup: {
     flex: 1,
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
     gap: 4,
   },
   stepperLabel: {
-    color: '#4338ca',
-    fontWeight: '600',
+    color: "#4338ca",
+    fontWeight: "600",
     fontSize: 13,
   },
   stepperLabelActive: {
-    color: '#6d28d9',
+    color: "#6d28d9",
   },
   stepperSummary: {
-    color: '#312e81',
-    fontWeight: '600',
+    color: "#312e81",
+    fontWeight: "600",
     fontSize: 12,
   },
   stepperDescription: {
-    color: '#6b7280',
+    color: "#6b7280",
     fontSize: 11,
     lineHeight: 16,
   },
   stepCard: {
     borderRadius: 24,
     padding: 24,
-    backgroundColor: '#ffffff',
-    shadowColor: 'rgba(124, 58, 237, 0.12)',
+    backgroundColor: "#ffffff",
+    shadowColor: "rgba(124, 58, 237, 0.12)",
     shadowOpacity: 1,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 12 },
@@ -1294,18 +1718,18 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 22,
-    fontWeight: '700',
-    color: '#1f2937',
+    fontWeight: "700",
+    color: "#1f2937",
   },
   sectionSubtitle: {
     marginTop: 6,
-    color: '#6b7280',
+    color: "#6b7280",
     fontSize: 14,
     lineHeight: 20,
   },
   departmentGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
     marginTop: 18,
   },
@@ -1314,19 +1738,19 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
+    borderColor: "#e5e7eb",
+    backgroundColor: "#f9fafb",
   },
   departmentChipActive: {
-    borderColor: '#6d28d9',
-    backgroundColor: '#ede9fe',
+    borderColor: "#6d28d9",
+    backgroundColor: "#ede9fe",
   },
   departmentLabel: {
-    fontWeight: '600',
-    color: '#374151',
+    fontWeight: "600",
+    color: "#374151",
   },
   departmentLabelActive: {
-    color: '#5b21b6',
+    color: "#5b21b6",
   },
   carouselList: {
     marginTop: 0,
@@ -1337,33 +1761,33 @@ const styles = StyleSheet.create({
   spaceSlide: {
     height: 360,
     borderRadius: 24,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderWidth: 1,
-    borderColor: '#e0e7ff',
-    backgroundColor: '#1f2937',
+    borderColor: "#e0e7ff",
+    backgroundColor: "#1f2937",
   },
   spaceSlideSelected: {
-    borderColor: '#6d28d9',
-    shadowColor: 'rgba(109, 40, 217, 0.35)',
+    borderColor: "#6d28d9",
+    shadowColor: "rgba(109, 40, 217, 0.35)",
     shadowOffset: { width: 0, height: 18 },
     shadowOpacity: 1,
     shadowRadius: 32,
     elevation: 14,
   },
   spaceImage: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
+    position: "absolute",
+    width: "100%",
+    height: "100%",
   },
   spaceOverlay: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
+    position: "absolute",
+    width: "100%",
+    height: "100%",
   },
   spaceContent: {
     flex: 1,
     padding: 24,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
     gap: 16,
   },
   spaceHeader: {
@@ -1371,80 +1795,80 @@ const styles = StyleSheet.create({
   },
   spaceName: {
     fontSize: 22,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontWeight: "700",
+    color: "#ffffff",
   },
   spaceDescription: {
     fontSize: 13,
     lineHeight: 18,
-    color: 'rgba(255,255,255,0.85)',
+    color: "rgba(255,255,255,0.85)",
   },
   spaceChipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
   spaceChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: "rgba(255,255,255,0.18)",
   },
   spaceChipText: {
-    color: '#f8fafc',
-    fontWeight: '600',
+    color: "#f8fafc",
+    fontWeight: "600",
     fontSize: 12,
   },
   spaceSelectedBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: 16,
     right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(109,40,217,0.92)',
+    backgroundColor: "rgba(109,40,217,0.92)",
   },
   spaceSelectedBadgeLabel: {
-    color: '#ffffff',
-    fontWeight: '600',
+    color: "#ffffff",
+    fontWeight: "600",
     fontSize: 12,
   },
   spaceSlideLocked: {
-    borderColor: '#fca5a5',
+    borderColor: "#fca5a5",
     opacity: 0.9,
   },
   cooldownBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     marginTop: 2,
   },
   cooldownBadgeText: {
-    color: '#fca5a5',
+    color: "#fca5a5",
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   lockedOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15,23,42,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(15,23,42,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
     borderRadius: 24,
   },
   carouselDots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     gap: 10,
     marginTop: 18,
     marginBottom: 12,
@@ -1453,18 +1877,18 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#d1d5db',
+    backgroundColor: "#d1d5db",
   },
   carouselDotActive: {
-    backgroundColor: '#7c3aed',
+    backgroundColor: "#7c3aed",
   },
   carouselDotSelected: {
-    backgroundColor: '#5b21b6',
+    backgroundColor: "#5b21b6",
     transform: [{ scale: 1.2 }],
   },
   availabilityLoading: {
     marginTop: 24,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 12,
   },
   availabilityError: {
@@ -1472,12 +1896,12 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#fecaca',
-    backgroundColor: '#fef2f2',
+    borderColor: "#fecaca",
+    backgroundColor: "#fef2f2",
   },
   availabilityErrorText: {
-    color: '#b91c1c',
-    textAlign: 'center',
+    color: "#b91c1c",
+    textAlign: "center",
     fontSize: 14,
     lineHeight: 20,
   },
@@ -1485,16 +1909,16 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 16,
     borderRadius: 16,
-    backgroundColor: '#f9fafb',
+    backgroundColor: "#f9fafb",
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    alignItems: 'center',
+    borderColor: "#e5e7eb",
+    alignItems: "center",
     gap: 6,
   },
   dayCardSelected: {
-    borderColor: '#6d28d9',
-    backgroundColor: '#f5f3ff',
-    shadowColor: 'rgba(93, 63, 211, 0.2)',
+    borderColor: "#6d28d9",
+    backgroundColor: "#f5f3ff",
+    shadowColor: "rgba(93, 63, 211, 0.2)",
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 1,
     shadowRadius: 24,
@@ -1502,42 +1926,42 @@ const styles = StyleSheet.create({
   },
   dayWeekday: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#6b7280',
-    textTransform: 'uppercase',
+    fontWeight: "600",
+    color: "#6b7280",
+    textTransform: "uppercase",
   },
   dayWeekdaySelected: {
-    color: '#5b21b6',
+    color: "#5b21b6",
   },
   dayLabel: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#1f2937',
+    fontWeight: "700",
+    color: "#1f2937",
   },
   dayLabelSelected: {
-    color: '#5b21b6',
+    color: "#5b21b6",
   },
   dayStatusBadge: {
     marginTop: 6,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: '#e0e7ff',
+    backgroundColor: "#e0e7ff",
   },
   dayStatusText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#4338ca',
+    fontWeight: "600",
+    color: "#4338ca",
   },
   legendRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
     marginTop: 18,
   },
   legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   legendDot: {
@@ -1546,25 +1970,25 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   legendText: {
-    color: '#6b7280',
+    color: "#6b7280",
     fontSize: 12,
   },
   blockGrid: {
     marginTop: 18,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 16,
   },
   blockCard: {
     borderRadius: 20,
-    overflow: 'hidden',
+    overflow: "hidden",
     flexGrow: 1,
     flexShrink: 0,
-    width: '48%',
+    width: "48%",
   },
   blockCardSelected: {
     borderWidth: 3,
-    borderColor: '#fcd34d',
+    borderColor: "#fcd34d",
   },
   blockCardDisabled: {
     opacity: 0.45,
@@ -1575,104 +1999,104 @@ const styles = StyleSheet.create({
     minHeight: 170,
   },
   blockHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   blockRange: {
-    color: '#f1f5f9',
-    fontWeight: '600',
+    color: "#f1f5f9",
+    fontWeight: "600",
     fontSize: 13,
   },
   blockTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontWeight: "700",
+    color: "#ffffff",
   },
   blockDescription: {
-    color: 'rgba(255,255,255,0.85)',
+    color: "rgba(255,255,255,0.85)",
     fontSize: 13,
     lineHeight: 18,
   },
   blockFooter: {
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
   },
   blockStatus: {
     marginTop: 6,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: 'rgba(15,23,42,0.35)',
-    color: '#f8fafc',
-    fontWeight: '600',
+    backgroundColor: "rgba(15,23,42,0.35)",
+    color: "#f8fafc",
+    fontWeight: "600",
     fontSize: 12,
   },
   summaryCard: {
     marginTop: 20,
     padding: 18,
     borderRadius: 18,
-    backgroundColor: '#f9f5ff',
+    backgroundColor: "#f9f5ff",
     borderWidth: 1,
-    borderColor: '#e0e7ff',
+    borderColor: "#e0e7ff",
     gap: 12,
   },
   summaryTitle: {
-    fontWeight: '700',
-    color: '#312e81',
+    fontWeight: "700",
+    color: "#312e81",
     fontSize: 16,
   },
   summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   summaryText: {
-    color: '#1f2937',
+    color: "#1f2937",
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     flex: 1,
   },
   summaryCostRow: {
     marginTop: 4,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#e0e7ff',
+    borderTopColor: "#e0e7ff",
   },
   costBadgeBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderRadius: 20,
     marginBottom: 20,
     borderWidth: 1.5,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
   },
   costBadgeBannerGrace: {
-    backgroundColor: '#ecfdf5',
-    borderColor: '#10b981',
+    backgroundColor: "#ecfdf5",
+    borderColor: "#10b981",
   },
   costBadgeBannerPaid: {
-    backgroundColor: '#f5f3ff',
-    borderColor: '#7c3aed',
+    backgroundColor: "#f5f3ff",
+    borderColor: "#7c3aed",
   },
   costBadgeIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   costBadgeIconGrace: {
-    backgroundColor: '#10b981',
+    backgroundColor: "#10b981",
   },
   costBadgeIconPaid: {
-    backgroundColor: '#7c3aed',
+    backgroundColor: "#7c3aed",
   },
   costBadgeTextContent: {
     flex: 1,
@@ -1680,72 +2104,72 @@ const styles = StyleSheet.create({
   },
   costBadgeLabel: {
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   costBadgeLabelGrace: {
-    color: '#065f46',
+    color: "#065f46",
   },
   costBadgeLabelPaid: {
-    color: '#4338ca',
+    color: "#4338ca",
   },
   costBadgeDescription: {
     fontSize: 12,
-    color: '#4b5563',
-    fontWeight: '500',
+    color: "#4b5563",
+    fontWeight: "500",
   },
   summaryPaymentSection: {
     marginTop: 8,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e0e7ff',
+    borderTopColor: "#e0e7ff",
     gap: 8,
   },
   summaryPaymentTitle: {
     fontSize: 15,
-    fontWeight: '700',
-    color: '#312e81',
+    fontWeight: "700",
+    color: "#312e81",
     marginBottom: 4,
   },
   summaryPaymentRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   summaryPaymentLabel: {
     fontSize: 13,
-    color: '#6b7280',
-    fontWeight: '500',
+    color: "#6b7280",
+    fontWeight: "500",
   },
   summaryPaymentValue: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#1f2937',
+    fontWeight: "700",
+    color: "#1f2937",
   },
   summaryPaymentAmount: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#1f2937',
+    fontWeight: "800",
+    color: "#1f2937",
   },
   summaryPaymentNote: {
     fontSize: 11,
-    color: '#059669',
-    fontStyle: 'italic',
+    color: "#059669",
+    fontStyle: "italic",
     marginTop: 4,
   },
   primaryButton: {
     marginTop: 24,
-    backgroundColor: '#6d28d9',
+    backgroundColor: "#6d28d9",
     paddingVertical: 18,
     paddingHorizontal: 32,
     borderRadius: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   primaryButtonDisabled: {
-    backgroundColor: '#c4b5fd',
+    backgroundColor: "#c4b5fd",
   },
   primaryButtonLabel: {
-    color: '#f8fafc',
-    fontWeight: '700',
+    color: "#f8fafc",
+    fontWeight: "700",
     fontSize: 15,
   },
   secondaryButton: {
@@ -1754,81 +2178,80 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    alignItems: 'center',
+    borderColor: "#e5e7eb",
+    alignItems: "center",
   },
   secondaryButtonLabel: {
-    color: '#4b5563',
-    fontWeight: '600',
+    color: "#4b5563",
+    fontWeight: "600",
     fontSize: 14,
   },
   loadingContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#ffffff',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ffffff",
   },
   loadingText: {
     marginTop: 12,
-    color: '#6b7280',
+    color: "#6b7280",
     fontSize: 14,
   },
   emptyState: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 32,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#1f2937',
-    textAlign: 'center',
+    fontWeight: "700",
+    color: "#1f2937",
+    textAlign: "center",
   },
   emptySubtitle: {
     marginTop: 8,
-    color: '#6b7280',
-    textAlign: 'center',
+    color: "#6b7280",
+    textAlign: "center",
     fontSize: 14,
     lineHeight: 20,
   },
   stepFooter: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    borderTopColor: "#f3f4f6",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   successContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#ffffff',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ffffff",
     paddingHorizontal: 32,
   },
   successBadge: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 24,
   },
   successTitle: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#1f2937',
-    textAlign: 'center',
+    fontWeight: "700",
+    color: "#1f2937",
+    textAlign: "center",
   },
   successMessage: {
     marginTop: 12,
-    color: '#4b5563',
-    textAlign: 'center',
+    color: "#4b5563",
+    textAlign: "center",
     fontSize: 15,
     lineHeight: 22,
   },
-})
-
+});

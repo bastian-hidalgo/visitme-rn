@@ -11,10 +11,6 @@ import {
 } from "react";
 
 import { supabase } from "../lib/supabase";
-import {
-  setCrashlyticsUser,
-  clearCrashlyticsUser,
-} from "@/lib/monitoring/crashlytics";
 
 type SupabaseAuthContextValue = {
   session: Session | null;
@@ -54,8 +50,7 @@ export function SupabaseAuthProvider({ children }: PropsWithChildren) {
       try {
         if (!incomingSession?.user) {
           setSession(null);
-          // Limpiar usuario en Crashlytics al hacer logout
-          await clearCrashlyticsUser();
+
           return;
         }
 
@@ -71,7 +66,6 @@ export function SupabaseAuthProvider({ children }: PropsWithChildren) {
           );
           setSession(null);
           await supabase.auth.signOut();
-          await clearCrashlyticsUser();
           return;
         }
 
@@ -81,14 +75,11 @@ export function SupabaseAuthProvider({ children }: PropsWithChildren) {
           );
           setSession(null);
           await supabase.auth.signOut();
-          await clearCrashlyticsUser();
           return;
         }
 
         setAuthRestrictionMessage(null);
         setSession(incomingSession);
-        // Establecer usuario en Crashlytics
-        await setCrashlyticsUser(incomingSession.user.id);
       } catch (error) {
         console.error("Error verifying user role", error);
         setAuthRestrictionMessage(
@@ -96,7 +87,6 @@ export function SupabaseAuthProvider({ children }: PropsWithChildren) {
         );
         setSession(null);
         await supabase.auth.signOut();
-        await clearCrashlyticsUser();
       } finally {
         setIsApplyingSession(false);
       }
