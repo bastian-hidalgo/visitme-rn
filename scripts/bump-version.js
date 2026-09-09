@@ -1,15 +1,16 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
-const packageJsonPath = path.resolve(process.cwd(), 'package.json');
-const appConfigPath = path.resolve(process.cwd(), 'app.config.ts');
+const packageJsonPath = path.resolve(process.cwd(), "package.json");
+const appConfigPath = path.resolve(process.cwd(), "app.config.ts");
+const appJsonPath = path.resolve(process.cwd(), "app.json");
 
 // Read current package.json
-const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
 const oldVersion = packageJson.version;
 
 // Split version and increment minor (middle number) as requested (1.52.0 -> 1.54.0)
-const parts = oldVersion.split('.');
+const parts = oldVersion.split(".");
 if (parts.length === 3) {
   parts[1] = parseInt(parts[1], 10) + 1;
   parts[2] = 0; // Reset patch
@@ -17,29 +18,58 @@ if (parts.length === 3) {
   // Fallback if version format is unusual
   parts[parts.length - 1] = parseInt(parts[parts.length - 1], 10) + 1;
 }
-const newVersion = parts.join('.');
+const newVersion = parts.join(".");
 
 // Update package.json
 packageJson.version = newVersion;
-fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
-console.log(`\x1b[32m✔\x1b[0m package.json version updated: ${oldVersion} -> ${newVersion}`);
+fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + "\n");
+console.log(
+  `\x1b[32m✔\x1b[0m package.json version updated: ${oldVersion} -> ${newVersion}`,
+);
 
-// Update app.config.ts
-let appConfigContent = fs.readFileSync(appConfigPath, 'utf8');
+// Update app.config.ts if it exists
+if (fs.existsSync(appConfigPath)) {
+  let appConfigContent = fs.readFileSync(appConfigPath, "utf8");
 
-// Update version string
-const versionRegex = /version:\s*'[^']*'/;
-appConfigContent = appConfigContent.replace(versionRegex, `version: '${newVersion}'`);
+  // Update version string
+  const versionRegex = /version:\s*'[^']*'/;
+  appConfigContent = appConfigContent.replace(
+    versionRegex,
+    `version: '${newVersion}'`,
+  );
 
-// Also increment versionCode (recommended for Android builds)
-const versionCodeRegex = /versionCode:\s*(\d+)/;
-const versionCodeMatch = appConfigContent.match(versionCodeRegex);
-if (versionCodeMatch) {
-  const oldCode = parseInt(versionCodeMatch[1], 10);
-  const newCode = oldCode + 1;
-  appConfigContent = appConfigContent.replace(versionCodeRegex, `versionCode: ${newCode}`);
-  console.log(`\x1b[32m✔\x1b[0m app.config.ts versionCode updated: ${oldCode} -> ${newCode}`);
+  // Also increment versionCode (recommended for Android builds)
+  const versionCodeRegex = /versionCode:\s*(\d+)/;
+  const versionCodeMatch = appConfigContent.match(versionCodeRegex);
+  if (versionCodeMatch) {
+    const oldCode = parseInt(versionCodeMatch[1], 10);
+    const newCode = oldCode + 1;
+    appConfigContent = appConfigContent.replace(
+      versionCodeRegex,
+      `versionCode: ${newCode}`,
+    );
+    console.log(
+      `\x1b[32m✔\x1b[0m app.config.ts versionCode updated: ${oldCode} -> ${newCode}`,
+    );
+  }
+
+  fs.writeFileSync(appConfigPath, appConfigContent);
+  console.log(`\x1b[32m✔\x1b[0m app.config.ts version updated: ${newVersion}`);
+} else if (fs.existsSync(appJsonPath)) {
+  const appJson = JSON.parse(fs.readFileSync(appJsonPath, "utf8"));
+  if (appJson.expo) {
+    appJson.expo.version = newVersion;
+    if (
+      appJson.expo.android &&
+      typeof appJson.expo.android.versionCode === "number"
+    ) {
+      const oldCode = appJson.expo.android.versionCode;
+      appJson.expo.android.versionCode = oldCode + 1;
+      console.log(
+        `\x1b[32m✔\x1b[0m app.json versionCode updated: ${oldCode} -> ${appJson.expo.android.versionCode}`,
+      );
+    }
+  }
+  fs.writeFileSync(appJsonPath, JSON.stringify(appJson, null, 2) + "\n");
+  console.log(`\x1b[32m✔\x1b[0m app.json version updated: ${newVersion}`);
 }
-
-fs.writeFileSync(appConfigPath, appConfigContent);
-console.log(`\x1b[32m✔\x1b[0m app.config.ts version updated: ${newVersion}`);

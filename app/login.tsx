@@ -15,11 +15,11 @@ import {
 } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
 import * as Linking from "expo-linking";
-import { Redirect } from "expo-router";
+import { useRouter } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { ArrowRight, Mail } from "lucide-react-native";
 import { AnimatePresence, MotiView } from "moti";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -49,6 +49,84 @@ const getMagicLinkRedirectUrl = () => {
   return url.toString();
 };
 
+type LoginEmailFormProps = {
+  showPasswordInput: boolean;
+  isBusy: boolean;
+  isMagicLinkLoading: boolean;
+  isPasswordLoading: boolean;
+  onMagicLinkSubmit: (email: string) => void;
+  onPasswordSubmit: (email: string, password: string) => void;
+  onBack: () => void;
+};
+
+const LoginEmailForm = memo(function LoginEmailForm({
+  showPasswordInput,
+  isBusy,
+  isMagicLinkLoading,
+  isPasswordLoading,
+  onMagicLinkSubmit,
+  onPasswordSubmit,
+  onBack,
+}: LoginEmailFormProps) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  return (
+    <View style={styles.emailForm}>
+      <View style={styles.inputGroup}>
+        <ThemedText style={styles.inputLabel}>Correo electrónico</ThemedText>
+        <BottomSheetTextInput
+          autoCapitalize="none"
+          keyboardType="email-address"
+          placeholder="ejemplo@visitme.cl"
+          placeholderTextColor="#94A3B8"
+          style={styles.textInput}
+          value={email}
+          onChangeText={setEmail}
+          editable={!isBusy}
+        />
+      </View>
+
+      {showPasswordInput && (
+        <View style={styles.inputGroup}>
+          <ThemedText style={styles.inputLabel}>Contraseña</ThemedText>
+          <BottomSheetTextInput
+            secureTextEntry
+            placeholder="Tu contraseña"
+            placeholderTextColor="#94A3B8"
+            style={styles.textInput}
+            value={password}
+            onChangeText={setPassword}
+            editable={!isBusy}
+          />
+        </View>
+      )}
+
+      <Pressable
+        style={[styles.formSubmitButton, isBusy && styles.buttonDisabled]}
+        onPress={() =>
+          showPasswordInput
+            ? onPasswordSubmit(email, password)
+            : onMagicLinkSubmit(email)
+        }
+        disabled={isBusy}
+      >
+        {isMagicLinkLoading || isPasswordLoading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <ThemedText style={styles.formSubmitText}>
+            {showPasswordInput ? "Entrar" : "Enviar Enlace Mágico"}
+          </ThemedText>
+        )}
+      </Pressable>
+
+      <Pressable style={styles.backButton} onPress={onBack}>
+        <ThemedText style={styles.backButtonText}>Usar otro método</ThemedText>
+      </Pressable>
+    </View>
+  );
+});
+
 export default function LoginScreen() {
   const {
     session,
@@ -57,13 +135,12 @@ export default function LoginScreen() {
   } = useSupabaseAuth();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
+  const router = useRouter();
 
   // Crashlytics hooks
   const { addBreadcrumb, recordError } = useCrashlytics();
   const { addBreadcrumb: addActionBreadcrumb } = useUserActionTracking();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [showPasswordInput, setShowPasswordInput] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -77,6 +154,13 @@ export default function LoginScreen() {
 
   const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [isShowingEmailForm, setIsShowingEmailForm] = useState(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Video Player
   const player = useVideoPlayer(videoSource, (player) => {
@@ -91,98 +175,140 @@ export default function LoginScreen() {
     }
   }, [authRestrictionMessage]);
 
-  const handleLogoPress = () => {
-    const nextCount = logoTapCount + 1;
-
-    // Breadcrumb para tracking de acción
-    addActionBreadcrumb("Logo pressed", { tapCount: nextCount.toString() });
-
-    if (nextCount === 6) {
-      setShowPasswordInput(true);
-      setIsShowingEmailForm(true);
-      bottomSheetRef.current?.present();
-      Toast.show({
-        type: "success",
-        text1: "Modo demo activado",
-        text2: "Ingreso con contraseña habilitado.",
-      });
-      setLogoTapCount(0);
-    } else {
-      setLogoTapCount(nextCount);
+  useEffect(() => {
+    if (!isAuthLoading && session) {
+      router.replace("/(tabs)");
     }
-  };
+  }, [isAuthLoading, router, session]);
+
+  const handleLogoPress = useCallback(() => {
+    setLogoTapCount((prev) => {
+      const nextCount = prev + 1;
+      // Breadcrumb para tracking de acción
+      addActionBreadcrumb("Logo pressed", { tapCount: nextCount.toString() });
+
+      if (nextCount === 6) {
+        setShowPasswordInput(true);
+        setIsShowingEmailForm(true);
+        player.pause();
+        bottomSheetRef.current?.present();
+        Toast.show({
+          type: "success",
+          text1: "Modo demo activado",
+          text2: "Ingreso con contraseña habilitado.",
+        });
+        return 0;
+      }
+      return nextCount;
+    });
+  }, [addActionBreadcrumb, player]);
+
+  const handleShowEmailForm = useCallback(() => {
+    setIsShowingEmailForm(true);
+    bottomSheetRef.current?.snapToIndex(1);
+  }, []);
+
+  const handleHideEmailForm = useCallback(() => {
+    setIsShowingEmailForm(false);
+    setErrorMessage(null);
+    setStatusMessage(null);
+    bottomSheetRef.current?.snapToIndex(0);
+  }, []);
 
   const snapPoints = useMemo(() => ["45%", "85%"], []);
 
-  const openLoginOptions = () => {
+  const openLoginOptions = useCallback(() => {
+    player.pause();
     bottomSheetRef.current?.present();
-  };
+  }, [player]);
 
-  const handleMagicLinkSubmit = async () => {
-    // Breadcrumb para tracking
-    addActionBreadcrumb("Magic link submit", { email: email.trim() });
-
-    if (!email.trim() || !email.includes("@")) {
-      setErrorMessage("Ingresa un correo electrónico válido.");
-      return;
-    }
+  const resumeVideo = useCallback(() => {
+    // onDismiss can arrive after auth navigation has released expo-video's native player.
+    if (!isMountedRef.current || session) return;
 
     try {
-      setIsMagicLinkLoading(true);
-      setErrorMessage(null);
-      setStatusMessage(null);
-
-      const emailRedirectTo = getMagicLinkRedirectUrl();
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: { emailRedirectTo },
-      });
-
-      if (otpError) {
-        recordError(otpError, "LoginScreen.magicLink");
-        throw otpError;
-      }
-
-      setStatusMessage("Enlace enviado. Revisa tu correo.");
-      addBreadcrumb("Magic link sent successfully", "auth");
+      player.play();
     } catch (error) {
-      recordError(error as Error, "LoginScreen.magicLink");
-      console.error("[LoginScreen] Magic link error:", error);
-      setErrorMessage("Error al enviar el enlace. Intenta de nuevo.");
-    } finally {
-      setIsMagicLinkLoading(false);
-    }
-  };
-
-  const handlePasswordSubmit = async () => {
-    // Breadcrumb para tracking
-    addActionBreadcrumb("Password login submit", { email: email.trim() });
-
-    if (!email.trim() || !password.trim()) {
-      setErrorMessage("Completa todos los campos.");
-      return;
-    }
-
-    try {
-      setIsPasswordLoading(true);
-      setErrorMessage(null);
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: password.trim(),
-      });
-      if (error) {
-        recordError(error, "LoginScreen.passwordLogin");
+      if (
+        (error as { code?: string })?.code !==
+        "ERR_NATIVE_SHARED_OBJECT_NOT_FOUND"
+      ) {
         throw error;
       }
-      addBreadcrumb("Password login successful", "auth");
-    } catch (error: any) {
-      recordError(error as Error, "LoginScreen.passwordLogin");
-      console.error("[LoginScreen] Password login error:", error);
-      setErrorMessage(error.message || "Error al iniciar sesión.");
-    } finally {
-      setIsPasswordLoading(false);
     }
-  };
+  }, [player, session]);
+
+  const handleMagicLinkSubmit = useCallback(
+    async (email: string) => {
+      // Breadcrumb para tracking
+      addActionBreadcrumb("Magic link submit", { email: email.trim() });
+
+      if (!email.trim() || !email.includes("@")) {
+        setErrorMessage("Ingresa un correo electrónico válido.");
+        return;
+      }
+
+      try {
+        setIsMagicLinkLoading(true);
+        setErrorMessage(null);
+        setStatusMessage(null);
+
+        const emailRedirectTo = getMagicLinkRedirectUrl();
+        const { error: otpError } = await supabase.auth.signInWithOtp({
+          email: email.trim(),
+          options: { emailRedirectTo },
+        });
+
+        if (otpError) {
+          recordError(otpError, "LoginScreen.magicLink");
+          throw otpError;
+        }
+
+        setStatusMessage("Enlace enviado. Revisa tu correo.");
+        addBreadcrumb("Magic link sent successfully", "auth");
+      } catch (error) {
+        recordError(error as Error, "LoginScreen.magicLink");
+        console.error("[LoginScreen] Magic link error:", error);
+        setErrorMessage("Error al enviar el enlace. Intenta de nuevo.");
+      } finally {
+        setIsMagicLinkLoading(false);
+      }
+    },
+    [addActionBreadcrumb, recordError, addBreadcrumb],
+  );
+
+  const handlePasswordSubmit = useCallback(
+    async (email: string, password: string) => {
+      // Breadcrumb para tracking
+      addActionBreadcrumb("Password login submit", { email: email.trim() });
+
+      if (!email.trim() || !password.trim()) {
+        setErrorMessage("Completa todos los campos.");
+        return;
+      }
+
+      try {
+        setIsPasswordLoading(true);
+        setErrorMessage(null);
+        const { error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password: password.trim(),
+        });
+        if (error) {
+          recordError(error, "LoginScreen.passwordLogin");
+          throw error;
+        }
+        addBreadcrumb("Password login successful", "auth");
+      } catch (error: any) {
+        recordError(error as Error, "LoginScreen.passwordLogin");
+        console.error("[LoginScreen] Password login error:", error);
+        setErrorMessage(error.message || "Error al iniciar sesión.");
+      } finally {
+        setIsPasswordLoading(false);
+      }
+    },
+    [addActionBreadcrumb, recordError, addBreadcrumb],
+  );
 
   const handleGoogleStatusChange = useCallback(
     (
@@ -244,16 +370,12 @@ export default function LoginScreen() {
     [],
   );
 
-  if (isAuthLoading) {
+  if (isAuthLoading || session) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#6366F1" />
       </View>
     );
-  }
-
-  if (session) {
-    return <Redirect href="/(tabs)" />;
   }
 
   const isBusy =
@@ -359,16 +481,19 @@ export default function LoginScreen() {
         snapPoints={snapPoints}
         backdropComponent={renderBackdrop}
         enablePanDownToClose
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
         handleIndicatorStyle={{ backgroundColor: "#E2E8F0", width: 40 }}
         backgroundStyle={{ borderRadius: 32 }}
         onDismiss={() => {
-          setIsShowingEmailForm(false);
-          setErrorMessage(null);
-          setStatusMessage(null);
+          resumeVideo();
+          handleHideEmailForm();
         }}
       >
         <BottomSheetScrollView
           contentContainerStyle={styles.bottomSheetContent}
+          keyboardShouldPersistTaps="handled"
         >
           <View style={styles.sheetHeader}>
             <ThemedText style={styles.sheetTitle}>Iniciar Sesión</ThemedText>
@@ -379,120 +504,50 @@ export default function LoginScreen() {
             </ThemedText>
           </View>
 
-          <AnimatePresence>
-            {!isShowingEmailForm ? (
-              <MotiView
-                key="options"
-                from={{ opacity: 0, translateX: -20 }}
-                animate={{ opacity: 1, translateX: 0 }}
-                exit={{ opacity: 0, translateX: 20 }}
-                style={styles.optionsList}
-              >
-                {Platform.OS === "ios" && (
-                  <AppleLoginButton
-                    onStatusChange={handleAppleStatusChange}
-                    onSuccess={() => {}}
-                    disabled={isBusy}
-                  />
-                )}
-                <GoogleLoginButton
-                  onStatusChange={handleGoogleStatusChange}
+          {!isShowingEmailForm ? (
+            <View style={styles.optionsList}>
+              {Platform.OS === "ios" && (
+                <AppleLoginButton
+                  onStatusChange={handleAppleStatusChange}
                   onSuccess={() => {}}
                   disabled={isBusy}
                 />
+              )}
+              <GoogleLoginButton
+                onStatusChange={handleGoogleStatusChange}
+                onSuccess={() => {}}
+                disabled={isBusy}
+              />
 
-                <View style={styles.divider}>
-                  <View style={styles.dividerLine} />
-                  <ThemedText style={styles.dividerText}>o también</ThemedText>
-                  <View style={styles.dividerLine} />
-                </View>
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <ThemedText style={styles.dividerText}>o también</ThemedText>
+                <View style={styles.dividerLine} />
+              </View>
 
-                <Pressable
-                  onPress={() => setIsShowingEmailForm(true)}
-                  style={styles.emailOptionButton}
-                >
-                  <View style={styles.emailIconBox}>
-                    <Mail size={18} color="#6366F1" />
-                  </View>
-                  <ThemedText style={styles.emailOptionText}>
-                    Continuar con Email
-                  </ThemedText>
-                </Pressable>
-              </MotiView>
-            ) : (
-              <MotiView
-                key="form"
-                from={{ opacity: 0, translateX: 20 }}
-                animate={{ opacity: 1, translateX: 0 }}
-                exit={{ opacity: 0, translateX: -20 }}
-                style={styles.emailForm}
+              <Pressable
+                onPress={handleShowEmailForm}
+                style={styles.emailOptionButton}
               >
-                <View style={styles.inputGroup}>
-                  <ThemedText style={styles.inputLabel}>
-                    Correo electrónico
-                  </ThemedText>
-                  <BottomSheetTextInput
-                    autoFocus
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    placeholder="ejemplo@visitme.cl"
-                    style={styles.textInput}
-                    value={email}
-                    onChangeText={setEmail}
-                  />
+                <View style={styles.emailIconBox}>
+                  <Mail size={18} color="#6366F1" />
                 </View>
-
-                {showPasswordInput && (
-                  <View style={styles.inputGroup}>
-                    <ThemedText style={styles.inputLabel}>
-                      Contraseña
-                    </ThemedText>
-                    <BottomSheetTextInput
-                      secureTextEntry
-                      placeholder="Tu contraseña"
-                      style={styles.textInput}
-                      value={password}
-                      onChangeText={setPassword}
-                    />
-                  </View>
-                )}
-
-                <Pressable
-                  style={[
-                    styles.formSubmitButton,
-                    isBusy && styles.buttonDisabled,
-                  ]}
-                  onPress={
-                    showPasswordInput
-                      ? handlePasswordSubmit
-                      : handleMagicLinkSubmit
-                  }
-                  disabled={isBusy}
-                >
-                  {isMagicLinkLoading || isPasswordLoading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <ThemedText style={styles.formSubmitText}>
-                      {showPasswordInput ? "Entrar" : "Enviar Enlace Mágico"}
-                    </ThemedText>
-                  )}
-                </Pressable>
-
-                <Pressable
-                  style={styles.backButton}
-                  onPress={() => {
-                    setIsShowingEmailForm(false);
-                    setErrorMessage(null);
-                    setStatusMessage(null);
-                  }}
-                >
-                  <ThemedText style={styles.backButtonText}>
-                    Usar otro método
-                  </ThemedText>
-                </Pressable>
-              </MotiView>
-            )}
-          </AnimatePresence>
+                <ThemedText style={styles.emailOptionText}>
+                  Continuar con Email
+                </ThemedText>
+              </Pressable>
+            </View>
+          ) : (
+            <LoginEmailForm
+              showPasswordInput={showPasswordInput}
+              isBusy={isBusy}
+              isMagicLinkLoading={isMagicLinkLoading}
+              isPasswordLoading={isPasswordLoading}
+              onMagicLinkSubmit={handleMagicLinkSubmit}
+              onPasswordSubmit={handlePasswordSubmit}
+              onBack={handleHideEmailForm}
+            />
+          )}
 
           {/* Messages */}
           <AnimatePresence>

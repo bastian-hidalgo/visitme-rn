@@ -13,70 +13,98 @@ import Toast from "react-native-toast-message";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AppProviders } from "@/providers/AppProviders";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ConsentGateModal } from "@/components/privacy/ConsentGateModal";
+import { useUser } from "@/providers/user-provider";
 
 export const unstable_settings = {
   anchor: "(tabs)",
 };
 
-export default function RootLayout() {
+function RootNavigation() {
   const colorScheme = useColorScheme();
 
+  const {
+    session,
+    loading,
+    id,
+    name,
+    communityName,
+    privacyConsentAt,
+    dataProcessingStatus,
+    updateUserConsent,
+    logout,
+  } = useUser();
+
+  return (
+    <ResidentProvider>
+      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="choose-community"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="modal"
+            options={{ presentation: "modal", title: "Modal" }}
+          />
+          <Stack.Screen
+            name="reservations/new"
+            options={{ headerShown: false, presentation: "card" }}
+          />
+          <Stack.Screen
+            name="reservations/[id]"
+            options={{
+              headerShown: false,
+              presentation: "transparentModal",
+              animation: "fade",
+            }}
+          />
+          <Stack.Screen
+            name="packages/[id]"
+            options={{
+              headerShown: false,
+              presentation: "transparentModal",
+              animation: "fade",
+            }}
+          />
+          <Stack.Screen
+            name="alerts/index"
+            options={{
+              headerShown: false,
+              presentation: "transparentModal",
+              animation: "fade",
+            }}
+          />
+          <Stack.Screen name="unit-profile" options={{ headerShown: false }} />
+        </Stack>
+        <StatusBar style="auto" />
+        <Toast />
+        <ConsentGateModal
+          visible={Boolean(
+            session &&
+            id &&
+            !loading &&
+            (!privacyConsentAt || dataProcessingStatus === "pending_consent"),
+          )}
+          userName={name}
+          communityName={communityName}
+          onConsentSuccess={() => updateUserConsent()}
+          onLogout={logout}
+          onOpenPrivacyPolicy={() => undefined}
+        />
+      </ThemeProvider>
+    </ResidentProvider>
+  );
+}
+
+export default function RootLayout() {
   return (
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <AppProviders>
-          <ResidentProvider>
-            <ThemeProvider
-              value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
-            >
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="login" options={{ headerShown: false }} />
-                <Stack.Screen
-                  name="choose-community"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="modal"
-                  options={{ presentation: "modal", title: "Modal" }}
-                />
-                <Stack.Screen
-                  name="reservations/new"
-                  options={{ headerShown: false, presentation: "card" }}
-                />
-                <Stack.Screen
-                  name="reservations/[id]"
-                  options={{
-                    headerShown: false,
-                    presentation: "transparentModal",
-                    animation: "fade",
-                  }}
-                />
-                <Stack.Screen
-                  name="packages/[id]"
-                  options={{
-                    headerShown: false,
-                    presentation: "transparentModal",
-                    animation: "fade",
-                  }}
-                />
-                <Stack.Screen
-                  name="alerts/index"
-                  options={{
-                    headerShown: false,
-                    presentation: "transparentModal",
-                    animation: "fade",
-                  }}
-                />
-                <Stack.Screen
-                  name="unit-profile/index"
-                  options={{ headerShown: false }}
-                />
-              </Stack>
-              <StatusBar style="auto" />
-              <Toast />
-            </ThemeProvider>
-          </ResidentProvider>
+          <RootNavigation />
         </AppProviders>
       </GestureHandlerRootView>
     </ErrorBoundary>

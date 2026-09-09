@@ -4,8 +4,12 @@ import { ThemedView } from "@/components/themed-view";
 import { supabase } from "@/lib/supabase";
 import { useSupabaseAuth } from "@/providers/supabase-auth-provider";
 import { useUser } from "@/providers/user-provider";
-import { useCrashlytics, useUserActionTracking } from "@/lib/monitoring";
-import { recordError, reportSupabaseError } from "@/lib/monitoring";
+import {
+  useCrashlytics,
+  useUserActionTracking,
+  recordError,
+  reportSupabaseError,
+} from "@/lib/monitoring";
 import type { CommunityMembershipRow } from "@/types/communities";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -210,14 +214,12 @@ export default function ChooseCommunityScreen() {
         });
       }
 
-      if (router.canGoBack()) {
-        router.back();
-      } else {
-        router.replace({
-          pathname: "/(tabs)",
-          params: { community: community.slug },
-        });
-      }
+      // Reemplazar el selector evita volver a otra instancia de
+      // choose-community si la pantalla quedó duplicada en el historial.
+      router.replace({
+        pathname: "/(tabs)",
+        params: { community: community.slug },
+      });
     } catch (err) {
       recordError(err as Error, "choose-community.handleSelect");
       console.error("[choose-community] handleSelect error", err);
