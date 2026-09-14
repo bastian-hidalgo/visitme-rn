@@ -43,9 +43,22 @@ export function ConsentGateModal({
       return;
     }
     setLoading(true);
+    console.log("[ConsentGateModal] Starting consent submission", {
+      acceptedTerms,
+      acceptedMarketing,
+    });
+
     try {
-      await registerPrivacyConsent(acceptedMarketing);
+      console.log("[ConsentGateModal] Registering consent with privacy API");
+      const response = await registerPrivacyConsent(acceptedMarketing);
+      console.log("[ConsentGateModal] Privacy API succeeded", {
+        status: response.status,
+        ok: response.ok,
+      });
+
+      console.log("[ConsentGateModal] Updating local user consent state");
       await onConsentSuccess();
+      console.log("[ConsentGateModal] Consent flow completed");
     } catch (error) {
       console.error("[ConsentGateModal] Consent submission failed", {
         error,

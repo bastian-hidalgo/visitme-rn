@@ -1,13 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { MotiView } from "moti";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  LayoutChangeEvent,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  View,
-} from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -21,7 +15,7 @@ import InvitationsSlider from "@/components/resident/InvitationsSlider";
 import NewsDetailModal from "@/components/resident/NewsDetailModal";
 import NewsSlider from "@/components/resident/NewsSlider";
 import PackageSlider from "@/components/resident/PackageSlider";
-import QuickAccess from "@/components/resident/QuickAccess";
+
 import ReservationsSlider from "@/components/resident/ReservationsSlider";
 import SurveyPanel from "@/components/resident/SurveyPanel";
 import SurveysSlider from "@/components/resident/SurveysSlider";
@@ -141,12 +135,7 @@ export default function ResidentDashboard() {
   // Estado del banner de reserva (hoy / mañana / pasada)
   const { status, formattedDate } = getReservationBannerStatus(reservations);
 
-  const scrollViewRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
-
-  const [sectionPositions, setSectionPositions] = useState<
-    Record<string, number>
-  >({});
   const [refreshing, setRefreshing] = useState(false);
 
   const packageSheetRef = useRef<BottomSheetModal>(null);
@@ -167,30 +156,6 @@ export default function ResidentDashboard() {
     }
   }, [selectedParcel]);
 
-  const registerSection =
-    (sectionId: string) =>
-    ({ nativeEvent }: LayoutChangeEvent) => {
-      setSectionPositions((prev) => ({
-        ...prev,
-        [sectionId]: nativeEvent.layout.y,
-      }));
-    };
-
-  const handleNavigateToSection = (sectionId: string) => {
-    if (sectionId === "spaces") {
-      router.push("/reservations/new");
-      return;
-    }
-
-    const y = sectionPositions[sectionId];
-    if (scrollViewRef.current && typeof y === "number") {
-      scrollViewRef.current.scrollTo({
-        y: Math.max(0, y - 32),
-        animated: true,
-      });
-    }
-  };
-
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -201,7 +166,7 @@ export default function ResidentDashboard() {
   }, [refreshAll]);
 
   const contentPaddingBottom = useMemo(
-    () => insets.bottom + 160,
+    () => insets.bottom + 180,
     [insets.bottom],
   );
 
@@ -215,7 +180,6 @@ export default function ResidentDashboard() {
       >
         <Animated.View style={[styles.screen, dashboardStyle]}>
           <ScrollView
-            ref={scrollViewRef}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{
               paddingBottom: contentPaddingBottom,
@@ -244,7 +208,6 @@ export default function ResidentDashboard() {
               animate={{ opacity: 1, translateY: 0 }}
               transition={{ type: "timing", duration: 500 }}
               style={styles.sectionWrapper}
-              onLayout={registerSection("hero")}
             >
               <View style={[styles.sectionSurface, styles.heroSurface]}>
                 <HeroBanner
@@ -274,7 +237,6 @@ export default function ResidentDashboard() {
               animate={{ opacity: 1, translateY: 0 }}
               transition={{ delay: 200, duration: 400 }}
               style={styles.sectionWrapper}
-              onLayout={registerSection("news")}
             >
               <View style={styles.sectionSurface}>
                 <NewsSlider />
@@ -287,7 +249,6 @@ export default function ResidentDashboard() {
               animate={{ opacity: 1, translateY: 0 }}
               transition={{ delay: 500, duration: 400 }}
               style={styles.sectionWrapper}
-              onLayout={registerSection("packages")}
             >
               <View style={styles.sectionSurface}>
                 <PackageSlider />
@@ -300,7 +261,6 @@ export default function ResidentDashboard() {
               animate={{ opacity: 1, translateY: 0 }}
               transition={{ delay: 300, duration: 400 }}
               style={styles.sectionWrapper}
-              onLayout={registerSection("reservations")}
             >
               <View style={styles.sectionSurface}>
                 <ReservationsSlider />
@@ -313,33 +273,12 @@ export default function ResidentDashboard() {
               animate={{ opacity: 1, translateY: 0 }}
               transition={{ delay: 400, duration: 400 }}
               style={styles.sectionWrapper}
-              onLayout={registerSection("invited")}
             >
               <View style={styles.sectionSurface}>
                 <InvitationsSlider />
               </View>
             </MotiView>
           </ScrollView>
-
-          {/* Quick Access (fijo inferior) */}
-          <MotiView
-            from={{ translateY: 120, scale: 0.9 }}
-            animate={{ translateY: 10, scale: 1 }}
-            transition={{
-              type: "spring",
-              stiffness: 160,
-              damping: 24,
-              delay: 700,
-            }}
-            style={[
-              styles.quickAccessWrapper,
-              { paddingBottom: insets.bottom + 12 },
-            ]}
-          >
-            <View style={styles.quickAccessInner}>
-              <QuickAccess onNavigate={handleNavigateToSection} />
-            </View>
-          </MotiView>
         </Animated.View>
         <NewsDetailModal />
 
@@ -463,16 +402,5 @@ const styles = StyleSheet.create({
     color: "#9ca3af",
     textAlign: "center",
     fontSize: 14,
-  },
-  quickAccessWrapper: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-  },
-  quickAccessInner: {
-    width: "90%",
-    maxWidth: 420,
   },
 });

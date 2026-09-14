@@ -1,144 +1,169 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { Bell, Building2, Calendar, Package, Users } from "lucide-react-native";
-import { AnimatePresence, MotiText, MotiView } from "moti";
+import { Calendar, House, MessageCircle } from "lucide-react-native";
 import { MotiPressable } from "moti/interactions";
+import { MotiText, MotiView } from "moti";
 import { useState } from "react";
-import { Platform, StyleSheet, View } from "react-native";
-import { Easing } from "react-native-reanimated";
+import { StyleSheet, View } from "react-native";
+
+import { useChatConversations } from "@/lib/chat/useChat";
 
 const QUICK_ACTIONS = [
-  { id: "news", label: "Noticias", icon: Bell },
-  { id: "reservations", label: "Reservas", icon: Calendar },
-  { id: "spaces", label: "Espacios", icon: Building2 },
-  { id: "invited", label: "Invitados", icon: Users },
-  { id: "packages", label: "Encomiendas", icon: Package },
+  { id: "home", label: "Inicio", icon: House },
+  { id: "reserve", label: "Reservar", icon: Calendar },
+  { id: "chat", label: "Chat", icon: MessageCircle },
 ] as const;
 
 interface Props {
   onNavigate: (id: string) => void;
+  activeId?: string;
 }
 
-export default function QuickAccessBottom({ onNavigate }: Props) {
-  const [active, setActive] = useState("news");
+export default function QuickAccessBottom({ onNavigate, activeId }: Props) {
+  const [selected, setSelected] = useState("home");
+  const active = activeId ?? selected;
+  const { conversations } = useChatConversations();
+  const unreadCount = conversations.reduce(
+    (total, conversation) => total + (conversation.unread_count || 0),
+    0,
+  );
 
   return (
     <LinearGradient
-      colors={["rgba(255,255,255,0.95)", "rgba(245,240,255,0.88)"]}
+      colors={["#ffffff", "#f7f2ff"]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={[
-        styles.container,
-        Platform.OS === "android" && styles.containerAndroid,
-      ]}
+      style={styles.container}
     >
-      {QUICK_ACTIONS.map((action) => {
-        const Icon = action.icon;
-        const isActive = active === action.id;
+      <View style={styles.inner}>
+        {QUICK_ACTIONS.map((action) => {
+          const Icon = action.icon;
+          const isActive = active === action.id;
 
-        return (
-          <MotiPressable
-            key={action.id}
-            onPress={() => {
-              setActive(action.id);
-              onNavigate(action.id);
-            }}
-            animate={({ pressed }) => {
-              "worklet";
-
-              return {
-                scale: pressed ? 0.96 : 1,
-                opacity: pressed ? 0.8 : 1,
-              };
-            }}
-          >
-            {/* 🔹 Contenedor principal con retraso al cerrar */}
-            <MotiView
-              from={{ width: 46 }}
-              animate={{
-                width: isActive ? 110 : 46,
-                backgroundColor: isActive ? "#ffffff" : "transparent",
-                borderRadius: isActive ? 50 : 20,
+          return (
+            <MotiPressable
+              key={action.id}
+              style={styles.pressable}
+              onPress={() => {
+                setSelected(action.id);
+                onNavigate(action.id);
               }}
-              transition={{
-                type: "timing",
-                duration: 200,
-                delay: isActive ? 0 : 80, // espera un poco antes de cerrar
+              animate={({ pressed }) => {
+                "worklet";
+                return {
+                  scale: pressed ? 0.94 : 1,
+                  opacity: pressed ? 0.82 : 1,
+                };
               }}
-              style={styles.itemWrapper}
             >
-              <View style={styles.iconContainer}>
-                <Icon size={18} color={isActive ? "#6d28d9" : "#4338ca"} />
-              </View>
+              <MotiView
+                animate={{
+                  width: isActive ? 94 : 46,
+                  backgroundColor: isActive ? "#6d28d9" : "transparent",
+                }}
+                transition={{ type: "spring", damping: 18, stiffness: 220 }}
+                style={styles.item}
+              >
+                <View style={styles.iconContainer}>
+                  <Icon size={20} color={isActive ? "#ffffff" : "#6d28d9"} />
+                  {action.id === "chat" && unreadCount > 0 && (
+                    <View style={styles.badge}>
+                      <MotiText style={styles.badgeText} numberOfLines={1}>
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </MotiText>
+                    </View>
+                  )}
+                </View>
 
-              {/* 🔹 Texto con salida fluida antes del cierre */}
-              <AnimatePresence>
                 {isActive && (
                   <MotiText
-                    from={{ opacity: 0, translateX: -6 }}
+                    from={{ opacity: 0, translateX: -8 }}
                     animate={{ opacity: 1, translateX: 0 }}
-                    exit={{ opacity: 0, translateX: -6 }}
-                    transition={{
-                      type: "timing",
-                      duration: 100, // 🔹 un poco más largo = más smooth
-                      delay: 60, // 🔹 espera un poquito tras expandirse
-                      easing: Easing.out(Easing.cubic), // 🔹 entrada y salida suaves
-                    }}
+                    transition={{ type: "timing", duration: 180 }}
                     style={styles.label}
                     numberOfLines={1}
                   >
                     {action.label}
                   </MotiText>
                 )}
-              </AnimatePresence>
-            </MotiView>
-          </MotiPressable>
-        );
-      })}
+              </MotiView>
+            </MotiPressable>
+          );
+        })}
+      </View>
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: "row",
-    justifyContent: "space-evenly",
-    alignItems: "center",
-    borderRadius: 30,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginBottom: 6,
-    shadowColor: "rgba(17, 24, 39, 0.15)",
-    shadowOpacity: 1,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 5,
-    backgroundColor: "rgba(141, 100, 196, 1)",
+    width: "82%",
+    maxWidth: 360,
+    borderRadius: 25,
+    padding: 4,
+    marginBottom: 4,
     borderWidth: 1,
-    borderColor: "rgba(202,161,255,1)",
+    borderColor: "#e9d5ff",
+    shadowColor: "#4c1d95",
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 8,
   },
-  containerAndroid: {
-    backgroundColor: "rgba(141, 100, 196, 1)",
+  inner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    minHeight: 48,
   },
-  itemWrapper: {
+  pressable: {
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "visible",
+  },
+  item: {
+    height: 44,
+    borderRadius: 26,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden",
-    height: 38,
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
+    overflow: "visible",
   },
   iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
+  },
+
+  badge: {
+    position: "absolute",
+    top: -6,
+    right: -7,
+    minWidth: 19,
+    height: 19,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ef4444",
+    borderWidth: 2,
+    borderColor: "#ffffff",
+    zIndex: 10,
+    elevation: 4,
+  },
+  badgeText: {
+    color: "#ffffff",
+    fontSize: 9,
+    lineHeight: 11,
+    fontWeight: "800",
   },
   label: {
+    color: "#ffffff",
     fontSize: 12,
-    color: "#4338ca",
-    fontWeight: "700",
-    marginLeft: 6,
-    maxWidth: 60,
+    fontWeight: "800",
+    marginLeft: 5,
   },
 });

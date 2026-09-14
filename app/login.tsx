@@ -42,8 +42,10 @@ const videoSource = require("@/assets/videos/login-bg.mp4");
 
 const getMagicLinkRedirectUrl = () => {
   const base = (env.authBaseUrl || "").trim();
-  if (!base) return undefined;
   const deviceDeepLink = Linking.createURL("/auth/callback/client");
+  if (!base || base.startsWith("visitmeapp://")) {
+    return base || deviceDeepLink;
+  }
   const url = new URL(base);
   url.searchParams.set("deep_link", deviceDeepLink);
   return url.toString();
@@ -181,27 +183,27 @@ export default function LoginScreen() {
     }
   }, [isAuthLoading, router, session]);
 
-  const handleLogoPress = useCallback(() => {
-    setLogoTapCount((prev) => {
-      const nextCount = prev + 1;
-      // Breadcrumb para tracking de acción
-      addActionBreadcrumb("Logo pressed", { tapCount: nextCount.toString() });
+  useEffect(() => {
+    if (logoTapCount === 0) return;
 
-      if (nextCount === 6) {
-        setShowPasswordInput(true);
-        setIsShowingEmailForm(true);
-        player.pause();
-        bottomSheetRef.current?.present();
-        Toast.show({
-          type: "success",
-          text1: "Modo demo activado",
-          text2: "Ingreso con contraseña habilitado.",
-        });
-        return 0;
-      }
-      return nextCount;
+    addActionBreadcrumb("Logo pressed", { tapCount: logoTapCount.toString() });
+    if (logoTapCount !== 6) return;
+
+    setShowPasswordInput(true);
+    setIsShowingEmailForm(true);
+    player.pause();
+    bottomSheetRef.current?.present();
+    Toast.show({
+      type: "success",
+      text1: "Modo demo activado",
+      text2: "Ingreso con contraseña habilitado.",
     });
-  }, [addActionBreadcrumb, player]);
+    setLogoTapCount(0);
+  }, [addActionBreadcrumb, logoTapCount, player]);
+
+  const handleLogoPress = useCallback(() => {
+    setLogoTapCount((prev) => (prev >= 6 ? 1 : prev + 1));
+  }, []);
 
   const handleShowEmailForm = useCallback(() => {
     setIsShowingEmailForm(true);

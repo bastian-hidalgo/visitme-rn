@@ -4,9 +4,9 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { Check, FileText, ShieldAlert } from 'lucide-react-native'
 import { MotiView } from 'moti'
 import React, { useEffect, useState } from 'react'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import {
     ActivityIndicator,
-    SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,

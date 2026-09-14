@@ -118,6 +118,14 @@ export const UserProvider = ({ children }: UserProviderProps) => {
 
   // 🧹 Logout
   const updateUserConsent = async (consentedAt = new Date().toISOString()) => {
+    console.log("[UserProvider] Updating consent state", {
+      userId: user?.id ?? session?.user?.id ?? null,
+      consentedAt,
+      previousPrivacyConsentAt: user?.privacyConsentAt ?? null,
+      previousDataProcessingStatus: user?.dataProcessingStatus ?? null,
+      hasProfile: Boolean(user?.profile),
+    });
+
     await setUserData({
       privacyConsentAt: consentedAt,
       dataProcessingStatus: "active",
@@ -128,6 +136,12 @@ export const UserProvider = ({ children }: UserProviderProps) => {
             data_processing_status: "active",
           }
         : null,
+    });
+
+    console.log("[UserProvider] Consent state updated locally", {
+      userId: user?.id ?? session?.user?.id ?? null,
+      consentedAt,
+      dataProcessingStatus: "active",
     });
   };
 
