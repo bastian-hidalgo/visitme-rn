@@ -51,7 +51,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: "Visitme",
     slug: "visitme-app",
-    version: "1.57.1",
+    version: "1.58.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     // Compatibilidad con notificaciones antiguas; visitmeapp es el scheme canónico.

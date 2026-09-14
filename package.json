@@ -1,7 +1,7 @@
 {
   "name": "visitme-app",
   "main": "expo-router/entry",
-  "version": "1.57.1",
+  "version": "1.58.0",
   "scripts": {
     "env:local": "node scripts/set-env.js local",
     "env:prod": "node scripts/set-env.js prod",
