@@ -120,8 +120,7 @@ export function SupabaseAuthProvider({ children }: PropsWithChildren) {
       if (!url) return;
 
       const linkingResult = Linking.parse(url);
-      const parsedParams =
-        linkingResult.queryParams ?? linkingResult.params ?? {};
+      const parsedParams = linkingResult.queryParams ?? {};
       const hashParams: Record<string, string> = {};
 
       const hashIndex = url.indexOf("#");
@@ -141,12 +140,38 @@ export function SupabaseAuthProvider({ children }: PropsWithChildren) {
       const refreshToken = getParamValue(
         hashParams.refresh_token ?? parsedParams.refresh_token ?? null,
       );
+      const code = getParamValue(parsedParams.code ?? null);
+      const errorDescription = getParamValue(
+        parsedParams.error_description ?? hashParams.error_description ?? null,
+      );
+
+      if (errorDescription) {
+        setAuthRestrictionMessage(decodeURIComponent(errorDescription));
+        return;
+      }
+
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) {
+          console.error("Error exchanging auth callback code", error);
+          setAuthRestrictionMessage(
+            "No pudimos confirmar tu sesión. Solicita un nuevo enlace de acceso.",
+          );
+        }
+        return;
+      }
 
       if (accessToken && refreshToken) {
-        await supabase.auth.setSession({
+        const { error } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
         });
+        if (error) {
+          console.error("Error applying auth callback session", error);
+          setAuthRestrictionMessage(
+            "No pudimos confirmar tu sesión. Solicita un nuevo enlace de acceso.",
+          );
+        }
       }
     };
 

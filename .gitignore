@@ -34,6 +34,15 @@ yarn-error.*
 .env*.local
 .envLocal
 .envProd
+.env
+
+# local and generated credentials
+credentials.json
+client_secret_*.json
+client_*.apps.googleusercontent.com.plist
+google-services.json
+GoogleService-Info.plist
+*.keystore
 
 # typescript
 *.tsbuildinfo
@@ -43,8 +52,6 @@ app-example
 # generated native folders
 /ios
 /android
-
-.env
 
 # Build files
 *.ipa

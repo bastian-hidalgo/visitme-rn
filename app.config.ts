@@ -54,7 +54,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     version: "1.57.1",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
-    scheme: "visitmeapp",
+    // Compatibilidad con notificaciones antiguas; visitmeapp es el scheme canónico.
+    scheme: ["visitmeapp", "visitme"],
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
     ios: {
@@ -86,6 +87,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
     },
     android: {
+      ...config.android,
       adaptiveIcon: {
         backgroundColor: "#E6F4FE",
         foregroundImage: "./assets/images/android-icon-foreground.png",
@@ -110,6 +112,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           android: {
             enableProguardInReleaseBuilds: false,
             enableMinifyInReleaseBuilds: false,
+            // Solo necesario para Supabase local en desarrollo (HTTP).
+            usesCleartextTraffic:
+              publicEnv.EXPO_PUBLIC_SUPABASE_URL?.startsWith("http://"),
           },
         },
       ],

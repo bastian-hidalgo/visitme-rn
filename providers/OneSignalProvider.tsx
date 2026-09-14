@@ -1,4 +1,6 @@
 import { navigateToDeepLink } from "@/lib/navigation";
+import { AppState, InteractionManager } from "react-native";
+import { useRootNavigationState, useRouter } from "expo-router";
 import {
   initializeOneSignal,
   loginUser,
@@ -11,12 +13,26 @@ import {
   registerPushSubscriptionListener,
 } from "@/lib/notifications/oneSignalSync";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
+import {
+  PropsWithChildren,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { OneSignal } from "react-native-onesignal";
+import * as SplashScreen from "expo-splash-screen";
 
 import { useUser } from "./user-provider";
 
 const PERMISSION_STORAGE_KEY = "onesignal_permission_prompt";
+const PENDING_CHAT_DEEP_LINK_KEY = "pending_chat_notification";
+
+type PendingChatNotification = {
+  conversationId: string;
+  messageId?: string;
+};
 
 // 🛡️ Global guard to ensure only one listener is EVER added to the SDK
 let globalClickListenerAdded = false;
@@ -30,14 +46,167 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
     communityId,
     acceptsNotifications,
     privacyConsentAt,
+    dataProcessingStatus,
     loading,
   } = useUser();
+  const router = useRouter();
+  const rootNavigationState = useRootNavigationState();
   const [memberships, setMemberships] = useState<
     { id: string; slug: string }[]
   >([]);
   const [ready, setReady] = useState(false);
   const clickHandlerRef = useRef<(event: any) => void>(null);
   const lastNotificationIdRef = useRef<string | null>(null);
+  const processedChatNotificationKeysRef = useRef<Set<string>>(new Set());
+  const processingChatNotificationRef = useRef(false);
+  const openChatFromNotificationRef = useRef<
+    ((conversationId: string, messageId?: string) => Promise<void>) | null
+  >(null);
+  const userReadyRef = useRef(false);
+
+  const savePendingChatNotification = useCallback(
+    async (pending: PendingChatNotification) => {
+      await AsyncStorage.setItem(
+        PENDING_CHAT_DEEP_LINK_KEY,
+        JSON.stringify(pending),
+      );
+      console.log("[ChatPush] pending notification saved", {
+        conversationId: pending.conversationId,
+        messageId: pending.messageId ?? null,
+      });
+    },
+    [],
+  );
+
+  const openChatFromNotification = useCallback(
+    async (conversationId: string, messageId?: string) => {
+      const pending: PendingChatNotification = { conversationId, messageId };
+      const dedupeKeys = [conversationId, messageId].filter(
+        (value): value is string => Boolean(value),
+      );
+
+      console.log("[ChatPush] payload parsed", {
+        conversationId,
+        messageId: messageId ?? null,
+        navigationKey: rootNavigationState?.key ?? null,
+        appState: AppState.currentState,
+        sessionReady: Boolean(
+          userReadyRef.current &&
+          privacyConsentAt &&
+          dataProcessingStatus !== "pending_consent",
+        ),
+      });
+
+      if (
+        dedupeKeys.some((key) =>
+          processedChatNotificationKeysRef.current.has(key),
+        )
+      ) {
+        console.log("[ChatPush] duplicate notification ignored", {
+          conversationId,
+          messageId: messageId ?? null,
+        });
+        return;
+      }
+
+      const sessionReady = Boolean(
+        userReadyRef.current &&
+        privacyConsentAt &&
+        dataProcessingStatus !== "pending_consent",
+      );
+      const navigationReady = Boolean(rootNavigationState?.key);
+
+      if (!sessionReady) {
+        await savePendingChatNotification(pending);
+        return;
+      }
+
+      console.log("[ChatPush] session ready", { userId: id });
+
+      if (!navigationReady || processingChatNotificationRef.current) {
+        await savePendingChatNotification(pending);
+        console.log("[ChatPush] waiting for navigation ready");
+        return;
+      }
+
+      processingChatNotificationRef.current = true;
+      console.log("[ChatPush] navigation ready");
+
+      InteractionManager.runAfterInteractions(() => {
+        setTimeout(async () => {
+          try {
+            await SplashScreen.hideAsync();
+            console.log("[ChatPush] splash dismissed");
+            router.push({
+              pathname: "/chat/[id]",
+              params: { id: conversationId },
+            });
+            dedupeKeys.forEach((key) =>
+              processedChatNotificationKeysRef.current.add(key),
+            );
+            if (processedChatNotificationKeysRef.current.size > 50) {
+              const oldestKey = processedChatNotificationKeysRef.current
+                .values()
+                .next().value;
+              if (oldestKey) {
+                processedChatNotificationKeysRef.current.delete(oldestKey);
+              }
+            }
+            await AsyncStorage.removeItem(PENDING_CHAT_DEEP_LINK_KEY);
+            console.log("[ChatPush] navigating to conversation", {
+              conversationId,
+            });
+            console.log("[ChatPush] navigation completed");
+          } catch (error) {
+            console.error("[ChatPush] navigation failed", error);
+            await savePendingChatNotification(pending);
+          } finally {
+            processingChatNotificationRef.current = false;
+          }
+        }, 0);
+      });
+    },
+    [
+      dataProcessingStatus,
+      id,
+      privacyConsentAt,
+      rootNavigationState?.key,
+      router,
+      savePendingChatNotification,
+    ],
+  );
+
+  useEffect(() => {
+    openChatFromNotificationRef.current = openChatFromNotification;
+  }, [openChatFromNotification]);
+
+  useEffect(() => {
+    console.log("[ChatPush] provider mounted", {
+      userId: id ?? null,
+      loading,
+      ready,
+      navigationKey: rootNavigationState?.key ?? null,
+      hasSession: Boolean(id),
+      privacyConsentAt: Boolean(privacyConsentAt),
+      dataProcessingStatus: dataProcessingStatus ?? null,
+    });
+
+    const appStateSubscription = AppState.addEventListener(
+      "change",
+      (nextState) => {
+        console.log("[ChatPush] AppState changed", nextState);
+      },
+    );
+
+    return () => appStateSubscription.remove();
+  }, [
+    dataProcessingStatus,
+    id,
+    loading,
+    privacyConsentAt,
+    ready,
+    rootNavigationState?.key,
+  ]);
 
   // 1. Efecto único para inicialización y listeners globales (Clicks)
   useEffect(() => {
@@ -46,7 +215,15 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
     // Definimos el handler estable
     const handleNotificationClick = (event: any) => {
       const { notification } = event;
-      const notificationId = notification.notificationId;
+      const notificationId = notification?.notificationId ?? null;
+
+      console.log("[ChatPush] notification clicked", {
+        notificationId,
+        hasNotification: Boolean(notification),
+        launchURL: notification?.launchURL ?? null,
+        additionalDataKeys: Object.keys(notification?.additionalData ?? {}),
+        appState: AppState.currentState,
+      });
 
       // 🛡️ Debounce simple: ignorar si es el mismo ID en menos de 2s
       if (lastNotificationIdRef.current === notificationId) {
@@ -58,10 +235,41 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
           lastNotificationIdRef.current = null;
       }, 2000);
 
-      const data = notification.additionalData;
-      if (!data) return;
+      const data = (notification.additionalData ?? {}) as Record<string, any>;
+      const launchUrl =
+        typeof notification.launchURL === "string"
+          ? notification.launchURL
+          : typeof data.app_url === "string"
+            ? data.app_url
+            : null;
+      const dataConversationId =
+        typeof data.conversation_id === "string" ? data.conversation_id : null;
+      const dataMessageId =
+        typeof data.message_id === "string" ? data.message_id : undefined;
+      const launchConversationId = launchUrl?.match(
+        /\/chat(?:\/conversations)?\/([^/?#]+)/,
+      )?.[1];
+      const conversationId = dataConversationId || launchConversationId;
 
-      if (data.route === "encomienda" || data.type === "package-arrived") {
+      console.log("[ChatPush] notification clicked", {
+        notificationId,
+        hasAdditionalData: Object.keys(data).length > 0,
+        launchUrl,
+      });
+
+      if (data.type === "chat_message" || conversationId) {
+        if (!conversationId) {
+          console.warn("[ChatPush] missing conversation_id");
+          return;
+        }
+        void openChatFromNotificationRef.current?.(
+          conversationId,
+          dataMessageId,
+        );
+      } else if (
+        data.route === "encomienda" ||
+        data.type === "package-arrived"
+      ) {
         const parcelId = data.parcel_id || data.id;
         navigateToDeepLink("/(tabs)", { parcelId });
       } else if (data.route === "reservation") {
@@ -89,11 +297,15 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
     clickHandlerRef.current = handleNotificationClick;
 
     // Inicializar OneSignal
-    console.log("[OneSignalProvider] 🟢 Mounting Provider");
+    console.log("[OneSignalProvider] 🟢 Mounting Provider", {
+      appState: AppState.currentState,
+    });
     initializeOneSignal().then((isReady) => {
       if (mounted && isReady) {
         if (!globalClickListenerAdded) {
-          console.log("[OneSignalProvider] Adding GLOBAL click listener");
+          console.log("[OneSignalProvider] Adding GLOBAL click listener", {
+            appState: AppState.currentState,
+          });
           OneSignal.Notifications.addEventListener(
             "click",
             handleNotificationClick,
@@ -115,6 +327,7 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
 
   // 2. Efecto para Login/Logout y Permisos (Depende de usuario y ready)
   useEffect(() => {
+    userReadyRef.current = Boolean(id && privacyConsentAt && !loading);
     if (!ready || loading) return;
 
     if (id && privacyConsentAt) {
@@ -160,6 +373,50 @@ export function OneSignalProvider({ children }: PropsWithChildren) {
 
     void handlePermissions();
   }, [ready, loading, id, email, acceptsNotifications, privacyConsentAt]);
+
+  useEffect(() => {
+    if (
+      !ready ||
+      loading ||
+      !id ||
+      !privacyConsentAt ||
+      dataProcessingStatus === "pending_consent" ||
+      !rootNavigationState?.key
+    ) {
+      return;
+    }
+
+    const openPendingChat = async () => {
+      const rawPending = await AsyncStorage.getItem(PENDING_CHAT_DEEP_LINK_KEY);
+      console.log("[ChatPush] checking pending notification", {
+        hasPending: Boolean(rawPending),
+        navigationKey: rootNavigationState?.key ?? null,
+        appState: AppState.currentState,
+      });
+      if (!rawPending) return;
+
+      let pending: PendingChatNotification | null = null;
+      try {
+        pending = JSON.parse(rawPending) as PendingChatNotification;
+      } catch {
+        pending = { conversationId: rawPending };
+      }
+
+      if (!pending?.conversationId) return;
+      console.log("[ChatPush] pending notification ready to open");
+      await openChatFromNotification(pending.conversationId, pending.messageId);
+    };
+
+    void openPendingChat();
+  }, [
+    dataProcessingStatus,
+    id,
+    loading,
+    openChatFromNotification,
+    privacyConsentAt,
+    ready,
+    rootNavigationState?.key,
+  ]);
 
   const membershipSlugs = useMemo(
     () => memberships.map((m) => m.slug),
