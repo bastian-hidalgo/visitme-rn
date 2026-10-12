@@ -363,8 +363,12 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
         const start = dayjs().startOf("day");
         const end = start.add(30, "day");
 
+        // La disponibilidad debe considerar las reservas de todos los residentes.
+        // La vista `common_space_reservations_with_user` puede limitar las filas
+        // según el usuario actual, mientras que la tabla es la misma fuente que
+        // se valida al intentar crear la reserva.
         const { data, error } = await supabase
-          .from("common_space_reservations_with_user")
+          .from("common_space_reservations")
           .select("date, block, status, time_section_id, start_time, end_time")
           .eq("common_space_id", spaceId)
           .eq("community_id", communityId)
