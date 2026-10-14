@@ -51,7 +51,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: "Visitme",
     slug: "visitme-app",
-    version: "1.59.0",
+    version: "1.59.1",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     // Compatibilidad con notificaciones antiguas; visitmeapp es el scheme canónico.
@@ -110,8 +110,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         "expo-build-properties",
         {
           android: {
-            enableProguardInReleaseBuilds: false,
-            enableMinifyInReleaseBuilds: false,
+            // R8 reduce y ofusca el código Java/Kotlin incluido en el release.
+            enableProguardInReleaseBuilds: true,
+            enableMinifyInReleaseBuilds: true,
             // Solo necesario para Supabase local en desarrollo (HTTP).
             usesCleartextTraffic:
               publicEnv.EXPO_PUBLIC_SUPABASE_URL?.startsWith("http://"),
