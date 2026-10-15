@@ -66,15 +66,6 @@ type CommonSpace = {
   last_reservation_date?: string | null; // 📝 Added to track cooldown per card
 };
 
-type ReservationRow = {
-  date: string | null;
-  block: "morning" | "afternoon" | null;
-  status: string | null;
-  time_section_id: string | null;
-  start_time: string | null;
-  end_time: string | null;
-};
-
 type TimeSection = {
   id: string;
   name: string;
@@ -363,19 +354,18 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
         const start = dayjs().startOf("day");
         const end = start.add(30, "day");
 
-        // La disponibilidad debe considerar las reservas de todos los residentes.
-        // La vista `common_space_reservations_with_user` puede limitar las filas
-        // según el usuario actual, mientras que la tabla es la misma fuente que
-        // se valida al intentar crear la reserva.
-        const { data, error } = await supabase
-          .from("common_space_reservations")
-          .select("date, block, status, time_section_id, start_time, end_time")
-          .eq("common_space_id", spaceId)
-          .eq("community_id", communityId)
-          .gte("date", start.format("YYYY-MM-DD"))
-          .lte("date", end.format("YYYY-MM-DD"))
-          .not("status", "eq", "cancelado");
-
+        // RPC devuelve solo los datos de ocupación y valida que el residente
+        // pertenezca a la comunidad; el SELECT directo está limitado por RLS
+        // a las reservas de su propio departamento.
+        const { data: occupancyData, error } = await supabase.rpc(
+          "get_common_space_reservation_availability",
+          {
+            p_common_space_id: spaceId,
+            p_community_id: communityId,
+            p_from_date: start.format("YYYY-MM-DD"),
+            p_to_date: end.format("YYYY-MM-DD"),
+          },
+        );
         if (error) throw error;
 
         const sectionsResponse = await supabase
@@ -395,7 +385,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
           },
         );
 
-        const grouped = ((data ?? []) as ReservationRow[]).reduce<
+        const grouped = (occupancyData ?? []).reduce<
           Record<
             string,
             {
@@ -416,8 +406,8 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
           };
           if (item.block === "morning") existing.amTaken = true;
           if (item.block === "afternoon") existing.pmTaken = true;
+          existing.takenCount += 1;
           if (item.time_section_id) {
-            existing.takenCount += 1;
             existing.takenSectionIds.push(item.time_section_id);
           }
           acc[dateKey] = existing;
@@ -449,7 +439,7 @@ export default function ReservationWizard({ onExit }: ReservationWizardProps) {
               label: day.format("D MMM").replace(".", ""),
               amTaken: info.amTaken,
               pmTaken: info.pmTaken,
-              takenSectionIds: info.takenSectionIds,
+              takenSectionIds: info.takenSectionIds ?? [],
               status,
             };
           },

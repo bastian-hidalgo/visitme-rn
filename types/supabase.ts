@@ -5477,6 +5477,19 @@ export type Database = {
         }[]
       }
       get_quotation: { Args: { p_quotation_id: string }; Returns: Json }
+      get_common_space_reservation_availability: {
+        Args: {
+          p_common_space_id: string
+          p_community_id: string
+          p_from_date: string
+          p_to_date: string
+        }
+        Returns: {
+          block: Database["public"]["Enums"]["block_type"] | null
+          date: string
+          time_section_id: string | null
+        }[]
+      }
       get_reservations: {
         Args: {
           block_input?: string
