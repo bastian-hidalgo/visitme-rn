@@ -12,7 +12,7 @@ create or replace function private.get_common_space_reservation_availability(
   p_to_date date
 )
 returns table (
-  date date,
+  date timestamptz,
   block public.block_type,
   time_section_id uuid
 )
@@ -72,7 +72,7 @@ create or replace function public.get_common_space_reservation_availability(
   p_to_date date
 )
 returns table (
-  date date,
+  date timestamptz,
   block public.block_type,
   time_section_id uuid
 )
